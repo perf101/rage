@@ -1,0 +1,12 @@
+NATIVE_ENABLED=true
+USE_OCAMLFIND=true
+OCAMLPACKS=postgresql,str
+OCAMLFLAGS=-thread
+FILES=main flot utils
+
+OCamlProgram($(PROGRAM), $(FILES))
+
+build: $(PROGRAM)
+
+clean:
+	rm -f $(PROGRAM) *.{cmi,cmx,o,omc,opt}

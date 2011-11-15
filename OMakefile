@@ -1,0 +1,37 @@
+SRC=src
+PROGRAM=rage
+SETTINGS="host=localhost user=www-data password=perf dbname=perf"
+RUN_CMD=./$(PROGRAM) $(SETTINGS)
+WWW_DIR=/var/www
+CGI_SCRIPT=index.cgi
+STATIC_FILES=$(glob static/*)
+README=README.markdown
+DISTRO_DIR=distro
+MODE=775
+INSTALL=install -m $(MODE)
+
+.PHONY: readme build distro run install log clean
+.DEFAULT: build
+
+.SUBDIRS: $(SRC)
+
+distro: build $(STATIC_FILES)
+	$(INSTALL) -d $(DISTRO_DIR)
+	$(INSTALL) $(SRC)/$(PROGRAM) $(STATIC_FILES) $(DISTRO_DIR)
+	printf '#!/bin/bash\n\n$(RUN_CMD)' > $(DISTRO_DIR)/$(CGI_SCRIPT)
+	chmod $(MODE) $(DISTRO_DIR)/$(CGI_SCRIPT)
+
+run: distro
+	$(DISTRO_DIR)/$(RUN_CMD)
+
+install: distro
+	cp $(DISTRO_DIR)/* $(WWW_DIR)
+
+clean:
+	rm -rf $(DISTRO_DIR) *.omc
+
+readme:
+	markdown $(README)
+
+log:
+	sudo tail -F /var/log/apache2/error.log

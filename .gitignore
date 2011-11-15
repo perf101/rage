@@ -1,0 +1,10 @@
+*.cmi
+*.cmx
+*.o
+*.omc
+*.opt
+*.swp
+.omakedb
+.omakedb.lock
+distro
+rage
