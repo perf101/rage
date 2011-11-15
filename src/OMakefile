@@ -5,6 +5,7 @@ OCAMLFLAGS=-thread
 FILES=main flot utils
 
 OCamlProgram($(PROGRAM), $(FILES))
+OCamlProgram(compute, helpers compute)
 
 build: $(PROGRAM)
 
