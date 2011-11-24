@@ -1,3 +1,5 @@
+open Core.Std
+
 type setting =
   | X_axis of axis_setting list
   | Y_axis of axis_setting list

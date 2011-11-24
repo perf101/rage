@@ -1,3 +1,4 @@
+open Core.Std
 open Buffer
 open Printf
 open Utils
@@ -20,14 +21,15 @@ type data = datum list
 
 let default_settings : settings = []
 
-let default_labels : labels = Hashtbl.create 0
+let default_labels : labels = Int.Table.create ()
 
 let rec string_of_setting s =
   match s with
     | X_axis ss -> print_axis "xaxis" ss
     | Y_axis ss -> print_axis "yaxis" ss
 and print_axis name ss =
-    let body = String.concat ", " (List.map string_of_axis_setting ss) in
+    let axis_settings = List.map ~f:string_of_axis_setting ss in
+    let body = String.concat ~sep:", " axis_settings in
     sprintf "%s: {%s}" name body
 and string_of_axis_setting a =
   match a with
@@ -36,19 +38,20 @@ and string_of_axis_setting a =
     | TickFormatter f -> sprintf "tickFormatter: %s" f
 
 let string_of_settings ss =
-  let soss = List.map string_of_setting ss in
-  let body = String.concat ",\n" soss in
+  let soss = List.map ~f:string_of_setting ss in
+  let body = String.concat ~sep:",\n" soss in
   sprintf "var options = {\n%s}" (indent 2 body)
 
 let insert_data b (data : (int * int) list) =
   add_string b "  var data = [";
-  List.iter (fun (x, y) -> bprintf b "[%d,%d]," x y) data;
+  List.iter data ~f:(fun (x, y) -> bprintf b "[%d,%d]," x y);
   add_string b "];\n"
 
 let insert_instructions b settings labels =
   let append s = bprintf b "  %s\n" s in
   append "var releases = new Object();";
-  Hashtbl.iter (fun n r -> bprintf b "  releases[%d] = '%s';\n" n r) labels;
+  let map_release ~key:i ~data:n = bprintf b "  releases[%d] = '%s';\n" i n in
+  Int.Table.iter labels ~f:map_release;
   append "var tf = function(val, axis) {";
   append "  var r = releases[val];";
   append "  return (typeof r === 'undefined') ? '' : r;\n  }";
