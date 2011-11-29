@@ -2,18 +2,12 @@ open Core.Std
 
 let indent n text =
    let prefix = String.make n ' ' in
-   let lines = Str.split (Str.regexp "\n") text in
+   let lines = String.split ~on:'\n' text in
    let indented_lines = List.map lines (fun line -> prefix ^ line) in
-   (String.concat ~sep:"\n" indented_lines) ^ "\n"
+   String.concat ~sep:"\n" indented_lines
 
 let cat filename =
-  let chan = open_in filename in
-  try
-    while true; do
-      print_endline (input_line chan)
-    done
-  with End_of_file ->
-    close_in chan
+  print_string (In_channel.with_file ~f:In_channel.input_all filename)
 
 let print_row (tag : string) (row : string list) : unit =
   print_string "   <tr>";
