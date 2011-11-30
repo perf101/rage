@@ -9,14 +9,17 @@ let indent n text =
 let cat filename =
   print_string (In_channel.with_file ~f:In_channel.input_all filename)
 
-let print_row (tag : string) (row : string list) : unit =
+let print_elem_default tag elem i =
+  printf "<%s>%s</%s>" tag elem tag
+
+let print_row_default tag row =
   print_string "   <tr>";
-  List.iter row (fun elem -> printf "<%s>%s</%s>" tag elem tag);
+  List.iteri row (fun i elem -> print_elem_default tag elem i);
   print_endline "</tr>"
 
-let print_table result =
+let print_table ?(print_row = print_row_default) result =
   print_endline "  <table border='1'>";
-  print_row "th" result#get_fnames_lst;
+  print_row_default "th" result#get_fnames_lst;
   List.iter result#get_all_lst (fun row -> print_row "td" row);
   print_endline "  </table>"
 
