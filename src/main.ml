@@ -7,19 +7,41 @@ open Flot
 let path =
   let exe = Sys.argv.(0) in
   String.sub exe ~pos:0 ~len:((String.rindex_exn exe '/') + 1)
+
 let print_header () = cat (path ^ "header.html")
 let print_footer () = cat (path ^ "footer.html")
 
-type place = Default | Som of int
+type place = Default | Som of int * int list
+
+let string_of_int_list is =
+  String.concat ~sep:", " (List.map ~f:string_of_int is)
 
 let string_of_place = function
   | Default -> "Default"
-  | Som id -> "Som: " ^ (string_of_int id)
+  | Som (id, cids) ->
+      (sprintf "Som: %d" id) ^ (if cids = [] then "" else
+       sprintf " (Config IDs: %s)" (string_of_int_list cids))
+
+let pairs_of_request req =
+  let params = String.drop_prefix req 2 in
+  let parts = String.split params ~on:'&' in
+  List.map ~f:(fun p -> String.lsplit2_exn p ~on:'=') parts
+
+let values_for_key pairs key =
+  List.fold pairs ~init:[]
+    ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
 
 let place_of_request req =
-  if String.is_prefix req ~prefix:"/?som="
-  then Som (int_of_string (String.drop_prefix req 6))
-  else Default
+  match String.is_prefix req ~prefix:"/?" with
+  | false -> Default
+  | true ->
+    let pairs = pairs_of_request req in
+    match values_for_key pairs "som" with
+    | [] -> Default
+    | id_s::_ ->
+        let cids_s = values_for_key pairs "config_id" in
+        let cids = List.map ~f:int_of_string cids_s in
+        Som (int_of_string id_s, List.sort ~cmp:compare cids)
 
 let get_request () = Sys.getenv_exn "REQUEST_URI"
 
@@ -35,16 +57,36 @@ let default_handler ~conn =
   let query = "SELECT som_id, name FROM tbl_som_definitions " ^
               "ORDER BY som_id" in
   match exec_query ~conn query with None -> () | Some result ->
-  let print_row tag elems =
+  let print_row row_i tag row =
+    match row_i with -1 -> print_row_header row | _ ->
     print_string "   <tr>";
-    let som_id = List.nth_exn elems 0 in
-    let name = List.nth_exn elems 1 in
-    printf "<td>%s</td>" som_id;
-    printf "<td><a href='?som=%s'>%s</a></td>" som_id name;
+    let som_id = List.nth_exn row 0 in
+    let name = List.nth_exn row 1 in
+    printf "<%s>%s</%s>" tag som_id tag;
+    printf "<%s><a href='?som=%s'>%s</a></%s>" tag som_id name tag;
     print_string "   </tr>" in
-  print_table ~print_row result
+  print_table_custom_row print_row result
 
-let som_handler ~conn som_id =
+let extract_data x_axis_reverse_labels db_result =
+  let dbfn = db_result#fnumber in
+  let config_id_col, build_col, result_col =
+    dbfn "config_id", dbfn "build", dbfn "result" in
+  let series = Int.Table.create () in
+  let update_series point = function
+    | None -> Some [point]
+    | Some data -> Some (point::data)
+  in
+  let extract_entry row =
+    let config_id = int_of_string (List.nth_exn row config_id_col) in
+    let x_label = List.nth_exn row build_col in
+    let x_opt = Hashtbl.find x_axis_reverse_labels x_label in
+    let x = Option.value x_opt ~default:0. in
+    let y = float_of_string (List.nth_exn row result_col) in
+    Int.Table.change series config_id (update_series (x, y))
+  in List.iter db_result#get_all_lst (fun row -> extract_entry row);
+  Int.Table.to_alist series
+
+let som_handler ~conn som_id config_ids =
   let query = "SELECT tc FROM tbl_som_definitions " ^
               "WHERE som_id = " ^ (string_of_int som_id) in
   match exec_query ~conn query with None -> () | Some result ->
@@ -52,8 +94,53 @@ let som_handler ~conn som_id =
   let config_tbl = "tbl_config_tc_" ^ tc in
   let jobs_tbl = "tbl_jobs_tc_" ^ tc in
   printf "TC: %s<br />\n" tc;
-  printf "CONFIG TABLE: %s<br />\n" config_tbl;
-  printf "JOBS TABLE: %s<br />\n" jobs_tbl
+
+  if config_ids <> [] then begin
+    let fields = "config_id, build, result" in
+    let query =
+      (sprintf "SELECT %s FROM tbl_measurements " fields)^
+      (sprintf "WHERE som_id = %d AND job_id IN" som_id) ^
+      (sprintf "(SELECT job_id FROM %s WHERE config_id IN (%s))"
+        jobs_tbl (string_of_int_list config_ids)) ^
+        (sprintf " ORDER BY %s" fields) in
+    match exec_query ~conn query with None -> () | Some result ->
+    let builds = Array.map result#get_all ~f:(fun row -> row.(1)) in
+    let builds_uniq = List.dedup ~compare (Array.to_list builds) in
+    let query =
+      "SELECT name FROM tbl_versions WHERE name IN ('" ^
+      (String.concat ~sep:"', '" builds_uniq) ^ "') ORDER BY seq_no" in
+    match exec_query ~conn query with None -> () | Some v_result ->
+    let builds_ord = List.flatten v_result#get_all_lst in
+    let x_axis_labels = natural_map_from_list builds_ord in
+    let x_axis_reverse_labels = reverse_natural_map x_axis_labels in
+    let settings =
+      [Points [Show true];
+       X_axis [TickFormatter "tf"; TickSize 1.];
+       Y_axis [Min 0.]] in
+    let data = extract_data x_axis_reverse_labels result in
+    print_string (plot ~settings ~labels:x_axis_labels data)
+    (*List.iter builds_ord ~f:(fun b -> printf "%s<br />\n" b);*)
+    (*print_table result*)
+  end;
+
+  let query = "SELECT * FROM " ^ config_tbl in
+  match exec_query ~conn query with None -> () | Some result ->
+  let print_col row_i col_i tag data =
+    begin match row_i, col_i with
+      | -1, 0 ->
+        print_col_default row_i col_i tag "Select";
+      | _, 0 ->
+        let checkbox = sprintf
+          "<input type='checkbox' name='config_id' value='%s' />" data in
+        print_col_default row_i col_i tag checkbox;
+      | _ -> ()
+    end;
+    print_col_default row_i col_i tag data in
+  printf "<form action='/' method='get'>\n";
+  printf "<input type='hidden' name='som' value='%d' />" som_id;
+  print_table_custom_col print_col result;
+  printf "<input type='submit' value='Display' />";
+  printf "</form>"
 
 let handle_request () =
   printf "Content-type: text/html\n\n";
@@ -63,42 +150,11 @@ let handle_request () =
   printf "Place: %s<br />\n" (string_of_place place);
   let conn = new connection ~conninfo:Sys.argv.(1) () in
   begin match place with
-    | Som id -> som_handler ~conn id
+    | Som (id, cids) -> som_handler ~conn id cids
     | Default -> default_handler ~conn
   end;
   conn#finish;
   print_footer ()
 
-let extract_data x_axis_reverse_labels db_result =
-  let extract_entry row =
-    let x_label = List.nth_exn row 0 in
-    let x_opt = Hashtbl.find x_axis_reverse_labels x_label in
-    let x = Option.value x_opt ~default:0 in
-    let y = int_of_string (List.nth_exn row 1) in
-      (x, y)
-  in List.map db_result#get_all_lst (fun row -> extract_entry row)
-
 let _ =
   handle_request ()
-
-(*
-  let query = "SELECT tc_network.build, results.result " ^
-    "FROM tc_network INNER JOIN results ON " ^
-    "tc_network.job_id = results.job_id WHERE tc_network.build LIKE '%-ga' " ^
-    "ORDER BY tc_network.build, results.job_id, results.result_id" in
-  let conn = new connection ~conninfo:Sys.argv.(1) () in
-  begin
-    match exec_query conn query with None -> () | Some result ->
-    cat (path ^ "header.html");
-    printf "  <center><h2>dom0 network throughput</h2></center>\n";
-    let settings =
-      [X_axis [Min 0; Max 5; TickFormatter "tf"]; Y_axis [Min 0]] in
-    let x_axis_labels =
-      natural_map_from_list ["mnr-ga"; "cowley-ga"; "oxford-ga"; "boston-ga"] in
-    let x_axis_reverse_labels = reverse_natural_map x_axis_labels in
-    let data = extract_data x_axis_reverse_labels result in
-    print_string (plot ~settings ~labels:x_axis_labels data);
-    cat (path ^ "footer.html")
-  end;
-  conn#finish
-*)
