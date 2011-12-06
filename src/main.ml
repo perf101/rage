@@ -71,10 +71,10 @@ let extract_data x_axis_reverse_labels db_result =
   let dbfn = db_result#fnumber in
   let config_id_col, build_col, result_col =
     dbfn "config_id", dbfn "build", dbfn "result" in
-  let series = Int.Table.create () in
-  let update_series point = function
-    | None -> Some [point]
-    | Some data -> Some (point::data)
+  let data = Int.Table.create () in
+  let update_points p = function
+    | None -> Some [p]
+    | Some ps -> Some (p::ps)
   in
   let extract_entry row =
     let config_id = int_of_string (List.nth_exn row config_id_col) in
@@ -82,9 +82,10 @@ let extract_data x_axis_reverse_labels db_result =
     let x_opt = Hashtbl.find x_axis_reverse_labels x_label in
     let x = Option.value x_opt ~default:0. in
     let y = float_of_string (List.nth_exn row result_col) in
-    Int.Table.change series config_id (update_series (x, y))
+    Int.Table.change data config_id (update_points (x, y))
   in List.iter db_result#get_all_lst (fun row -> extract_entry row);
-  Int.Table.to_alist series
+  List.mapi (Int.Table.data data)
+    ~f:(fun i s -> {points = s; label = "config_id=" ^ (string_of_int i)})
 
 let som_handler ~conn som_id config_ids =
   let query = "SELECT tc FROM tbl_som_definitions " ^
@@ -115,10 +116,11 @@ let som_handler ~conn som_id config_ids =
     let x_axis_reverse_labels = reverse_natural_map x_axis_labels in
     let settings =
       [Points [Show true];
-       X_axis [TickFormatter "tf"; TickSize 1.];
+       X_axis [TickFormatter x_axis_labels; TickSize 1.];
        Y_axis [Min 0.]] in
     let data = extract_data x_axis_reverse_labels result in
-    print_string (plot ~settings ~labels:x_axis_labels data)
+    let plot = {dom_id = "graph"; data; settings} in
+    print_string (string_of_plot plot)
     (*List.iter builds_ord ~f:(fun b -> printf "%s<br />\n" b);*)
     (*print_table result*)
   end;
