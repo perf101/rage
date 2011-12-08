@@ -3,17 +3,20 @@ open Buffer
 open Printf
 open Utils
 
-type setting =
-  | Points of point_setting list
-  | X_axis of axis_setting list
-  | Y_axis of axis_setting list
-and point_setting =
-  | Show of bool
-and axis_setting =
-  | Min of float
-  | Max of float
-  | TickFormatter of labels
-  | TickSize of float
+type settings = {
+  point_settings : point_settings;
+  xaxis : axis_settings;
+  yaxis : axis_settings;
+}
+and point_settings = {
+  show : bool option;
+}
+and axis_settings = {
+  min : float option;
+  max : float option;
+  tickFormatter : labels option;
+  tickSize : float option;
+}
 and labels = (float, string) Hashtbl.t
 
 type point = float * float
@@ -26,46 +29,59 @@ type series = {
 type plot = {
   dom_id : string;
   data : series list;
-  settings : setting list;
+  settings : settings;
 }
 
-let rec tf_of_setting_to_buffer b = function
-  | X_axis ss -> List.iter ss ~f:(tf_of_axis_to_buffer b "x")
-  | Y_axis ss -> List.iter ss ~f:(tf_of_axis_to_buffer b "y")
-  | _ -> ()
-and tf_of_axis_to_buffer b axis = function
-  | TickFormatter labels ->
-      let axis_labels = axis ^ "_labels" in
-      bprintf b "var %s = new Object();\n" axis_labels;
-      let map_release ~key:i ~data:l =
-        bprintf b "%s[%f] = '%s';\n" axis_labels i l in
-      Float.Table.iter labels ~f:map_release;
-      bprintf b "var %s_tf = function(val, axis) {" axis_labels;
-      bprintf b "var r = %s[val]; " axis_labels;
-      add_string b "return (typeof r === 'undefined') ? '' : r;}"
-  | _ -> ()
+let rec settings_default = {
+  point_settings = point_settings_default;
+  xaxis = axis_default;
+  yaxis = axis_default;
+}
+and point_settings_default = {
+  show = Some true;
+}
+and axis_default = {
+  min = None;
+  max = None;
+  tickFormatter = None;
+  tickSize = None;
+}
 
-let sub_settings_to_buffer b name ~f ss =
-  bprintf b "%s: {" name;
-  List.iter ~f:(fun s -> f s; add_string b ",") ss;
-  add_string b "},"
+let rec tf_of_settings_to_buffer b {xaxis; yaxis} =
+  tf_of_axis_to_buffer b "x" xaxis;
+  tf_of_axis_to_buffer b "y" yaxis
+and tf_of_axis_to_buffer b axis {tickFormatter} =
+  match tickFormatter with None -> () | Some labels ->
+  let axis_labels = axis ^ "_labels" in
+  bprintf b "var %s = new Object();\n" axis_labels;
+  let map_release ~key:i ~data:l =
+    bprintf b "%s[%f] = '%s';\n" axis_labels i l in
+  Float.Table.iter labels ~f:map_release;
+  bprintf b "var %s_tf = function(val, axis) {" axis_labels;
+  bprintf b "var r = %s[val]; " axis_labels;
+  add_string b "return (typeof r === 'undefined') ? '' : r;}"
 
-let rec setting_to_buffer b = function
-  | Points ss -> sub_settings_to_buffer b "points" ~f:(points_to_buffer b) ss
-  | X_axis ss -> sub_settings_to_buffer b "xaxis"  ~f:(axis_to_buffer b "x") ss
-  | Y_axis ss -> sub_settings_to_buffer b "yaxis"  ~f:(axis_to_buffer b "y") ss
-and points_to_buffer b = function
-  | Show s -> bprintf b "show: %b" s
-and axis_to_buffer b axis = function
-  | Min n -> bprintf b "min: %f" n
-  | Max n -> bprintf b "max: %f" n
-  | TickFormatter _ -> bprintf b "tickFormatter: %s_labels_tf" axis
-  | TickSize f -> bprintf b "tickSize: %f" f
+let sub_to_buffer b name ~f s =
+  bprintf b "%s: {" name; f s; add_string b "},"
 
-let settings_to_buffer b ss =
-  add_string b "{\n";
-  List.iter ~f:(setting_to_buffer b) ss;
-  add_string b "}"
+let opt_f b opt f =
+  match opt with None -> () | Some v -> f v; add_string b ","
+
+let rec settings_to_buffer b {point_settings; xaxis; yaxis} =
+  sub_to_buffer b "points" ~f:(point_settings_to_buffer b) point_settings;
+  sub_to_buffer b "xaxis"  ~f:(axis_to_buffer b "x") xaxis;
+  sub_to_buffer b "yaxis"  ~f:(axis_to_buffer b "y") yaxis
+and point_settings_to_buffer b {show} =
+  opt_f b show (fun s -> bprintf b "show: %b" s)
+and axis_to_buffer b axis {min; max; tickFormatter; tickSize} =
+  opt_f b min (fun m -> bprintf b "min: %f" m);
+  opt_f b max (fun m -> bprintf b "max: %f" m);
+  opt_f b tickFormatter
+    (fun _ -> bprintf b "tickFormatter: %s_labels_tf" axis);
+  opt_f b tickSize (fun ts -> bprintf b "tickSize: %f" ts)
+
+let settings_to_buffer b s =
+  add_string b "{\n"; settings_to_buffer b s; add_string b "}"
 
 let series_to_buffer b {label; points} =
   bprintf b "{label:\"%s\",data:[" label;
@@ -78,7 +94,7 @@ let string_of_plot (plot : plot) =
   bprintf b "<div id='%s' style='%s'></div>\n" plot.dom_id style;
   add_string b "<script type='text/javascript'>\n";
   add_string b "$(function () {\n";
-  List.iter plot.settings ~f:(tf_of_setting_to_buffer b);
+  tf_of_settings_to_buffer b plot.settings;
   bprintf b "\n$.plot($('#%s'), [\n" plot.dom_id;
   List.iter plot.data ~f:(series_to_buffer b);
   add_string b "], ";

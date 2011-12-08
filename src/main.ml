@@ -114,10 +114,10 @@ let som_handler ~conn som_id config_ids =
     let builds_ord = List.flatten v_result#get_all_lst in
     let x_axis_labels = natural_map_from_list builds_ord in
     let x_axis_reverse_labels = reverse_natural_map x_axis_labels in
-    let settings =
-      [Points [Show true];
-       X_axis [TickFormatter x_axis_labels; TickSize 1.];
-       Y_axis [Min 0.]] in
+    let settings = {settings_default with
+      xaxis = {axis_default with
+        tickFormatter = Some x_axis_labels; tickSize = Some 1.};
+      yaxis = {axis_default with min = Some 0.}} in
     let data = extract_data x_axis_reverse_labels result in
     let plot = {dom_id = "graph"; data; settings} in
     print_string (string_of_plot plot)
