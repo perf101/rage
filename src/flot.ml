@@ -3,8 +3,6 @@ open Buffer
 open Printf
 open Utils
 
-type labels = (float, string) Hashtbl.t
-
 type setting =
   | Points of point_setting list
   | X_axis of axis_setting list
@@ -16,8 +14,7 @@ and axis_setting =
   | Max of float
   | TickFormatter of labels
   | TickSize of float
-
-type settings = setting list
+and labels = (float, string) Hashtbl.t
 
 type point = float * float
 
@@ -29,67 +26,62 @@ type series = {
 type plot = {
   dom_id : string;
   data : series list;
-  settings : settings;
+  settings : setting list;
 }
 
-let default_settings : settings = []
-
-let default_labels : labels = Float.Table.create ()
-
-let string_of_settings name ~f ss =
-  let strings = List.map ~f ss in
-  let body = String.concat ~sep:", " strings in
-  sprintf "%s: {%s}" name body
-
-let rec tick_formatters_of_setting b = function
-  | X_axis ss -> List.iter ss ~f:(tick_formatters_of_axis b "x")
-  | Y_axis ss -> List.iter ss ~f:(tick_formatters_of_axis b "y")
+let rec tf_of_setting_to_buffer b = function
+  | X_axis ss -> List.iter ss ~f:(tf_of_axis_to_buffer b "x")
+  | Y_axis ss -> List.iter ss ~f:(tf_of_axis_to_buffer b "y")
   | _ -> ()
-and tick_formatters_of_axis b axis = function
+and tf_of_axis_to_buffer b axis = function
   | TickFormatter labels ->
       let axis_labels = axis ^ "_labels" in
       bprintf b "var %s = new Object();\n" axis_labels;
       let map_release ~key:i ~data:l =
-        bprintf b "  %s[%f] = '%s';\n" axis_labels i l in
+        bprintf b "%s[%f] = '%s';\n" axis_labels i l in
       Float.Table.iter labels ~f:map_release;
       bprintf b "var %s_tf = function(val, axis) {" axis_labels;
-      bprintf b "  var r = %s[val];" axis_labels;
-      bprintf b "  return (typeof r === 'undefined') ? '' : r;\n  }"
+      bprintf b "var r = %s[val]; " axis_labels;
+      add_string b "return (typeof r === 'undefined') ? '' : r;}"
   | _ -> ()
 
-let rec string_of_setting = function
-  | Points ss -> string_of_settings "points" ~f:string_of_points     ss
-  | X_axis ss -> string_of_settings "xaxis"  ~f:(string_of_axis "x") ss
-  | Y_axis ss -> string_of_settings "yaxis"  ~f:(string_of_axis "y") ss
-and string_of_points = function
-  | Show b -> sprintf "show: %b" b
-and string_of_axis axis = function
-  | Min n -> sprintf "min: %f" n
-  | Max n -> sprintf "max: %f" n
-  | TickFormatter _ -> sprintf "tickFormatter: %s_labels_tf" axis
-  | TickSize f -> sprintf "tickSize: %f" f
+let sub_settings_to_buffer b name ~f ss =
+  bprintf b "%s: {" name;
+  List.iter ~f:(fun s -> f s; add_string b ",") ss;
+  add_string b "},"
 
-let string_of_settings ss =
-  let soss = List.map ~f:string_of_setting ss in
-  let body = String.concat ~sep:",\n" soss in
-  sprintf "{\n%s}" (indent 2 body)
+let rec setting_to_buffer b = function
+  | Points ss -> sub_settings_to_buffer b "points" ~f:(points_to_buffer b) ss
+  | X_axis ss -> sub_settings_to_buffer b "xaxis"  ~f:(axis_to_buffer b "x") ss
+  | Y_axis ss -> sub_settings_to_buffer b "yaxis"  ~f:(axis_to_buffer b "y") ss
+and points_to_buffer b = function
+  | Show s -> bprintf b "show: %b" s
+and axis_to_buffer b axis = function
+  | Min n -> bprintf b "min: %f" n
+  | Max n -> bprintf b "max: %f" n
+  | TickFormatter _ -> bprintf b "tickFormatter: %s_labels_tf" axis
+  | TickSize f -> bprintf b "tickSize: %f" f
 
-let string_of_series {label; points} =
-  let pss = List.map points ~f:(fun (x, y) -> sprintf "[%f,%f]" x y) in
-  let ps = String.concat ~sep:"," pss in
-  "{label:\"" ^ label ^ "\",data:[" ^ ps ^ "]}"
+let settings_to_buffer b ss =
+  add_string b "{\n";
+  List.iter ~f:(setting_to_buffer b) ss;
+  add_string b "}"
+
+let series_to_buffer b {label; points} =
+  bprintf b "{label:\"%s\",data:[" label;
+  List.iter points ~f:(fun (x, y) -> bprintf b "[%f,%f]," x y);
+  add_string b "]},\n"
 
 let string_of_plot (plot : plot) =
-  let b = Buffer.create 1000 in
+  let b = Buffer.create 2048 in
   let style = "width: 1000px; height: 600px" in
   bprintf b "<div id='%s' style='%s'></div>\n" plot.dom_id style;
   add_string b "<script type='text/javascript'>\n";
-  add_string b " $(function () {\n";
-  List.iter plot.settings ~f:(tick_formatters_of_setting b);
-  let dss = List.map plot.data ~f:string_of_series in
-  let ds = String.concat ~sep:",\n" dss in
-  let ss = string_of_settings plot.settings in
-  bprintf b "\n$.plot($('#%s'), [\n%s\n], %s);" plot.dom_id ds ss;
-  add_string b " });\n";
-  add_string b "</script>\n";
-  indent 2 (contents b)
+  add_string b "$(function () {\n";
+  List.iter plot.settings ~f:(tf_of_setting_to_buffer b);
+  bprintf b "\n$.plot($('#%s'), [\n" plot.dom_id;
+  List.iter plot.data ~f:(series_to_buffer b);
+  add_string b "], ";
+  settings_to_buffer b plot.settings;
+  add_string b ");\n});\n</script>\n";
+  contents b
