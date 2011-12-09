@@ -86,29 +86,32 @@ let extract_data x_axis_reverse_labels db_result =
   in List.iter db_result#get_all_lst (fun row -> extract_entry row);
   List.mapi (Int.Table.data data)
     ~f:(fun i s ->
-      {label = "config_id=" ^ (string_of_int i);
-       points = s;
+      {label = Some ("config_id=" ^ (string_of_int i));
+       points = s; color = Some i;
+       point_settings = point_settings_default;
        line_settings = line_settings_default})
 
-let generate_average {label; points; line_settings} =
+let generate_average series =
   let sums = Float.Table.create () in
   let update v count_sum_opt =
     let count, sum = Option.value count_sum_opt ~default:(0, 0.) in
     Some (count + 1, sum +. v) in
-  List.iter points
+  List.iter series.points
     ~f:(fun (x, y) -> Float.Table.change sums x (update y));
   let avg_map = Float.Table.map sums
     ~f:(fun (c, s) -> s /. (float_of_int c)) in
   let avg_list = Float.Table.to_alist avg_map in
   let avg_list_sorted =
     List.sort avg_list ~cmp:(fun (x1,_) (x2,_) -> compare x1 x2) in
-  {label = label ^ ", average";
+  {series with
+   label = None;
    points = avg_list_sorted;
+   point_settings = {show_points = Some false};
    line_settings = {show_lines = Some true}}
 
 let add_averages data =
   let data_avg = List.map data ~f:generate_average in
-  List.rev_append data data_avg
+  data @ data_avg
 
 let som_handler ~conn som_id config_ids =
   let query = "SELECT tc FROM tbl_som_definitions " ^
@@ -137,7 +140,7 @@ let som_handler ~conn som_id config_ids =
     let builds_ord = List.flatten v_result#get_all_lst in
     let x_axis_labels = natural_map_from_list builds_ord in
     let x_axis_reverse_labels = reverse_natural_map x_axis_labels in
-    let settings = {settings_default with
+    let settings = {
       xaxis = {axis_default with
         tickFormatter = Some x_axis_labels; tickSize = Some 1.};
       yaxis = {axis_default with min = Some 0.}} in
