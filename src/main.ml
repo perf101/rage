@@ -85,7 +85,30 @@ let extract_data x_axis_reverse_labels db_result =
     Int.Table.change data config_id (update_points (x, y))
   in List.iter db_result#get_all_lst (fun row -> extract_entry row);
   List.mapi (Int.Table.data data)
-    ~f:(fun i s -> {points = s; label = "config_id=" ^ (string_of_int i)})
+    ~f:(fun i s ->
+      {label = "config_id=" ^ (string_of_int i);
+       points = s;
+       line_settings = line_settings_default})
+
+let generate_average {label; points; line_settings} =
+  let sums = Float.Table.create () in
+  let update v count_sum_opt =
+    let count, sum = Option.value count_sum_opt ~default:(0, 0.) in
+    Some (count + 1, sum +. v) in
+  List.iter points
+    ~f:(fun (x, y) -> Float.Table.change sums x (update y));
+  let avg_map = Float.Table.map sums
+    ~f:(fun (c, s) -> s /. (float_of_int c)) in
+  let avg_list = Float.Table.to_alist avg_map in
+  let avg_list_sorted =
+    List.sort avg_list ~cmp:(fun (x1,_) (x2,_) -> compare x1 x2) in
+  {label = label ^ ", average";
+   points = avg_list_sorted;
+   line_settings = {show_lines = Some true}}
+
+let add_averages data =
+  let data_avg = List.map data ~f:generate_average in
+  List.rev_append data data_avg
 
 let som_handler ~conn som_id config_ids =
   let query = "SELECT tc FROM tbl_som_definitions " ^
@@ -118,7 +141,8 @@ let som_handler ~conn som_id config_ids =
       xaxis = {axis_default with
         tickFormatter = Some x_axis_labels; tickSize = Some 1.};
       yaxis = {axis_default with min = Some 0.}} in
-    let data = extract_data x_axis_reverse_labels result in
+    let raw_data = extract_data x_axis_reverse_labels result in
+    let data = add_averages raw_data in
     let plot = {dom_id = "graph"; data; settings} in
     print_string (string_of_plot plot)
     (*List.iter builds_ord ~f:(fun b -> printf "%s<br />\n" b);*)

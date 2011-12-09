@@ -9,7 +9,7 @@ type settings = {
   yaxis : axis_settings;
 }
 and point_settings = {
-  show : bool option;
+  show_points : bool option;
 }
 and axis_settings = {
   min : float option;
@@ -24,6 +24,10 @@ type point = float * float
 type series = {
   label : string;
   points : point list;
+  line_settings : line_settings;
+}
+and line_settings = {
+  show_lines : bool option;
 }
 
 type plot = {
@@ -38,13 +42,17 @@ let rec settings_default = {
   yaxis = axis_default;
 }
 and point_settings_default = {
-  show = Some true;
+  show_points = Some true;
 }
 and axis_default = {
   min = None;
   max = None;
   tickFormatter = None;
   tickSize = None;
+}
+
+let line_settings_default = {
+  show_lines = Some false;
 }
 
 let rec tf_of_settings_to_buffer b {xaxis; yaxis} =
@@ -71,8 +79,8 @@ let rec settings_to_buffer b {point_settings; xaxis; yaxis} =
   sub_to_buffer b "points" ~f:(point_settings_to_buffer b) point_settings;
   sub_to_buffer b "xaxis"  ~f:(axis_to_buffer b "x") xaxis;
   sub_to_buffer b "yaxis"  ~f:(axis_to_buffer b "y") yaxis
-and point_settings_to_buffer b {show} =
-  opt_f b show (fun s -> bprintf b "show: %b" s)
+and point_settings_to_buffer b {show_points} =
+  opt_f b show_points (fun s -> bprintf b "show: %b" s)
 and axis_to_buffer b axis {min; max; tickFormatter; tickSize} =
   opt_f b min (fun m -> bprintf b "min: %f" m);
   opt_f b max (fun m -> bprintf b "max: %f" m);
@@ -83,10 +91,17 @@ and axis_to_buffer b axis {min; max; tickFormatter; tickSize} =
 let settings_to_buffer b s =
   add_string b "{\n"; settings_to_buffer b s; add_string b "}"
 
-let series_to_buffer b {label; points} =
+let line_settings_to_buffer b {show_lines} =
+  add_string b "lines: {";
+  bprintf b "show:%b," (Option.value show_lines ~default:false);
+  add_string b "},"
+
+let series_to_buffer b {label; points; line_settings} =
   bprintf b "{label:\"%s\",data:[" label;
   List.iter points ~f:(fun (x, y) -> bprintf b "[%f,%f]," x y);
-  add_string b "]},\n"
+  add_string b "],";
+  line_settings_to_buffer b line_settings;
+  add_string b "},\n"
 
 let string_of_plot (plot : plot) =
   let b = Buffer.create 2048 in
