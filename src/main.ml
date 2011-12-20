@@ -142,7 +142,8 @@ let som_handler ~conn som_id config_ids =
     let x_axis_reverse_labels = reverse_natural_map x_axis_labels in
     let settings = {
       xaxis = {axis_default with
-        tickFormatter = Some x_axis_labels; tickSize = Some 1.};
+        tickFormatter = Some x_axis_labels; tickSize = Some 1.;
+        labelAngle = Some 285;};
       yaxis = {axis_default with min = Some 0.}} in
     let raw_data = extract_data x_axis_reverse_labels result in
     let data = add_averages raw_data in

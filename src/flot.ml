@@ -12,6 +12,7 @@ and axis_settings = {
   max : float option;
   tickFormatter : labels option;
   tickSize : float option;
+  labelAngle : int option;
 }
 and labels = (float, string) Hashtbl.t
 
@@ -46,6 +47,7 @@ and axis_default = {
   max = None;
   tickFormatter = None;
   tickSize = None;
+  labelAngle = None;
 }
 
 let rec series_default = {
@@ -85,12 +87,13 @@ let opt_f b opt f =
 let rec settings_to_buffer b {xaxis; yaxis} =
   sub_to_buffer b "xaxis"  ~f:(axis_to_buffer b "x") xaxis;
   sub_to_buffer b "yaxis"  ~f:(axis_to_buffer b "y") yaxis
-and axis_to_buffer b axis {min; max; tickFormatter; tickSize} =
+and axis_to_buffer b axis {min; max; tickFormatter; tickSize; labelAngle} =
   opt_f b min (fun m -> bprintf b "min: %f" m);
   opt_f b max (fun m -> bprintf b "max: %f" m);
   opt_f b tickFormatter
     (fun _ -> bprintf b "tickFormatter: %s_labels_tf" axis);
-  opt_f b tickSize (fun ts -> bprintf b "tickSize: %f" ts)
+  opt_f b tickSize (fun ts -> bprintf b "tickSize: %f" ts);
+  opt_f b labelAngle (fun la -> bprintf b "labelAngle: %d" la)
 
 let settings_to_buffer b s =
   add_string b "{\n"; settings_to_buffer b s; add_string b "}"
