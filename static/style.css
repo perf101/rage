@@ -1,4 +1,41 @@
-html {font: helvetica 12px}
+html {
+  font-family: helvetica;
+  font-size: 14px;
+}
 div#graph {
-  margin: 0 auto;
+  margin: 20px auto;
+}
+canvas.flot-base {
+  background: white;
+}
+.filter_table {
+  table-layout: fixed;
+}
+.multiselect {
+  width: 100%;
+  text-align: right;
+}
+#tooltip {
+  position: absolute;
+  display: none;
+  border: 1px solid #fdd;
+  padding: 2px;
+  background-color: #fee;
+  opacity: 0.60;
+}
+#tooltip th {
+  text-align: right;
+}
+.som {
+  font-size: 120%;
+}
+.som_name {
+  font-weight: bold;
+}
+#progress_img {
+  display: none;
+  float: left;
+}
+.permalink {
+  margin-left: 10px;
 }

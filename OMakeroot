@@ -1,4 +1,14 @@
 include $(STDLIB)/build/Common
 include $(STDLIB)/build/OCaml
 DefineCommandVars(.)
+
+# Use Camlp4
+UseCamlp4(packs, files) =
+       OCAMLPACKS     += $(packs)
+       OCAMLFINDFLAGS += -syntax camlp4o
+       $(addsuffix .cmx, $(files)):
+       $(addsuffix .o, $(files)):
+       $(addsuffix .cmi, $(files)):
+       $(addsuffix .cmo, $(files)):
+
 .SUBDIRS: .

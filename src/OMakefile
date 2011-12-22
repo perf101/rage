@@ -2,7 +2,9 @@ NATIVE_ENABLED=true
 USE_OCAMLFIND=true
 OCAMLPACKS=core,postgresql,str
 OCAMLFLAGS=-thread -linkpkg
-FILES=main flot utils
+FILES=main utils
+
+UseCamlp4(sexplib.syntax, main)
 
 OCamlProgram($(PROGRAM), $(FILES))
 

@@ -1,10 +1,18 @@
 open Core.Std
 
-let indent n text =
-   let prefix = String.make n ' ' in
-   let lines = String.split ~on:'\n' text in
-   let indented_lines = List.map lines (fun line -> prefix ^ line) in
-   String.concat ~sep:"\n" indented_lines
+let index l x =
+  let rec aux i = function
+    | [] -> failwith "index []"
+    | x'::xs -> if x = x' then i else aux (i+1) xs
+  in aux 0 l
+
+let rec concat ?(sep = ",") l =
+  String.concat ~sep
+    (List.filter l ~f:(fun s -> not (String.is_empty s)))
+
+let rec concat_array ?(sep = ",") a =
+  String.concat_array ~sep
+    (Array.filter a ~f:(fun s -> not (String.is_empty s)))
 
 let cat filename =
   print_string (In_channel.with_file ~f:In_channel.input_all filename)
@@ -30,22 +38,31 @@ let print_table_custom_row print_row result =
     (fun row_i row -> print_row row_i "td" row);
   print_endline "  </table>"
 
-let print_table_custom_col print_col result =
-  print_endline "  <table border='1'>";
-  print_row_custom ~print_col (-1) "th" result#get_fnames_lst;
-  List.iteri result#get_all_lst
-    (fun row_i row -> print_row_custom ~print_col row_i "td" row);
-  print_endline "  </table>"
-
 let print_table result =
   print_table_custom_row print_row_default result
 
-let natural_map_from_list l =
-  let len = float_of_int (List.length l) in
-  let ints = List.frange 1. (len +. 1.) in
-  Float.Table.of_alist_exn (List.combine_exn ints l)
+let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
+  if td then printf "<td>\n";
+  if label <> "" then printf "<b>%s</b>:\n" label;
+  printf "<select";
+  List.iter attrs ~f:(fun (k, v) -> printf " %s='%s'" k v);
+  printf ">\n";
+  let print_option o =
+    printf "<option";
+    if List.mem ~set:selected o then printf " selected='selected'";
+    printf ">%s</option>\n" o
+  in List.iter options ~f:print_option;
+  printf "</select>\n";
+  if td then printf "</td>\n"
 
-let reverse_natural_map m =
-  let m' = String.Table.create ~size:(Float.Table.length m) () in
-  Float.Table.iter m ~f:(fun ~key:k ~data:v -> String.Table.replace m' ~key:v ~data:k);
-  m'
+let get_options_for_field data nRows col ftype =
+  let rec aux acc = function
+    | -1 -> acc
+    | i -> aux (data.(i).(col)::acc) (i-1)
+  in
+  let cmp x y =
+    if ftype = Postgresql.INT4
+    then compare (int_of_string x) (int_of_string y)
+    else compare x y
+  in
+  List.sort ~cmp (List.dedup (aux [] nRows))
