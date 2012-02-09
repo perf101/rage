@@ -15,10 +15,14 @@ module ListKey = struct
   include Hashable.Make (T)
 end
 
+let debug msg = output_string stderr (msg ^ "\n")
+
 type place =
   | Default
   | Som of int * int list
   | AsyncSom of int * (string * string) list
+  | CreateTiny of string
+  | RedirectTiny of int
 
 let string_of_int_list is =
   concat (List.map ~f:string_of_int is)
@@ -31,12 +35,14 @@ let string_of_place = function
   | Default -> "Default"
   | Som (id, cids) -> string_of_som_place "Som" id cids
   | AsyncSom (id, params) -> string_of_som_place "AsyncSom" id []
+  | CreateTiny url -> sprintf "CreateTiny %s" url
+  | RedirectTiny id -> sprintf "RedirectTiny %d" id
 
 let path =
   let exe = Sys.argv.(0) in
   String.sub exe ~pos:0 ~len:((String.rindex_exn exe '/') + 1)
 
-let get_request () = Sys.getenv_exn "REQUEST_URI"
+let get_request () = Sys.getenv_exn "QUERY_STRING"
 
 let print_header () =
   printf "Content-type: text/html\n\n";
@@ -45,29 +51,36 @@ let print_header () =
 let print_footer () = cat (path ^ "footer.html")
 
 let pairs_of_request req =
-  let params = String.drop_prefix req 2 in
-  let parts = String.split params ~on:'&' in
-  List.map ~f:(fun p -> String.lsplit2_exn p ~on:'=') parts
+  let parts = String.split req ~on:'&' in
+  let opt_split part =
+    Option.value ~default:(part, "") (String.lsplit2 part ~on:'=') in
+  List.map ~f:opt_split parts
 
 let values_for_key pairs key =
   List.fold pairs ~init:[]
     ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
 
 let place_of_request req =
-  match String.is_prefix req ~prefix:"/?" with
-  | false -> Default
-  | true ->
-    let pairs = pairs_of_request req in
-    match values_for_key pairs "som" with
-    | [] -> Default
-    | id_s::_ ->
-        let id = int_of_string id_s in
-        let cids_s = values_for_key pairs "config_id" in
-        let cids = List.map ~f:int_of_string cids_s in
-        let cids_sorted = List.sort ~cmp:compare cids in
-        match values_for_key pairs "async" with
-        | ["true"] -> AsyncSom (id, pairs)
-        | _ -> Som (id, cids_sorted)
+  let open List.Assoc in
+  let pairs = pairs_of_request req in
+  match find pairs "som" with
+  | None ->
+    begin match find pairs "t" with
+    | Some id -> RedirectTiny (int_of_string id)
+    | None ->
+      begin match find pairs "action" with
+      | Some "CreateTiny" -> CreateTiny (find_exn pairs "url")
+      | _ -> Default
+      end
+    end
+  | Some id_s ->
+      let id = int_of_string id_s in
+      let cids_s = values_for_key pairs "config_id" in
+      let cids = List.map ~f:int_of_string cids_s in
+      let cids_sorted = List.sort ~cmp:compare cids in
+      match find pairs "async" with
+      | Some "true" -> AsyncSom (id, pairs)
+      | _ -> Som (id, cids_sorted)
 
 let get_place () = place_of_request (get_request ())
 
@@ -131,7 +144,6 @@ let print_y_axis_choice configs =
     ("result" :: (get_xy_choices configs))
 
 let print_filter_table configs builds =
-  let data = configs#get_all in
   let nRows = configs#ntuples - 1 in
   let nCols = configs#nfields in
   let labels = "build" :: configs#get_fnames_lst in
@@ -146,9 +158,9 @@ let print_filter_table configs builds =
   done;
   printf "</tr><tr>\n";
   let build_lst = get_options_for_field
-    builds#get_all (builds#ntuples-1) 0 (builds#ftype 0) in
+    builds (builds#ntuples-1) 0 (builds#ftype 0) in
   let options_lst = List.map (List.range 0 nCols) ~f:(fun col ->
-    get_options_for_field data nRows col (configs#ftype col)) in
+    get_options_for_field configs nRows col (configs#ftype col)) in
   let options_lst = build_lst :: options_lst in
   let print_td_multiselect col options =
     let name = "values_" ^ (List.nth_exn labels col) in
@@ -175,10 +187,11 @@ let show_configurations ~conn som_id config_tbl jobs_tbl =
   print_filter_table configs builds;
   printf "</form>\n";
   printf "<input type='submit' id='reset_config' value='Reset Configuration' />";
-  printf "<a class='permalink'>[permalink to current configuration]</a>";
+  printf "<input type='submit' id='get_img' value='Get Image' />";
+  printf "<input type='submit' id='get_tinyurl' value='Get Tiny URL' />";
+  printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
   printf "<br /><img id='progress_img' src='progress.gif' />\n";
   printf "<div id='graph' style='width: 1000px; height: 600px'></div>";
-  printf "<input type='submit' id='get_img' value='Get Image' />";
   printf "<script src='rage.js'></script>"
 
 let som_handler ~place ~conn som_id config_ids =
@@ -207,14 +220,22 @@ let extract_filter config_tbl col_types params =
   let l = String.Table.to_alist m in
   let conds = List.map l
     ~f:(fun (k, vs) ->
+      let has_null = List.mem ~set:vs "(NULL)" in
+      let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
       let ty_opt = String.Table.find col_types k in
       let quote = match ty_opt with
-        None -> false | Some ty -> ty = "character varying" in
+      | None -> false
+      | Some ty -> List.mem ~set:["character varying"; "boolean"; "text"] ty in
       let vs_oq =
         if quote then List.map vs ~f:(fun v -> "'" ^ v ^ "'") else vs in
       let fqn = get_fqn_for_field config_tbl k in
       let val_list = concat vs_oq in
-      sprintf "%s IN (%s)" fqn val_list) in
+      let in_cond = sprintf "%s IN (%s)" fqn val_list in
+      let null_cond = if has_null then sprintf "%s IS NULL" fqn else "" in
+      if List.is_empty vs then null_cond else
+      if has_null then sprintf "(%s OR %s)" in_cond null_cond else
+      in_cond
+    ) in
   concat ~sep:" AND " conds
 
 let get_column_types ~conn tbl =
@@ -281,7 +302,7 @@ let asyncsom_handler ~conn som_id params =
     (sprintf "FROM %s INNER JOIN tbl_measurements " config_tbl) ^
     (sprintf "ON %s.config_id=tbl_measurements.config_id " config_tbl) ^
     (sprintf "WHERE tbl_measurements.som_id=%d" som_id) ^
-    (if not (String.is_empty filter) then sprintf "AND %s" filter else "") in
+    (if not (String.is_empty filter) then sprintf " AND %s" filter else "") in
   match exec_query ~conn query with None -> () | Some data ->
   let rows = data#get_all in
   (* filter data into groups based on "FILTER BY"-s *)
@@ -327,12 +348,45 @@ let asyncsom_handler ~conn som_id params =
   print_string (concat json_list);
   printf "]}"
 
+let createtiny_handler ~conn url =
+  printf "Content-type: application/json\n\n";
+  let select = sprintf "SELECT key FROM tbl_tinyurls WHERE url='%s'" url in
+  match exec_query ~conn select with None -> () | Some r ->
+  match r#ntuples with
+  | 1 -> printf "{\"id\":%s}" (r#getvalue 0 0)
+  | _ ->
+    let insert = sprintf "INSERT INTO tbl_tinyurls (url) VALUES ('%s')" url in
+    match exec_query ~conn insert with None -> () | Some _ ->
+    match exec_query ~conn select with None -> () | Some r ->
+    printf "{\"id\":%s}" (r#getvalue 0 0)
+
+let print_404 () =
+  printf "Status: 404 Not Found\n";
+  printf "Content-Type: text/html\n\n";
+  printf "<h1>404 --- this is not the page you are looking for ...</h1>"
+
+let javascript_redirect url =
+  printf "Content-type: text/html\n\n";
+  printf "<html><head>\n";
+  printf "<script language='javascript' type='text/javascript'>\n";
+  printf "window.location = decodeURIComponent('%s');\n" url;
+  printf "</script>\n</head></html>\n"
+
+let redirecttiny_handler ~conn id =
+  let q = sprintf "SELECT url FROM tbl_tinyurls WHERE key=%d" id in
+  match exec_query ~conn q with | None -> () | Some r ->
+  match r#ntuples with
+  | 1 -> javascript_redirect (r#getvalue 0 0)
+  | _ -> print_404 ()
+
 let handle_request () =
   let place = get_place () in
   let conn = new connection ~conninfo:Sys.argv.(1) () in
   begin match place with
     | Som (id, cids) -> som_handler ~place ~conn id cids
     | AsyncSom (id, params) -> asyncsom_handler ~conn id params
+    | CreateTiny url -> createtiny_handler ~conn url
+    | RedirectTiny id -> redirecttiny_handler ~conn id
     | Default -> default_handler ~place ~conn
   end;
   conn#finish

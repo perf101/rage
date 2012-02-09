@@ -55,14 +55,20 @@ let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   printf "</select>\n";
   if td then printf "</td>\n"
 
-let get_options_for_field data nRows col ftype =
+let get_options_for_field db_result nRows col ftype =
+  let data = db_result#get_all in
   let rec aux acc = function
     | -1 -> acc
-    | i -> aux (data.(i).(col)::acc) (i-1)
+    | i ->
+      let elem =
+        if db_result#getisnull i col then "(NULL)" else data.(i).(col)
+      in aux (elem::acc) (i-1)
   in
   let cmp x y =
-    if ftype = Postgresql.INT4
-    then compare (int_of_string x) (int_of_string y)
-    else compare x y
+    try
+      if ftype = Postgresql.INT4
+      then compare (int_of_string x) (int_of_string y)
+      else compare x y
+    with _ -> output_string stderr (x ^ ", " ^ y ^ "\n"); 0
   in
   List.sort ~cmp (List.dedup (aux [] nRows))

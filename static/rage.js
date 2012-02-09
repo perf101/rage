@@ -1,7 +1,7 @@
 // ======== MAIN --- begin ===========
 preselectFieldsBasedOnParams();
 // reset configuration button
-$("#reset_config").click(function() {window.location.href = getBaseUrl();});
+$("#reset_config").click(function() {window.location.href = get_som_url();});
 // automatic refresh on change
 $("select[name='xaxis']").change(refresh);
 $("select[name='yaxis']").change(refresh);
@@ -12,10 +12,13 @@ $("#yaxis_log").change(refresh);
 refresh();
 // extract image button
 $('#get_img').click(get_image);
+// tiny url
+$("#get_tinyurl").click(get_tinyurl);
 // ========= MAIN --- end ============
 
 function preselectFieldsBasedOnParams() {
   var params = getUrlParams();
+  console.log(params);
   delete params.som;
   for (var param in params)
     $("[name='" + param + "']").val(params[param]);
@@ -27,7 +30,8 @@ function getUrlParams() {
   var pairs = href.slice(href.indexOf('?') + 1).split('&');
   for(var i in pairs) {
     var pair = pairs[i].split('=');
-    result[pair[0]] = pair[1].replace("+", " ");
+    if (!result[pair[0]]) result[pair[0]] = [];
+    result[pair[0]].push(pair[1].replace("+", " "));
   }
   return result;
 }
@@ -48,20 +52,42 @@ function get_image() {
   context.globalCompositeOperation = compositeOperation;
 }
 
-function getBaseUrl() {
+function get_tinyurl() {
+  $.ajax({
+    url: get_base_url(),
+    data: {action: "CreateTiny", url: get_permalink()},
+    method: 'POST',
+    dataType: 'json',
+    success: function(data) {
+      console.log(data);
+      var tiny_url = get_base_url() + "/?t=" + data.id;
+      $("#tinyurl").attr("href", tiny_url);
+      $("#tinyurl").html(tiny_url);
+      $("#tinyurl").toggle(true);
+    },
+    error: onAsyncFail,
+  });
+}
+
+function get_base_url() {
   var href = window.location.href;
-  var origin = href.substring(0, href.lastIndexOf('/'));
-  return origin + "/?som=" + getUrlParams().som;
+  return href.substring(0, href.lastIndexOf('/'));
+}
+
+function get_som_url() {
+  return get_base_url() + "/?som=" + getUrlParams().som;
+}
+
+function get_permalink() {
+  var form_data = $('form[name=optionsForm]').serialize();
+  return get_som_url() + "&" + form_data;
 }
 
 // query server with current form settings and replot
 function refresh() {
+  $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
-  var formData = $('form[name=optionsForm]').serialize();
-  var baseUrl = getBaseUrl();
-  var permalink = baseUrl + "&" + formData;
-  $(".permalink").attr("href", permalink);
-  var request = permalink + "&async=true&prototype=true";
+  var request = get_permalink() + "&async=true&prototype=true";
   console.log(request);
   $.ajax({
     url: request,
