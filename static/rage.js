@@ -20,7 +20,7 @@ $("input[name='yaxis_log']").change(fetch_data_and_replot);
 // draw immediately
 fetch_data_and_replot();
 // extract image button
-$('#get_img').click(get_image);
+load_get_image_if_not_ie();
 // tiny url
 $("#get_tinyurl").click(get_tinyurl);
 // ========= MAIN --- end ============
@@ -37,6 +37,14 @@ function get_url_params() {
   var href = window.location.href;
   var s = href.slice(href.indexOf('?') + 1);
   return extract_params(s);
+}
+
+function load_get_image_if_not_ie() {
+  if ($.browser == "msie") return;
+  $.getScript("canvas2image.js", function() {
+    $('#get_img').click(get_image);
+    $('#get_img').toggle(true);
+  });
 }
 
 function extract_params(s) {
@@ -79,7 +87,7 @@ function get_tinyurl() {
       $("#tinyurl").html(tiny_url);
       $("#tinyurl").toggle(true);
     },
-    error: onAsyncFail,
+    error: onAsyncFail
   });
 }
 
@@ -132,7 +140,7 @@ function fetch_data_and_replot() {
     method: 'GET',
     dataType: 'json',
     success: onReceived,
-    error: onAsyncFail,
+    error: onAsyncFail
   });
 }
 
@@ -196,9 +204,9 @@ function create_log_ticks(axis) {
   return result;
 }
 
-function showTooltip(x, y, contents) {
+function show_tooltip(x, y, contents) {
   $('<div id="tooltip">' + contents + '</div>').css({
-    'top': y + 5, 'left': x + 5,
+    'top': y + 5, 'left': x + 5
   }).appendTo("body").fadeIn(200);
 }
 
@@ -234,10 +242,10 @@ function onReceived(o) {
     yaxis: {},
     grid: {
       hoverable: true,
-      canvasText: {show: true},
+      canvasText: {show: true}
     },
     legend: {type: "canvas", backgroundColor: "white"},
-    points: {show: true},
+    points: {show: true}
   };
   // labels
   var has_x_labels = has_labels(o, "x");
@@ -283,7 +291,7 @@ function onReceived(o) {
           body += "<tr><th>" + p + ":</th><td>" + props[p] + "</td></tr>";
       }
       body += "</table>";
-      showTooltip(item.pageX + 10, item.pageY, body);
+      show_tooltip(item.pageX + 10, item.pageY, body);
     }
   });
   $("#progress_img").toggle(false);

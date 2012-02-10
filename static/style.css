@@ -36,3 +36,6 @@ canvas.flot-base {
   display: none;
   float: left;
 }
+#get_img {
+  display: none;
+}
