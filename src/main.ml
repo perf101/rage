@@ -135,13 +135,18 @@ let get_xy_choices configs =
   "build" :: configs#get_fnames_lst
 
 let print_x_axis_choice configs =
-  print_select
+  print_select_list
     ~label:"X axis" ~attrs:[("name", "xaxis")] (get_xy_choices configs)
 
 let print_y_axis_choice configs =
-  print_select
+  print_select_list
     ~label:"Y axis" ~attrs:[("name", "yaxis")]
     ("result" :: (get_xy_choices configs))
+
+let filter_prefix = "f_"
+let values_prefix = "v_"
+let show_for_value = "0"
+let filter_by_value = "1"
 
 let print_filter_table configs builds =
   let nRows = configs#ntuples - 1 in
@@ -151,10 +156,10 @@ let print_filter_table configs builds =
   print_row_default (-1) "th" labels;
   printf "<tr>\n";
   for col = 0 to nCols do
-    let name = "filter_" ^ (List.nth_exn labels col) in
+    let name = filter_prefix ^ (List.nth_exn labels col) in
     print_select ~td:true
       ~attrs:[("name", name); ("class", "filterselect")]
-      ["SHOW FOR"; "SPLIT BY"]
+      [("SHOW FOR", show_for_value); ("SPLIT BY", filter_by_value)]
   done;
   printf "</tr><tr>\n";
   let build_lst = get_options_for_field
@@ -163,8 +168,8 @@ let print_filter_table configs builds =
     get_options_for_field configs nRows col (configs#ftype col)) in
   let options_lst = build_lst :: options_lst in
   let print_td_multiselect col options =
-    let name = "values_" ^ (List.nth_exn labels col) in
-    print_select ~td:true ~selected:["ALL"]
+    let name = values_prefix ^ (List.nth_exn labels col) in
+    print_select_list ~td:true ~selected:["ALL"]
       ~attrs:[("name", name); ("multiple", "multiple");
               ("size", "3"); ("class", "multiselect")]
       ("ALL"::options) in
@@ -183,7 +188,7 @@ let show_configurations ~conn som_id config_tbl jobs_tbl =
   printf "<form name='optionsForm'>\n";
   print_x_axis_choice configs;
   print_y_axis_choice configs;
-  printf "<input type='checkbox' id='yaxis_log' />Log scale Y<br />\n";
+  printf "<input type='checkbox' name='yaxis_log' />Log scale Y<br />\n";
   print_filter_table configs builds;
   printf "</form>\n";
   printf "<input type='submit' id='reset_config' value='Reset Configuration' />";
@@ -212,8 +217,8 @@ let extract_filter config_tbl col_types params =
     let vs = Option.value vs_opt ~default:[] in Some (v::vs) in
   let filter_insert (k, v) =
     if v = "ALL" then () else
-    if String.is_prefix k ~prefix:"values_" then begin
-      let k2 = String.chop_prefix_exn k ~prefix:"values_" in
+    if String.is_prefix k ~prefix:values_prefix then begin
+      let k2 = String.chop_prefix_exn k ~prefix:values_prefix in
       String.Table.change m k2 (update_m v)
     end in
   List.iter params filter_insert;
@@ -285,8 +290,10 @@ let asyncsom_handler ~conn som_id params =
   (* determine filter columns and their types *)
   match get_column_types ~conn config_tbl with None -> () | Some col_types ->
   String.Table.replace col_types ~key:"build" ~data:"character varying";
-  let xaxis = List.hd_exn (values_for_key params "xaxis") in
-  let yaxis = List.hd_exn (values_for_key params "yaxis") in
+  let get_first_val k d =
+    Option.value ~default:d (List.hd (values_for_key params k)) in
+  let xaxis = get_first_val "xaxis" "build" in
+  let yaxis = get_first_val "yaxis" "result" in
   let x_fqn = get_fqn_for_field config_tbl xaxis in
   let y_fqn = get_fqn_for_field config_tbl yaxis in
   let keys = String.Table.keys col_types in
@@ -307,7 +314,8 @@ let asyncsom_handler ~conn som_id params =
   let rows = data#get_all in
   (* filter data into groups based on "FILTER BY"-s *)
   let filter_map_split_bys (k, v) =
-    if v = "SPLIT+BY" then String.chop_prefix k ~prefix:"filter_" else None in
+    if String.is_prefix k filter_prefix && v = filter_by_value
+    then String.chop_prefix k ~prefix:filter_prefix else None in
   let split_bys = List.filter_map params ~f:filter_map_split_bys in
   let split_by_is = List.map split_bys ~f:(index ordered_keys) in
   let all_series = ListKey.Table.create () in

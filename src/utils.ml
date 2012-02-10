@@ -47,13 +47,16 @@ let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   printf "<select";
   List.iter attrs ~f:(fun (k, v) -> printf " %s='%s'" k v);
   printf ">\n";
-  let print_option o =
-    printf "<option";
-    if List.mem ~set:selected o then printf " selected='selected'";
-    printf ">%s</option>\n" o
+  let print_option (l, v) =
+    printf "<option value='%s'" v;
+    if List.mem ~set:selected l then printf " selected='selected'";
+    printf ">%s</option>\n" l
   in List.iter options ~f:print_option;
   printf "</select>\n";
   if td then printf "</td>\n"
+
+let print_select_list ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) l =
+  print_select ~td ~label ~selected ~attrs (List.map l ~f:(fun x -> (x, x)))
 
 let get_options_for_field db_result nRows col ftype =
   let data = db_result#get_all in

@@ -1,33 +1,47 @@
+/*
+Invariants (also reflected on server side):
+- Default value for field "xaxis" is "build".
+- Default value for field "yaxis" is "result".
+- Log scale for Y axis ("yaxis_log") is not selected by default.
+- "SHOW FOR" is the first (default) option for filters ("f_").
+- "ALL" is the first (default) option for filter values ("v_").
+*/
+
 // ======== MAIN --- begin ===========
-preselectFieldsBasedOnParams();
+preselect_fields_based_on_params();
 // reset configuration button
 $("#reset_config").click(function() {window.location.href = get_som_url();});
 // automatic refresh on change
-$("select[name='xaxis']").change(refresh);
-$("select[name='yaxis']").change(refresh);
-$(".filterselect").change(refresh);
-$(".multiselect").change(refresh);
-$("#yaxis_log").change(refresh);
+$("select[name='xaxis']").change(fetch_data_and_replot);
+$("select[name='yaxis']").change(fetch_data_and_replot);
+$(".filterselect").change(fetch_data_and_replot);
+$(".multiselect").change(fetch_data_and_replot);
+$("input[name='yaxis_log']").change(fetch_data_and_replot);
 // draw immediately
-refresh();
+fetch_data_and_replot();
 // extract image button
 $('#get_img').click(get_image);
 // tiny url
 $("#get_tinyurl").click(get_tinyurl);
 // ========= MAIN --- end ============
 
-function preselectFieldsBasedOnParams() {
-  var params = getUrlParams();
+function preselect_fields_based_on_params() {
+  var params = get_url_params();
   console.log(params);
   delete params.som;
   for (var param in params)
     $("[name='" + param + "']").val(params[param]);
 }
 
-function getUrlParams() {
-  var result = {};
+function get_url_params() {
   var href = window.location.href;
-  var pairs = href.slice(href.indexOf('?') + 1).split('&');
+  var s = href.slice(href.indexOf('?') + 1);
+  return extract_params(s);
+}
+
+function extract_params(s) {
+  var result = {};
+  var pairs = s.split('&');
   for(var i in pairs) {
     var pair = pairs[i].split('=');
     if (!result[pair[0]]) result[pair[0]] = [];
@@ -75,19 +89,43 @@ function get_base_url() {
 }
 
 function get_som_url() {
-  return get_base_url() + "/?som=" + getUrlParams().som;
+  return get_base_url() + "/?som=" + get_url_params().som;
+}
+
+function serialise_params(params) {
+  var keyvals = [];
+  for (var p in params) {
+    var v = params[p];
+    for (var i in v)
+      keyvals.push(p + "=" + v[i]);
+  }
+  return keyvals.join("&");
 }
 
 function get_permalink() {
   var form_data = $('form[name=optionsForm]').serialize();
-  return get_som_url() + "&" + form_data;
+  var params = extract_params(form_data);
+  var minimised = {};
+  for (var p in params) {
+    var v = params[p];
+    var l = v.length;
+    var f = v[0];
+    var is_xaxis_build = p == "xaxis" && f == "build";
+    var is_yaxis_result = p == "yaxis" && f == "result";
+    var is_show_for = p.indexOf("f_") == 0 && f == "0";
+    var is_all_only = p.indexOf("v_") == 0 && l == 1 && f == "ALL";
+    if (!(is_xaxis_build || is_yaxis_result || is_show_for || is_all_only))
+      minimised[p] = params[p];
+  }
+  var serialised = serialise_params(minimised);
+  if (serialised != "") serialised = "&" + serialised;
+  return get_som_url() + serialised;
 }
 
-// query server with current form settings and replot
-function refresh() {
+function fetch_data_and_replot() {
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
-  var request = get_permalink() + "&async=true&prototype=true";
+  var request = get_permalink() + "&async=true";
   console.log(request);
   $.ajax({
     url: request,
@@ -207,7 +245,7 @@ function onReceived(o) {
   if (has_x_labels) configure_labels(o, "x", options);
   if (has_y_labels) configure_labels(o, "y", options);
   // log scale
-  if ($("#yaxis_log").is(":checked")) {
+  if ($("input[name='yaxis_log']").is(":checked")) {
     options.yaxis.transform = safe_log;
     options.yaxis.inverseTransform = Math.exp;
     options.yaxis.ticks = create_log_ticks;
