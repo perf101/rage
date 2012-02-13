@@ -3,6 +3,7 @@ html {
   font-size: 14px;
 }
 div#graph {
+  clear: left;
   margin: 20px auto;
 }
 canvas.flot-base {
@@ -10,6 +11,7 @@ canvas.flot-base {
 }
 .filter_table {
   table-layout: fixed;
+  float: left;
 }
 .multiselect {
   width: 100%;
@@ -32,10 +34,12 @@ canvas.flot-base {
 .som_name {
   font-weight: bold;
 }
-#progress_img {
-  display: none;
+#reset_config, #get_img, #get_tinyurl, #progress_img {
   float: left;
 }
-#get_img {
+#reset_config {
+  clear: left;
+}
+#get_img, #progress_img {
   display: none;
 }

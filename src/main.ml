@@ -152,16 +152,6 @@ let print_filter_table configs builds =
   let nRows = configs#ntuples - 1 in
   let nCols = configs#nfields in
   let labels = "build" :: configs#get_fnames_lst in
-  print_endline "  <table border='1' class='filter_table'>\n";
-  print_row_default (-1) "th" labels;
-  printf "<tr>\n";
-  for col = 0 to nCols do
-    let name = filter_prefix ^ (List.nth_exn labels col) in
-    print_select ~td:true
-      ~attrs:[("name", name); ("class", "filterselect")]
-      [("SHOW FOR", show_for_value); ("SPLIT BY", filter_by_value)]
-  done;
-  printf "</tr><tr>\n";
   let build_lst = get_options_for_field
     builds (builds#ntuples-1) 0 (builds#ftype 0) in
   let options_lst = List.map (List.range 0 nCols) ~f:(fun col ->
@@ -173,8 +163,18 @@ let print_filter_table configs builds =
       ~attrs:[("name", name); ("multiple", "multiple");
               ("size", "3"); ("class", "multiselect")]
       ("ALL"::options) in
-  List.iteri options_lst ~f:print_td_multiselect;
-  printf "</tr></table>\n"
+  for col = 0 to nCols do
+    printf "<table border='1' class='filter_table'>\n";
+    printf "<tr><th>%s</th></tr>\n" (List.nth_exn labels col);
+    printf "<tr>\n";
+    let name = filter_prefix ^ (List.nth_exn labels col) in
+    print_select ~td:true
+      ~attrs:[("name", name); ("class", "filterselect")]
+      [("SHOW FOR", show_for_value); ("SPLIT BY", filter_by_value)];
+    printf "</tr><tr>\n";
+    print_td_multiselect col (List.nth_exn options_lst col);
+    printf "</tr></table>\n"
+  done
 
 let show_configurations ~conn som_id config_tbl jobs_tbl =
   let query =
