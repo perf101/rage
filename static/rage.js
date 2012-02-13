@@ -14,9 +14,10 @@ $("#reset_config").click(function() {window.location.href = get_som_url();});
 // automatic refresh on change
 $("select[name='xaxis']").change(fetch_data_and_replot);
 $("select[name='yaxis']").change(fetch_data_and_replot);
+$("input[name='show_avgs']").change(fetch_data_and_replot);
+$("input[name='yaxis_log']").change(fetch_data_and_replot);
 $(".filterselect").change(fetch_data_and_replot);
 $(".multiselect").change(fetch_data_and_replot);
-$("input[name='yaxis_log']").change(fetch_data_and_replot);
 // draw immediately
 fetch_data_and_replot();
 // extract image button
@@ -218,13 +219,15 @@ function onReceived(o) {
   var graph = $("#graph");
   // default options
   series = o.series;
-  // averages
   var num_series = series.length;
-  var i = 0;
-  for (i = 0; i < num_series; i++) {
-    var avgs = get_averages_for(series[i].data);
-    series.push({color: series[i].color, data: avgs,
-                 points: {show: false}, lines: {show: true}});
+  // averages
+  if ($("input[name='show_avgs']").is(":checked")) {
+    var i = 0;
+    for (i = 0; i < num_series; i++) {
+      var avgs = get_averages_for(series[i].data);
+      series.push({color: series[i].color, data: avgs,
+                   points: {show: false}, lines: {show: true}});
+    }
   }
   // options
   var tickGenerator = function(axis) {

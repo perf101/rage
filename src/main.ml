@@ -188,7 +188,9 @@ let show_configurations ~conn som_id config_tbl jobs_tbl =
   printf "<form name='optionsForm'>\n";
   print_x_axis_choice configs;
   print_y_axis_choice configs;
-  printf "<input type='checkbox' name='yaxis_log' />Log scale Y<br />\n";
+  let checkbox_prefix = "<input type='checkbox' name=" in
+  printf "%s'show_avgs' checked='checked' />Show averages\n" checkbox_prefix;
+  printf "%s'yaxis_log' />Log scale Y<br />\n" checkbox_prefix;
   print_filter_table configs builds;
   printf "</form>\n";
   printf "<input type='submit' id='reset_config' value='Reset Configuration' />";
@@ -304,8 +306,8 @@ let asyncsom_handler ~conn som_id params =
   let filter = extract_filter config_tbl col_types params in
   (* obtain data from database *)
   let query =
-    (sprintf "SELECT %s,%s " x_fqn y_fqn) ^
-    (if not (String.is_empty fqns) then sprintf ",%s " fqns else "") ^
+    (sprintf "SELECT %s,%s" x_fqn y_fqn) ^
+    (if not (String.is_empty fqns) then sprintf ",%s " fqns else " ") ^
     (sprintf "FROM %s INNER JOIN tbl_measurements " config_tbl) ^
     (sprintf "ON %s.config_id=tbl_measurements.config_id " config_tbl) ^
     (sprintf "WHERE tbl_measurements.som_id=%d" som_id) ^
