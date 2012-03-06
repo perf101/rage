@@ -148,15 +148,17 @@ let values_prefix = "v_"
 let show_for_value = "0"
 let filter_by_value = "1"
 
-let print_filter_table configs builds =
+let print_filter_table configs job_ids builds =
   let nRows = configs#ntuples - 1 in
   let nCols = configs#nfields in
-  let labels = "build" :: configs#get_fnames_lst in
+  let labels = "job_id" :: "build" :: configs#get_fnames_lst in
+  let job_id_lst = get_options_for_field
+    job_ids (job_ids#ntuples-1) 0 (job_ids#ftype 0) in
   let build_lst = get_options_for_field
     builds (builds#ntuples-1) 0 (builds#ftype 0) in
   let options_lst = List.map (List.range 0 nCols) ~f:(fun col ->
     get_options_for_field configs nRows col (configs#ftype col)) in
-  let options_lst = build_lst :: options_lst in
+  let options_lst = job_id_lst :: build_lst :: options_lst in
   let print_td_multiselect col options =
     let name = values_prefix ^ (List.nth_exn labels col) in
     print_select_list ~td:true ~selected:["ALL"]
@@ -182,6 +184,8 @@ let show_configurations ~conn som_id config_tbl jobs_tbl =
   match exec_query ~conn query with None -> () | Some som_info ->
   let query = "SELECT * FROM " ^ config_tbl in
   match exec_query ~conn query with None -> () | Some configs ->
+  let query = "SELECT job_id FROM " ^ jobs_tbl in
+  match exec_query ~conn query with None -> () | Some job_ids ->
   let query = "SELECT DISTINCT build FROM " ^ jobs_tbl ^ " ORDER BY build" in
   match exec_query ~conn query with None -> () | Some builds ->
   print_som_info som_info;
@@ -191,7 +195,7 @@ let show_configurations ~conn som_id config_tbl jobs_tbl =
   let checkbox_prefix = "<input type='checkbox' name=" in
   printf "%s'show_avgs' checked='checked' />Show averages\n" checkbox_prefix;
   printf "%s'yaxis_log' />Log scale Y<br />\n" checkbox_prefix;
-  print_filter_table configs builds;
+  print_filter_table configs job_ids builds;
   printf "</form>\n";
   printf "<input type='submit' id='reset_config' value='Reset Configuration' />";
   printf "<input type='submit' id='get_img' value='Get Image' />";
@@ -210,7 +214,7 @@ let som_handler ~place ~conn som_id config_ids =
 
 let get_fqn_for_field config_tbl field =
   match field with
-  | "build" | "result" -> "tbl_measurements." ^ field
+  | "job_id" | "build" | "result" -> "tbl_measurements." ^ field
   | _ -> config_tbl ^ "." ^ field
 
 let extract_filter config_tbl col_types params =
@@ -300,6 +304,7 @@ let asyncsom_handler ~conn som_id params =
   let y_fqn = get_fqn_for_field config_tbl yaxis in
   let keys = String.Table.keys col_types in
   let other_keys = List.filter keys ~f:(fun x -> x <> xaxis && x <> yaxis) in
+  let other_keys = "job_id" :: other_keys in
   let ordered_keys = xaxis :: yaxis :: other_keys in
   let other_fqns = List.map other_keys ~f:(get_fqn_for_field config_tbl) in
   let fqns = concat other_fqns in
@@ -307,7 +312,7 @@ let asyncsom_handler ~conn som_id params =
   (* obtain data from database *)
   let query =
     (sprintf "SELECT %s,%s" x_fqn y_fqn) ^
-    (if not (String.is_empty fqns) then sprintf ",%s " fqns else " ") ^
+    (sprintf ",%s " fqns) ^
     (sprintf "FROM %s INNER JOIN tbl_measurements " config_tbl) ^
     (sprintf "ON %s.config_id=tbl_measurements.config_id " config_tbl) ^
     (sprintf "WHERE tbl_measurements.som_id=%d" som_id) ^
