@@ -1,24 +1,22 @@
 open Core.Std
+open Fn
 open Printf
 open Postgresql
 open Utils
 
-module ListKey = struct
-  module T = struct
-    type t = string list with sexp
-    type sexpable = t
-    let compare = compare
-    let equal = (=)
-    let hash = Hashtbl.hash
-  end
-  include T
-  include Hashable.Make (T)
-end
+type build = {
+  branch : string;
+  build_no : int;
+  tag : string;
+}
 
-let debug msg = output_string stderr (msg ^ "\n")
+let string_of_build {branch; build_no; tag} =
+  sprintf "BUILD (%s, %d, %s)" branch build_no tag
 
 type place =
   | Default
+  | Report
+  | ReportPart of int
   | Som of int * int list
   | AsyncSom of int * (string * string) list
   | CreateTiny of string
@@ -33,6 +31,8 @@ let string_of_som_place name id cids =
 
 let string_of_place = function
   | Default -> "Default"
+  | Report -> "Report"
+  | ReportPart id -> sprintf "ReportPart %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
   | AsyncSom (id, params) -> string_of_som_place "AsyncSom" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
@@ -56,13 +56,23 @@ let pairs_of_request req =
     Option.value ~default:(part, "") (String.lsplit2 part ~on:'=') in
   List.map ~f:opt_split parts
 
+let string_of_pairs pairs =
+  concat ~sep:"\n" (List.map ~f:(fun (k, v) -> k ^ " => " ^ v) pairs)
+
 let values_for_key pairs key =
   List.fold pairs ~init:[]
     ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
 
+let get_first_val params k d =
+  Option.value ~default:d (List.hd (values_for_key params k))
+
 let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
+  match find pairs "reports" with Some _ -> Report | None ->
+  match find pairs "report_part" with
+  | Some id -> ReportPart (int_of_string id)
+  | None ->
   match find pairs "som" with
   | None ->
     begin match find pairs "t" with
@@ -84,17 +94,35 @@ let place_of_request req =
 
 let get_place () = place_of_request (get_request ())
 
-let exec_query ~(conn : connection) (query : string) : result option =
-  let result = conn#exec query in
-  match result#status with
-    | Command_ok | Tuples_ok -> Some result
-    | _ -> print_endline conn#error_message; None
+let report_handler ~place ~conn =
+  print_header ();
+  let query = "SELECT * FROM reports" in
+  let result = exec_query_exn conn query in
+  print_table result;
+  print_footer ()
+
+let report_part_handler ~place ~conn id =
+  print_header ();
+  let query = "SELECT som_id, tc_config_id, som_config_id FROM reports " ^
+    (sprintf "WHERE report_part_id=%d" id) in
+  let result = exec_query_exn conn query in
+  let row = result#get_all.(0) in
+  let som_id = int_of_string (row.(0)) in
+  let tc_config_id = int_of_string (row.(1)) in
+  let som_config_id = if result#getisnull 0 2 then "(NULL)" else row.(2) in
+  printf "REPORT PART: %d<br />\n" id;
+  printf "SOM ID: %d<br />\n" som_id;
+  printf "TC CONFIG ID: %d<br />\n" tc_config_id;
+  printf "SOM CONFIG ID: %s<br />\n" som_config_id;
+  let url = sprintf "/?som=%d&v_config_id=%d" som_id tc_config_id in
+  printf "URL: <a href='%s'>%s</a>" url url;
+  print_footer ()
 
 let default_handler ~place ~conn =
   print_header ();
-  let query = "SELECT som_id, name FROM tbl_som_definitions " ^
+  let query = "SELECT som_id, som_name FROM soms " ^
               "ORDER BY som_id" in
-  match exec_query ~conn query with None -> () | Some result ->
+  let result = exec_query_exn conn query in
   let print_row row_i tag row =
     match row_i with -1 -> print_row_header row | _ ->
     print_string "   <tr>";
@@ -106,100 +134,137 @@ let default_handler ~place ~conn =
   print_table_custom_row print_row result;
   print_footer ()
 
-let get_tbl_names ~conn som_id =
-  let query = "SELECT tc FROM tbl_som_definitions " ^
+let get_tc_config_tbl_name conn som_id =
+  let query = "SELECT tc_fqn FROM soms " ^
               "WHERE som_id = " ^ (string_of_int som_id) in
-  match exec_query ~conn query with None -> None | Some result ->
-  let tc = String.lowercase (result#getvalue 0 0) in
-  let config_tbl = "tbl_config_tc_" ^ tc in
-  let jobs_tbl = "tbl_jobs_tc_" ^ tc in
-  Some (config_tbl, jobs_tbl)
+  let result = exec_query_exn conn query in
+  let tc_fqn = String.lowercase (result#getvalue 0 0) in
+  (tc_fqn, "tc_config_" ^ tc_fqn)
 
-let get_build_mapping ~conn builds =
-  let builds_uniq = List.dedup ~compare builds in
+let get_branch_ordering ~conn branches =
+  let branches_uniq = List.dedup ~compare branches in
   let query =
-    "SELECT name FROM tbl_versions WHERE name IN ('" ^
-    (concat ~sep:"','" builds_uniq) ^ "') ORDER BY seq_no" in
-  match exec_query ~conn query with None -> None | Some data ->
+    "SELECT branch FROM branch_order WHERE branch IN ('" ^
+    (concat ~sep:"','" branches_uniq) ^ "') ORDER BY seq_number" in
+  debug query;
+  let data = exec_query_exn conn query in
   let process_row i row = (i+1, List.nth_exn row 0) in
   Some (List.mapi data#get_all_lst ~f:process_row)
 
 let print_som_info som_info =
   let i = som_info#get_all.(0) in
-  let name = sprintf "<span class='som_name'>%s</span>" i.(2) in
+  let name = sprintf "<span class='som_name'>%s</span>" i.(1) in
   let prefix = "<div class='som'>SOM:" in
   let suffix = "</div><br />\n" in
-  printf "%s %s (id: %s, tc: %s) %s" prefix name i.(0) i.(3) suffix
+  printf "%s %s (id: %s, tc: %s) %s" prefix name i.(0) i.(2) suffix
 
-let get_xy_choices configs =
-  "build" :: configs#get_fnames_lst
+let get_xy_choices configs som_configs_opt machines =
+  let som_configs_lst = match som_configs_opt with
+    | None -> []
+    | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
+  in
+  "branch" :: "build_number" :: "build_tag" ::
+    machines#get_fnames_lst @ configs#get_fnames_lst @ som_configs_lst
 
-let print_x_axis_choice configs =
+let print_x_axis_choice configs som_configs_opt machines =
   print_select_list
-    ~label:"X axis" ~attrs:[("name", "xaxis")] (get_xy_choices configs)
+    ~label:"X axis" ~attrs:[("name", "xaxis")]
+    (get_xy_choices configs som_configs_opt machines)
 
-let print_y_axis_choice configs =
+let print_y_axis_choice configs som_configs_opt machines =
   print_select_list
     ~label:"Y axis" ~attrs:[("name", "yaxis")]
-    ("result" :: (get_xy_choices configs))
+    ("result" :: (get_xy_choices configs som_configs_opt machines))
 
 let filter_prefix = "f_"
 let values_prefix = "v_"
 let show_for_value = "0"
 let filter_by_value = "1"
 
-let print_filter_table configs job_ids builds =
-  let nRows = configs#ntuples - 1 in
-  let nCols = configs#nfields in
-  let labels = "job_id" :: "build" :: configs#get_fnames_lst in
-  let job_id_lst = get_options_for_field
-    job_ids (job_ids#ntuples-1) 0 (job_ids#ftype 0) in
-  let build_lst = get_options_for_field
-    builds (builds#ntuples-1) 0 (builds#ftype 0) in
-  let options_lst = List.map (List.range 0 nCols) ~f:(fun col ->
-    get_options_for_field configs nRows col (configs#ftype col)) in
-  let options_lst = job_id_lst :: build_lst :: options_lst in
-  let print_td_multiselect col options =
-    let name = values_prefix ^ (List.nth_exn labels col) in
-    print_select_list ~td:true ~selected:["ALL"]
-      ~attrs:[("name", name); ("multiple", "multiple");
-              ("size", "3"); ("class", "multiselect")]
-      ("ALL"::options) in
-  for col = 0 to nCols do
+let print_filter_table job_ids builds configs som_configs_opt machines =
+  (* LABELS *)
+  let som_config_labels =
+    match som_configs_opt with None -> [] | Some som_configs ->
+    List.tl_exn (som_configs#get_fnames_lst) in
+  let labels = "job_id" :: "branch" :: "build_number" :: "build_tag" ::
+    machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
+  (* OPTIONS *)
+  let job_id_lst = get_options_for_field job_ids 0 in
+  let branch_lst = get_options_for_field builds 0 in
+  let build_no_lst = get_options_for_field builds 1 in
+  let tag_lst = get_options_for_field builds 2 in
+  let machine_options_lst = List.map (List.range 0 machines#nfields)
+    ~f:(fun col -> get_options_for_field machines col) in
+  let config_options_lst = List.map (List.range 0 configs#nfields)
+    ~f:(fun col -> get_options_for_field configs col) in
+  let som_config_options_lst =
+    match som_configs_opt with None -> [] | Some som_configs ->
+    List.map (List.range 1 som_configs#nfields)
+      ~f:(fun col -> get_options_for_field som_configs col) in
+  let options_lst = job_id_lst :: branch_lst :: build_no_lst ::
+    tag_lst :: machine_options_lst @ config_options_lst @
+    som_config_options_lst in
+  let print_table_for (label, options) =
     printf "<table border='1' class='filter_table'>\n";
-    printf "<tr><th>%s</th></tr>\n" (List.nth_exn labels col);
+    printf "<tr><th>%s</th></tr>\n" label;
     printf "<tr>\n";
-    let name = filter_prefix ^ (List.nth_exn labels col) in
     print_select ~td:true
-      ~attrs:[("name", name); ("class", "filterselect")]
+      ~attrs:[("name", filter_prefix ^ label); ("class", "filterselect")]
       [("SHOW FOR", show_for_value); ("SPLIT BY", filter_by_value)];
     printf "</tr><tr>\n";
-    print_td_multiselect col (List.nth_exn options_lst col);
+    print_select_list ~td:true ~selected:["ALL"]
+      ~attrs:[("name", values_prefix ^ label); ("multiple", "multiple");
+              ("size", "3"); ("class", "multiselect")]
+      ("ALL"::options);
     printf "</tr></table>\n"
-  done
+  in
+  List.iter ~f:print_table_for (List.combine_exn labels options_lst)
 
-let show_configurations ~conn som_id config_tbl jobs_tbl =
+let som_config_tbl_exists conn som_id =
+  let som_config_tbl = sprintf "som_config_%d" som_id in
+  let query = "SELECT * FROM pg_tables WHERE schemaname='public' AND " ^
+    (sprintf "tablename='%s'" som_config_tbl) in
+  som_config_tbl, (exec_query_exn conn query)#ntuples = 1
+
+let show_configurations ~conn som_id tc_config_tbl =
   let query =
-    sprintf "SELECT * FROM tbl_som_definitions WHERE som_id=%d" som_id in
-  match exec_query ~conn query with None -> () | Some som_info ->
-  let query = "SELECT * FROM " ^ config_tbl in
-  match exec_query ~conn query with None -> () | Some configs ->
-  let query = "SELECT job_id FROM " ^ jobs_tbl in
-  match exec_query ~conn query with None -> () | Some job_ids ->
-  let query = "SELECT DISTINCT build FROM " ^ jobs_tbl ^ " ORDER BY build" in
-  match exec_query ~conn query with None -> () | Some builds ->
+    sprintf "SELECT * FROM soms WHERE som_id=%d" som_id in
+  let som_info = exec_query_exn conn query in
+  let query = "SELECT * FROM " ^ tc_config_tbl in
+  let configs = exec_query_exn conn query in
+  let query = "SELECT DISTINCT job_id FROM measurements" in
+  let job_ids = exec_query_exn conn query in
+  let query = "SELECT DISTINCT build_id FROM jobs AS j, measurements AS m " ^
+    (sprintf "WHERE j.job_id=m.job_id AND som_id=%d" som_id) in
+  let build_ids = get_first_col (exec_query_exn conn query) in
+  let query = "SELECT branch, build_number, build_tag FROM builds WHERE " ^
+    (sprintf "build_id IN (%s)" (concat build_ids)) in
+  let builds = exec_query_exn conn query in
+  let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
+  let som_configs_opt =
+    if not som_tbl_exists then None else
+    Some (exec_query_exn conn (sprintf "SELECT * FROM %s" som_config_tbl)) in
+  let query =
+    "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
+    "FROM machines AS mn, tc_machines AS tm, measurements AS mr " ^
+    "WHERE mn.machine_id=tm.machine_id AND tm.job_id=mr.job_id " ^
+    (sprintf "AND som_id=%d" som_id) in
+  let machines = exec_query_exn conn query in
   print_som_info som_info;
   printf "<form name='optionsForm'>\n";
-  print_x_axis_choice configs;
-  print_y_axis_choice configs;
+  print_x_axis_choice configs som_configs_opt machines;
+  print_y_axis_choice configs som_configs_opt machines;
   let checkbox_prefix = "<input type='checkbox' name=" in
   printf "%s'show_avgs' checked='checked' />Show averages\n" checkbox_prefix;
-  printf "%s'yaxis_log' />Log scale Y<br />\n" checkbox_prefix;
-  print_filter_table configs job_ids builds;
+  printf "%s'yaxis_log' />Log scale Y\n" checkbox_prefix;
+  printf "%s'y_from_zero' />Force Y from 0\n" checkbox_prefix;
+  printf "%s'show_all_meta' />Show all meta-data<br />\n" checkbox_prefix;
+  print_filter_table job_ids builds configs som_configs_opt machines;
   printf "</form>\n";
-  printf "<input type='submit' id='reset_config' value='Reset Configuration' />";
-  printf "<input type='submit' id='get_img' value='Get Image' />";
-  printf "<input type='submit' id='get_tinyurl' value='Get Tiny URL' />";
+  let submit_prefix = "<input type='submit' id=" in
+  printf "%s'reset_config' value='Reset Configuration' />" submit_prefix;
+  printf "%s'get_img' value='Get Image' />" submit_prefix;
+  printf "%s'get_tinyurl' value='Get Tiny URL' />" submit_prefix;
   printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
   printf "<br /><img id='progress_img' src='progress.gif' />\n";
   printf "<div id='graph' style='width: 1000px; height: 600px'></div>";
@@ -207,17 +272,19 @@ let show_configurations ~conn som_id config_tbl jobs_tbl =
 
 let som_handler ~place ~conn som_id config_ids =
   print_header ();
-  match get_tbl_names ~conn som_id
-  with None -> () | Some (config_tbl, jobs_tbl) ->
-  show_configurations ~conn som_id config_tbl jobs_tbl;
+  let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
+  show_configurations ~conn som_id tc_config_tbl;
   print_footer ()
 
-let get_fqn_for_field config_tbl field =
-  match field with
-  | "job_id" | "build" | "result" -> "tbl_measurements." ^ field
-  | _ -> config_tbl ^ "." ^ field
+let html_to_text html =
+  let rules =
+    let pairs = [("%20", " "); ("%2C", ","); ("+", " ")] in
+    List.map pairs ~f:(fun (r, t) -> (Str.regexp r, t))
+  in
+  List.fold_left rules ~init:html
+    ~f:(fun h (r, t) -> Str.global_replace r t h)
 
-let extract_filter config_tbl col_types params =
+let extract_filter tc_config_tbl som_config_tbl col_fqns col_types params =
   let m = String.Table.create () in
   let update_m v vs_opt =
     let vs = Option.value vs_opt ~default:[] in Some (v::vs) in
@@ -227,10 +294,11 @@ let extract_filter config_tbl col_types params =
       let k2 = String.chop_prefix_exn k ~prefix:values_prefix in
       String.Table.change m k2 (update_m v)
     end in
-  List.iter params filter_insert;
+  List.iter params ~f:filter_insert;
   let l = String.Table.to_alist m in
   let conds = List.map l
     ~f:(fun (k, vs) ->
+      let vs = List.map vs ~f:html_to_text in
       let has_null = List.mem ~set:vs "(NULL)" in
       let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
       let ty_opt = String.Table.find col_types k in
@@ -239,7 +307,7 @@ let extract_filter config_tbl col_types params =
       | Some ty -> List.mem ~set:["character varying"; "boolean"; "text"] ty in
       let vs_oq =
         if quote then List.map vs ~f:(fun v -> "'" ^ v ^ "'") else vs in
-      let fqn = get_fqn_for_field config_tbl k in
+      let fqn = String.Table.find_exn col_fqns k in
       let val_list = concat vs_oq in
       let in_cond = sprintf "%s IN (%s)" fqn val_list in
       let null_cond = if has_null then sprintf "%s IS NULL" fqn else "" in
@@ -249,18 +317,37 @@ let extract_filter config_tbl col_types params =
     ) in
   concat ~sep:" AND " conds
 
-let get_column_types ~conn tbl =
+let get_column_types conn tbl =
   let query =
     ("SELECT column_name, data_type FROM information_schema.columns ") ^
     (sprintf "WHERE table_name='%s'" tbl) in
-  match exec_query ~conn query with None -> None | Some col_types_data ->
+  let col_types_data = exec_query_exn conn query in
   let nameToType = String.Table.create () in
   let process_column nameTypeList =
     let name = List.nth_exn nameTypeList 0 in
     let ty = List.nth_exn nameTypeList 1 in
-    String.Table.replace nameToType ~key:name ~data:ty 
+    String.Table.replace nameToType ~key:name ~data:ty
   in List.iter col_types_data#get_all_lst ~f:process_column;
-  Some nameToType
+  nameToType
+
+let get_column_fqns conn tbl =
+  let query =
+    ("SELECT column_name FROM information_schema.columns ") ^
+    (sprintf "WHERE table_name='%s'" tbl) in
+  let col_names = get_first_col (exec_query_exn conn query) in
+  let nameToFqn = String.Table.create () in
+  let process_column name =
+    let fqn = tbl ^ "." ^ name in
+    String.Table.replace nameToFqn ~key:name ~data:fqn
+  in List.iter col_names ~f:process_column;
+  nameToFqn
+
+let combine_maps conn tbls f =
+  let m = String.Table.create () in
+  List.iter tbls ~f:(fun t -> merge_table_into (f conn t) m);
+  m
+let get_column_types_many conn tbls = combine_maps conn tbls get_column_types
+let get_column_fqns_many conn tbls = combine_maps conn tbls get_column_fqns
 
 let extract_column rows col =
   Array.to_list (Array.map rows ~f:(fun row -> row.(col)))
@@ -274,9 +361,9 @@ let get_generic_string_mapping rows col col_name col_types =
 
 let strings_to_numbers ~conn rows col col_name col_types label =
   let mapping_opt =
-    if col_name = "build"
-    then get_build_mapping ~conn (extract_column rows col)
-    else get_generic_string_mapping rows col col_name col_types
+    (*if col_name = "branch"
+    then get_branch_ordering ~conn (extract_column rows col)
+    else*) get_generic_string_mapping rows col col_name col_types
   in
   match mapping_opt with None -> () | Some mapping ->
   let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i a in
@@ -289,42 +376,61 @@ let strings_to_numbers ~conn rows col col_name col_types label =
     | Some i -> row.(col) <- string_of_int i
   in Array.iter rows ~f:i_from_string
 
+let select_params params ?(value=None) prefix =
+  List.filter_map params ~f:(fun (k, v) ->
+    if String.is_prefix k prefix && (Option.is_none value || Some v = value)
+    then String.chop_prefix k ~prefix else None
+  )
+let get_filter_params params = select_params params filter_prefix
+let get_values_params params = select_params params values_prefix
+let get_relevant_params params =
+  get_filter_params params @ get_values_params params
+
 let asyncsom_handler ~conn som_id params =
   printf "Content-type: application/json\n\n";
-  match get_tbl_names ~conn som_id
-  with None -> () | Some (config_tbl, jobs_tbl) ->
+  let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
+  let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
   (* determine filter columns and their types *)
-  match get_column_types ~conn config_tbl with None -> () | Some col_types ->
-  String.Table.replace col_types ~key:"build" ~data:"character varying";
-  let get_first_val k d =
-    Option.value ~default:d (List.hd (values_for_key params k)) in
-  let xaxis = get_first_val "xaxis" "build" in
-  let yaxis = get_first_val "yaxis" "result" in
-  let x_fqn = get_fqn_for_field config_tbl xaxis in
-  let y_fqn = get_fqn_for_field config_tbl yaxis in
-  let keys = String.Table.keys col_types in
-  let other_keys = List.filter keys ~f:(fun x -> x <> xaxis && x <> yaxis) in
-  let other_keys = "job_id" :: other_keys in
-  let ordered_keys = xaxis :: yaxis :: other_keys in
-  let other_fqns = List.map other_keys ~f:(get_fqn_for_field config_tbl) in
-  let fqns = concat other_fqns in
-  let filter = extract_filter config_tbl col_types params in
+  let tbls = ["measurements"; "jobs"; "builds"; "tc_machines"; "machines";
+    tc_config_tbl] @
+    (if som_tbl_exists then [som_config_tbl] else []) in
+  let col_fqns = get_column_fqns_many conn tbls in
+  let col_types = get_column_types_many conn tbls in
+  let xaxis = get_first_val params "xaxis" "branch" in
+  let yaxis = get_first_val params "yaxis" "result" in
+  let keys = match get_first_val params "show_all_meta" "off" with
+    | "on" ->
+      xaxis :: yaxis :: String.Table.keys col_fqns |! List.stable_dedup
+    | _ ->
+      xaxis :: yaxis :: get_relevant_params params |! List.stable_dedup
+  in
+  let fqns = List.map keys ~f:(String.Table.find_exn col_fqns) in
+  let filter =
+    extract_filter tc_config_tbl som_config_tbl col_fqns col_types params in
   (* obtain data from database *)
   let query =
-    (sprintf "SELECT %s,%s" x_fqn y_fqn) ^
-    (sprintf ",%s " fqns) ^
-    (sprintf "FROM %s INNER JOIN tbl_measurements " config_tbl) ^
-    (sprintf "ON %s.config_id=tbl_measurements.config_id " config_tbl) ^
-    (sprintf "WHERE tbl_measurements.som_id=%d" som_id) ^
+    (sprintf "SELECT %s " (String.concat ~sep:", " fqns)) ^
+    (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
+    (sprintf "WHERE measurements.tc_config_id=%s.tc_config_id "
+             tc_config_tbl) ^
+    (sprintf "AND measurements.som_id=%d " som_id) ^
+    "AND measurements.job_id=jobs.job_id " ^
+    "AND jobs.build_id=builds.build_id " ^
+    "AND tc_machines.job_id=jobs.job_id " ^
+    (sprintf "AND tc_machines.tc_fqn='%s' " tc_fqn) ^
+    "AND tc_machines.tc_config_id=measurements.tc_config_id " ^
+    "AND tc_machines.machine_id=machines.machine_id" ^
+    (if som_tbl_exists
+     then sprintf " AND measurements.som_config_id=%s.som_config_id"
+          som_config_tbl else "") ^
     (if not (String.is_empty filter) then sprintf " AND %s" filter else "") in
-  match exec_query ~conn query with None -> () | Some data ->
+  debug query;
+  let data = exec_query_exn conn query in
   let rows = data#get_all in
-  (* filter data into groups based on "FILTER BY"-s *)
-  let filter_map_split_bys (k, v) =
-    if String.is_prefix k filter_prefix && v = filter_by_value
-    then String.chop_prefix k ~prefix:filter_prefix else None in
-  let split_bys = List.filter_map params ~f:filter_map_split_bys in
-  let split_by_is = List.map split_bys ~f:(index ordered_keys) in
+  (* filter data into groups based on "SPLIT BY"-s *)
+  let split_bys =
+    select_params params filter_prefix ~value:(Some filter_by_value) in
+  let split_by_is = List.map split_bys ~f:(index keys) in
   let all_series = ListKey.Table.create () in
   let get_row_key row is = List.map is ~f:(Array.get row) in
   let add_to_series row series_opt =
@@ -339,13 +445,15 @@ let asyncsom_handler ~conn som_id params =
   Array.iter rows ~f:update_all_series;
   (* output axis labels and a "series" for each data group *)
   printf "{";
+  printf "\"xaxis\":\"%s\"," xaxis;
+  printf "\"yaxis\":\"%s\"," yaxis;
   strings_to_numbers ~conn rows 0 xaxis col_types "x_labels";
   strings_to_numbers ~conn rows 1 yaxis col_types "y_labels";
   let num_other_keys = List.length keys - 2 in
   let convert_row row =
     let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in
     let process_val i v =
-      "\"" ^ (List.nth_exn other_keys i) ^ "\":\"" ^ v ^ "\"" in
+      "\"" ^ (List.nth_exn keys (i+2)) ^ "\":\"" ^ v ^ "\"" in
     let prop_array = Array.mapi other_vals ~f:process_val in
     let props = concat_array prop_array in
     "[" ^ row.(0) ^ "," ^ row.(1) ^ ",{" ^ props ^ "}]"
@@ -366,13 +474,13 @@ let asyncsom_handler ~conn som_id params =
 let createtiny_handler ~conn url =
   printf "Content-type: application/json\n\n";
   let select = sprintf "SELECT key FROM tbl_tinyurls WHERE url='%s'" url in
-  match exec_query ~conn select with None -> () | Some r ->
+  let r = exec_query_exn conn select in
   match r#ntuples with
   | 1 -> printf "{\"id\":%s}" (r#getvalue 0 0)
   | _ ->
     let insert = sprintf "INSERT INTO tbl_tinyurls (url) VALUES ('%s')" url in
-    match exec_query ~conn insert with None -> () | Some _ ->
-    match exec_query ~conn select with None -> () | Some r ->
+    ignore (exec_query_exn conn insert);
+    let r = exec_query_exn conn select in
     printf "{\"id\":%s}" (r#getvalue 0 0)
 
 let print_404 () =
@@ -389,7 +497,7 @@ let javascript_redirect url =
 
 let redirecttiny_handler ~conn id =
   let q = sprintf "SELECT url FROM tbl_tinyurls WHERE key=%d" id in
-  match exec_query ~conn q with | None -> () | Some r ->
+  let r = exec_query_exn conn q in
   match r#ntuples with
   | 1 -> javascript_redirect (r#getvalue 0 0)
   | _ -> print_404 ()
@@ -402,6 +510,8 @@ let handle_request () =
     | AsyncSom (id, params) -> asyncsom_handler ~conn id params
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
+    | Report -> report_handler ~place ~conn
+    | ReportPart id -> report_part_handler ~place ~conn id
     | Default -> default_handler ~place ~conn
   end;
   conn#finish

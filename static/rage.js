@@ -1,6 +1,6 @@
 /*
 Invariants (also reflected on server side):
-- Default value for field "xaxis" is "build".
+- Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
 - Log scale for Y axis ("yaxis_log") is not selected by default.
 - "SHOW FOR" is the first (default) option for filters ("f_").
@@ -16,6 +16,8 @@ $("select[name='xaxis']").change(fetch_data_and_replot);
 $("select[name='yaxis']").change(fetch_data_and_replot);
 $("input[name='show_avgs']").change(fetch_data_and_replot);
 $("input[name='yaxis_log']").change(fetch_data_and_replot);
+$("input[name='y_from_zero']").change(fetch_data_and_replot);
+$("input[name='show_all_meta']").change(fetch_data_and_replot);
 $(".filterselect").change(fetch_data_and_replot);
 $(".multiselect").change(fetch_data_and_replot);
 // draw immediately
@@ -119,11 +121,11 @@ function get_permalink() {
     var v = params[p];
     var l = v.length;
     var f = v[0];
-    var is_xaxis_build = p == "xaxis" && f == "build";
+    var is_xaxis_branch = p == "xaxis" && f == "branch";
     var is_yaxis_result = p == "yaxis" && f == "result";
     var is_show_for = p.indexOf("f_") == 0 && f == "0";
     var is_all_only = p.indexOf("v_") == 0 && l == 1 && f == "ALL";
-    if (!(is_xaxis_build || is_yaxis_result || is_show_for || is_all_only))
+    if (!(is_xaxis_branch || is_yaxis_result || is_show_for || is_all_only))
       minimised[p] = params[p];
   }
   var serialised = serialise_params(minimised);
@@ -181,8 +183,14 @@ function safe_log(x) {
 }
 
 function configure_labels(o, axis, options) {
-  var labels = o[axis + "_labels"];
   var axis_options = options[axis + "axis"];
+  var quantity = o[axis + "axis"];
+  if (quantity == "build_number") {
+    axis_options.ticks = 10;
+    axis_options.tickDecimals = 0;
+  }
+  if (!has_labels(o, axis)) return;
+  var labels = o[axis + "_labels"];
   axis_options.min = 1;
   axis_options.tickFormatter = function(val, axis) {
     return (val in labels) ? labels[val] : '';
@@ -250,11 +258,12 @@ function onReceived(o) {
     legend: {type: "canvas", backgroundColor: "white"},
     points: {show: true}
   };
+  // force Y from 0
+  if ($("input[name='y_from_zero']").is(":checked"))
+    options.yaxis.min = 0;
   // labels
-  var has_x_labels = has_labels(o, "x");
-  var has_y_labels = has_labels(o, "y");
-  if (has_x_labels) configure_labels(o, "x", options);
-  if (has_y_labels) configure_labels(o, "y", options);
+  configure_labels(o, "x", options);
+  configure_labels(o, "y", options);
   // log scale
   if ($("input[name='yaxis_log']").is(":checked")) {
     options.yaxis.transform = safe_log;
@@ -273,8 +282,8 @@ function onReceived(o) {
       $("#tooltip").remove();
       var x = item.datapoint[0].toFixed(2);
       var y = item.datapoint[1].toFixed(2);
-      var xl = has_x_labels ? o.x_labels[Math.floor(x)] : x;
-      var yl = has_y_labels ? o.y_labels[Math.floor(y)] : y;
+      var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
+      var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
       var body = "<table>";
       var label = "";
       if ("label" in item.series)

@@ -5,6 +5,12 @@
 A new framework being developed by the performance team to analyse the data
 collected, and display it as dynamic graphs on a webpage.
 
+## Database schema
+
+Since the framework is fairly generic, its database schema is not trivial:
+
+![UML-like database schema](rage/raw/master/doc/uml-schema.png)
+
 ## Tools used
 
 * [OCaml](http://caml.inria.fr/ocaml/index.en.html), 3.12.1

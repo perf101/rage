@@ -1,7 +1,7 @@
 SRC=src
 PROGRAM=rage
 SETTINGS="host=localhost user=www-data password=perf dbname=perf"
-RUN_CMD=./$(PROGRAM) $(SETTINGS)
+RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) $(SETTINGS)
 WWW_DIR=/var/www
 CGI_SCRIPT=index.cgi
 STATIC_FILES=$(glob static/*)
