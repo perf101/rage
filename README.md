@@ -37,6 +37,9 @@ Since the framework is fairly generic, its database schema is not trivial:
   configuration. The field `result_id` is used to allow multiple measurements
   for each unique permutation of the stated fields.
 
+We also provide the
+[SQL to generate the main tables](https://github.com/perf101/rage/raw/master/sql/schema.sql).
+
 ## Importing data into RAGE
 
 To make the task of importing data into RAGE database easier, we have created
