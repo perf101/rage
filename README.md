@@ -5,11 +5,37 @@
 A new framework being developed by the performance team to analyse the data
 collected, and display it as dynamic graphs on a webpage.
 
-## Database schema
+## Overview
+
+Test runs (jobs) are run on specific machines using specific builds of the
+product. Each test job can contain multiple test cases, each of which can
+contain multiple scales of measure (SOMs). Each such SOM can product multiple
+measurements.
 
 Since the framework is fairly generic, its database schema is not trivial:
 
-![UML-like database schema](rage/raw/master/doc/uml-schema.png)
+![UML-like database schema](https://github.com/perf101/rage/raw/master/doc/uml-schema.png)
+
+* **test\_cases**: Test case fully-qualified names and descriptions.
+* **soms**: SOM (scale of measure) definitions, where each SOM is part of a
+  specific test case.
+* **builds**: Product build definitions. Each build is associated with a
+  (source-control) branch, build number, and potentially a custom build tag.
+* **branch_order**: Ordering among different branches. RAGE is currently
+  configured to ignore this table, ordering branches alphabetically.
+* **jobs**: A list of test runs (jobs). Each job is associated with a product
+  build, and can optionally remember the original test command.
+* **tc\_config\_&lt;tc_fqn&gt;**: A table for each test case type. This table
+  enumerates the relevant configuration option permutations for a specific
+  test case.
+* **som\_config\_&lt;som_id&gt;**: An optional table for each SOM in case a SOM is
+  associated with configuration options not captured by its test case.
+* **machines**: Test machine definitions.
+* **tc\_machines**: A table that links test case runs to specific machines.
+* **measurements**: The table of measurements. Each measurements is associated
+  with a test job, test case configuration, SOM, and (optionally) SOM
+  configuration. The field `result_id` is used to allow multiple measurements
+  for each unique permutation of the stated fields.
 
 ## Tools used
 
