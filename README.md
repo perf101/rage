@@ -37,6 +37,12 @@ Since the framework is fairly generic, its database schema is not trivial:
   configuration. The field `result_id` is used to allow multiple measurements
   for each unique permutation of the stated fields.
 
+## Importing data into RAGE
+
+To make the task of importing data into RAGE database easier, we have created
+a tool that will hopefully be of help:
+[RAGE Importer](https://github.com/perf101/rage-importer).
+
 ## Tools used
 
 * [OCaml](http://caml.inria.fr/ocaml/index.en.html), 3.12.1
@@ -55,15 +61,15 @@ The program can be built on a system where OCaml, OMake, Core, and
 postgresql-ocaml are installed.
 
 To run the program (`omake run`), a postgresql database must be running. The
-default settings (can be changed in `OMakefile`) are:
-* username: `www-data`;
-* password; `perf`; and,
-* database: `perf`.
+settings for accessing the database can be changed in `OMakefile`.
 
 Installation of the program as a web service (`omake install`) simply copies
 the generated distribution (`omake distro`) into a web-server documents
 directory (`/var/www` by default). The installation currently assumes that flot
 files can be found in a sub-directory of the install directory.
+
+Any errors will be shown in the web-server's error log (e.g.
+`/var/log/apache2/error.log`).
 
 ### Citrix-internal instructions
 
