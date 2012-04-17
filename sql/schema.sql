@@ -6,6 +6,17 @@ drop table branch_order;
 drop table builds;
 drop table soms;
 drop table test_cases;
+drop table tiny_urls;
+
+create sequence tiny_urls_key_seq;
+grant all on tiny_urls_key_seq to "www-data";
+create table tiny_urls (
+        key integer default nextval('tiny_urls_key_seq'::regclass),
+        url text not null,
+
+        primary key (key)
+);
+grant all on tiny_urls to "www-data";
 
 create table test_cases (
         tc_fqn varchar(64) not null,

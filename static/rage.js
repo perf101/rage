@@ -2,25 +2,28 @@
 Invariants (also reflected on server side):
 - Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
-- Log scale for Y axis ("yaxis_log") is not selected by default.
+- Show averages ("show_avgs") is selected by default.
+- Y minimum set to zero ("y_from_zero") is selected by default.
+- All other checkboxees are not selected by default.
 - "SHOW FOR" is the first (default) option for filters ("f_").
 - "ALL" is the first (default) option for filter values ("v_").
 */
 
 // ======== MAIN --- begin ===========
-preselect_fields_based_on_params();
 // reset configuration button
 $("#reset_config").click(function() {window.location.href = get_som_url();});
 // automatic refresh on change
 $("select[name='xaxis']").change(fetch_data_and_replot);
 $("select[name='yaxis']").change(fetch_data_and_replot);
 $("input[name='show_avgs']").change(fetch_data_and_replot);
-$("input[name='yaxis_log']").change(fetch_data_and_replot);
 $("input[name='y_from_zero']").change(fetch_data_and_replot);
 $("input[name='show_all_meta']").change(fetch_data_and_replot);
+$("input[name='yaxis_log']").change(fetch_data_and_replot);
 $(".filterselect").change(fetch_data_and_replot);
 $(".multiselect").change(fetch_data_and_replot);
 // draw immediately
+var checkboxes_on_by_default = ["show_avgs", "y_from_zero"];
+preselect_fields_based_on_params();
 fetch_data_and_replot();
 // extract image button
 load_get_image_if_not_ie();
@@ -28,12 +31,20 @@ load_get_image_if_not_ie();
 $("#get_tinyurl").click(get_tinyurl);
 // ========= MAIN --- end ============
 
+function on_by_default(name) {
+  return $.inArray(name, checkboxes_on_by_default) >= 0;
+}
+
 function preselect_fields_based_on_params() {
   var params = get_url_params();
-  console.log(params);
   delete params.som;
   for (var param in params)
     $("[name='" + param + "']").val(params[param]);
+  for (var i in checkboxes_on_by_default) {
+    var cb_name = checkboxes_on_by_default[i];
+    if (cb_name in params) continue;
+    $("input[name='" + cb_name + "']").prop("checked", true);
+  }
 }
 
 function get_url_params() {
@@ -116,6 +127,11 @@ function serialise_params(params) {
 function get_permalink() {
   var form_data = $('form[name=optionsForm]').serialize();
   var params = extract_params(form_data);
+  $.each($('form[name=optionsForm] input[type=checkbox]'), function(i, cb) {
+    if (!on_by_default(cb.name)) return;
+    if (cb.name in params) delete params[cb.name];
+    else params[cb.name] = ["off"];
+  });
   var minimised = {};
   for (var p in params) {
     var v = params[p];
@@ -129,6 +145,7 @@ function get_permalink() {
       minimised[p] = params[p];
   }
   var serialised = serialise_params(minimised);
+  console.log(serialised);
   if (serialised != "") serialised = "&" + serialised;
   return get_som_url() + serialised;
 }

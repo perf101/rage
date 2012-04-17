@@ -16,6 +16,7 @@ Since the framework is fairly generic, its database schema is not trivial:
 
 ![UML-like database schema](https://github.com/perf101/rage/raw/master/doc/uml-schema.png)
 
+* **tiny\_urls**: A simple table for tiny URL support.
 * **test\_cases**: Test case fully-qualified names and descriptions.
 * **soms**: SOM (scale of measure) definitions, where each SOM is part of a
   specific test case.

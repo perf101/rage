@@ -255,10 +255,10 @@ let show_configurations ~conn som_id tc_config_tbl =
   print_x_axis_choice configs som_configs_opt machines;
   print_y_axis_choice configs som_configs_opt machines;
   let checkbox_prefix = "<input type='checkbox' name=" in
-  printf "%s'show_avgs' checked='checked' />Show averages\n" checkbox_prefix;
-  printf "%s'yaxis_log' />Log scale Y\n" checkbox_prefix;
+  printf "%s'show_avgs' />Show averages\n" checkbox_prefix;
   printf "%s'y_from_zero' />Force Y from 0\n" checkbox_prefix;
-  printf "%s'show_all_meta' />Show all meta-data<br />\n" checkbox_prefix;
+  printf "%s'show_all_meta' />Show all meta-data\n" checkbox_prefix;
+  printf "%s'yaxis_log' />Log scale Y<br />\n" checkbox_prefix;
   print_filter_table job_ids builds configs som_configs_opt machines;
   printf "</form>\n";
   let submit_prefix = "<input type='submit' id=" in
@@ -473,12 +473,13 @@ let asyncsom_handler ~conn som_id params =
 
 let createtiny_handler ~conn url =
   printf "Content-type: application/json\n\n";
-  let select = sprintf "SELECT key FROM tbl_tinyurls WHERE url='%s'" url in
+  let tbl = "tiny_urls" in
+  let select = sprintf "SELECT key FROM %s WHERE url='%s'" tbl url in
   let r = exec_query_exn conn select in
   match r#ntuples with
   | 1 -> printf "{\"id\":%s}" (r#getvalue 0 0)
   | _ ->
-    let insert = sprintf "INSERT INTO tbl_tinyurls (url) VALUES ('%s')" url in
+    let insert = sprintf "INSERT INTO %s (url) VALUES ('%s')" tbl url in
     ignore (exec_query_exn conn insert);
     let r = exec_query_exn conn select in
     printf "{\"id\":%s}" (r#getvalue 0 0)
@@ -496,7 +497,7 @@ let javascript_redirect url =
   printf "</script>\n</head></html>\n"
 
 let redirecttiny_handler ~conn id =
-  let q = sprintf "SELECT url FROM tbl_tinyurls WHERE key=%d" id in
+  let q = sprintf "SELECT url FROM tiny_urls WHERE key=%d" id in
   let r = exec_query_exn conn q in
   match r#ntuples with
   | 1 -> javascript_redirect (r#getvalue 0 0)
