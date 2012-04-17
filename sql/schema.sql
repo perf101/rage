@@ -8,6 +8,7 @@ drop table soms;
 drop table test_cases;
 drop table tiny_urls;
 
+drop sequence tiny_urls_key_seq;
 create sequence tiny_urls_key_seq;
 grant all on tiny_urls_key_seq to "www-data";
 create table tiny_urls (
@@ -61,7 +62,7 @@ grant select on branch_order to "www-data";
 create table jobs (
         job_id integer not null,
         build_id integer not null,
-        cmd text null,
+        job_cmd text null,
 
         primary key (job_id),
         foreign key (build_id) references builds(build_id)
