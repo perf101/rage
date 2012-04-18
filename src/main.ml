@@ -256,6 +256,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   print_y_axis_choice configs som_configs_opt machines;
   let checkbox_prefix = "<input type='checkbox' name=" in
   printf "%s'show_avgs' />Show averages\n" checkbox_prefix;
+  printf "%s'x_from_zero' />Force X from 0\n" checkbox_prefix;
   printf "%s'y_from_zero' />Force Y from 0\n" checkbox_prefix;
   printf "%s'show_all_meta' />Show all meta-data\n" checkbox_prefix;
   printf "%s'yaxis_log' />Log scale Y<br />\n" checkbox_prefix;

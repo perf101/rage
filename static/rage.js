@@ -16,6 +16,7 @@ $("#reset_config").click(function() {window.location.href = get_som_url();});
 $("select[name='xaxis']").change(fetch_data_and_replot);
 $("select[name='yaxis']").change(fetch_data_and_replot);
 $("input[name='show_avgs']").change(fetch_data_and_replot);
+$("input[name='x_from_zero']").change(fetch_data_and_replot);
 $("input[name='y_from_zero']").change(fetch_data_and_replot);
 $("input[name='show_all_meta']").change(fetch_data_and_replot);
 $("input[name='yaxis_log']").change(fetch_data_and_replot);
@@ -275,7 +276,9 @@ function onReceived(o) {
     legend: {type: "canvas", backgroundColor: "white"},
     points: {show: true}
   };
-  // force Y from 0
+  // force X or Y from 0
+  if ($("input[name='x_from_zero']").is(":checked"))
+    options.xaxis.min = 0;
   if ($("input[name='y_from_zero']").is(":checked"))
     options.yaxis.min = 0;
   // labels
