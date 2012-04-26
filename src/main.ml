@@ -232,7 +232,8 @@ let show_configurations ~conn som_id tc_config_tbl =
   let som_info = exec_query_exn conn query in
   let query = "SELECT * FROM " ^ tc_config_tbl in
   let configs = exec_query_exn conn query in
-  let query = "SELECT DISTINCT job_id FROM measurements" in
+  let query = "SELECT DISTINCT job_id FROM measurements WHERE " ^
+    (sprintf "som_id=%d" som_id) in
   let job_ids = exec_query_exn conn query in
   let query = "SELECT DISTINCT build_id FROM jobs AS j, measurements AS m " ^
     (sprintf "WHERE j.job_id=m.job_id AND som_id=%d" som_id) in
