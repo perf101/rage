@@ -68,7 +68,7 @@ function extract_params(s) {
   for(var i in pairs) {
     var pair = pairs[i].split('=');
     if (!result[pair[0]]) result[pair[0]] = [];
-    result[pair[0]].push(pair[1].replace("+", " "));
+    result[pair[0]].push(pair[1].replace(/\+/g, " "));
   }
   return result;
 }
