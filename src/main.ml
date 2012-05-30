@@ -166,14 +166,17 @@ let get_xy_choices configs som_configs_opt machines =
   "branch" :: "build_number" :: "build_tag" ::
     machines#get_fnames_lst @ configs#get_fnames_lst @ som_configs_lst
 
+let print_axis_choice label id choices =
+  printf "<div id='%s' style='display: inline'>\n" id;
+  print_select_list ~label ~attrs:[("name", id)] choices;
+  printf "</div>\n"
+
 let print_x_axis_choice configs som_configs_opt machines =
-  print_select_list
-    ~label:"X axis" ~attrs:[("name", "xaxis")]
+  print_axis_choice "X axis" "xaxis"
     (get_xy_choices configs som_configs_opt machines)
 
 let print_y_axis_choice configs som_configs_opt machines =
-  print_select_list
-    ~label:"Y axis" ~attrs:[("name", "yaxis")]
+  print_axis_choice "Y axis" "yaxis"
     ("result" :: (get_xy_choices configs som_configs_opt machines))
 
 let filter_prefix = "f_"
@@ -253,15 +256,20 @@ let show_configurations ~conn som_id tc_config_tbl =
     (sprintf "AND som_id=%d" som_id) in
   let machines = exec_query_exn conn query in
   print_som_info som_info;
+  print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
   printf "<form name='optionsForm'>\n";
   print_x_axis_choice configs som_configs_opt machines;
   print_y_axis_choice configs som_configs_opt machines;
-  let checkbox_prefix = "<input type='checkbox' name=" in
-  printf "%s'show_avgs' />Show averages\n" checkbox_prefix;
-  printf "%s'x_from_zero' />Force X from 0\n" checkbox_prefix;
-  printf "%s'y_from_zero' />Force Y from 0\n" checkbox_prefix;
-  printf "%s'show_all_meta' />Show all meta-data\n" checkbox_prefix;
-  printf "%s'yaxis_log' />Log scale Y<br />\n" checkbox_prefix;
+  let checkbox name caption =
+    printf "<div id='%s' style='display: inline'>\n" name;
+    printf "<input type='checkbox' name='%s' />%s\n" name caption;
+    printf "</div>\n" in
+  checkbox "show_avgs" "Show averages";
+  checkbox "x_from_zero" "Force X from 0";
+  checkbox "y_from_zero" "Force Y from 0";
+  checkbox "show_all_meta" "Show all meta-data";
+  checkbox "yaxis_log" "Log scale Y";
+  printf "<br />\n";
   print_filter_table job_ids builds configs som_configs_opt machines;
   printf "</form>\n";
   let submit_prefix = "<input type='submit' id=" in
@@ -271,6 +279,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
   printf "<br /><img id='progress_img' src='progress.gif' />\n";
   printf "<div id='graph' style='width: 1000px; height: 600px'></div>";
+  printf "<div id='table'></div>";
   printf "<script src='rage.js'></script>"
 
 let som_handler ~place ~conn som_id config_ids =

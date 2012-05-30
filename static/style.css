@@ -2,9 +2,11 @@ html {
   font-family: helvetica;
   font-size: 14px;
 }
-div#graph {
+#graph, #table > table {
   clear: left;
   margin: 20px auto;
+  position: relative;
+  top: 10px;
 }
 canvas.flot-base {
   background: white;

@@ -10,27 +10,48 @@ Invariants (also reflected on server side):
 */
 
 // ======== MAIN --- begin ===========
+// automatically change available configuration given view
+$("#view").change(view_change);
 // reset configuration button
 $("#reset_config").click(function() {window.location.href = get_som_url();});
 // automatic refresh on change
-$("select[name='xaxis']").change(fetch_data_and_replot);
-$("select[name='yaxis']").change(fetch_data_and_replot);
-$("input[name='show_avgs']").change(fetch_data_and_replot);
-$("input[name='x_from_zero']").change(fetch_data_and_replot);
-$("input[name='y_from_zero']").change(fetch_data_and_replot);
-$("input[name='show_all_meta']").change(fetch_data_and_replot);
-$("input[name='yaxis_log']").change(fetch_data_and_replot);
-$(".filterselect").change(fetch_data_and_replot);
-$(".multiselect").change(fetch_data_and_replot);
-// draw immediately
+var autofetch = true; // if false, the following triggers have no effect
+$("select[name='xaxis']").change(fetch_data_and_process);
+$("select[name='yaxis']").change(fetch_data_and_process);
+$("input[name='show_avgs']").change(fetch_data_and_process);
+$("input[name='x_from_zero']").change(fetch_data_and_process);
+$("input[name='y_from_zero']").change(fetch_data_and_process);
+$("input[name='show_all_meta']").change(fetch_data_and_process);
+$("input[name='yaxis_log']").change(fetch_data_and_process);
+$(".filterselect").change(fetch_data_and_process);
+$(".multiselect").change(fetch_data_and_process);
+// fetch and process data immediately
 var checkboxes_on_by_default = ["show_avgs", "y_from_zero"];
 preselect_fields_based_on_params();
-fetch_data_and_replot();
+fetch_data_and_process();
 // extract image button
 load_get_image_if_not_ie();
 // tiny url
 $("#get_tinyurl").click(get_tinyurl);
 // ========= MAIN --- end ============
+
+var graph_only_fields = [
+  "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_from_zero",
+  "#show_all_meta", "#yaxis_log", "#get_img"
+]
+
+function view_change() {
+  autofetch = false;
+  var view = $('#view').val();
+  var is_graph = (view == "Graph");
+  for (var i in graph_only_fields)
+    $(graph_only_fields[i]).toggle(is_graph);
+  $("input[name='show_avgs']").prop("checked", is_graph);
+  $("input[name='show_all_meta']").prop("checked", !is_graph);
+  $("input[name='yaxis_log']").prop("checked", false);
+  autofetch = true;
+  fetch_data_and_process();
+}
 
 function on_by_default(name) {
   return $.inArray(name, checkboxes_on_by_default) >= 0;
@@ -151,7 +172,8 @@ function get_permalink() {
   return get_som_url() + serialised;
 }
 
-function fetch_data_and_replot() {
+function fetch_data_and_process() {
+  if (!autofetch) return;
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
   var request = get_permalink() + "&async=true";
@@ -237,11 +259,24 @@ function show_tooltip(x, y, contents) {
   }).appendTo("body").fadeIn(200);
 }
 
-var series = [];
-
 function onReceived(o) {
   console.log("Received: ", o);
-  //var data = o.data;
+  var view = $('#view').val();
+  if (view == "Graph") {
+    $('#table').hide();
+    drawGraph(o);
+    $('#graph').show();
+  } else if (view == "Table") {
+    $('#graph').hide();
+    makeTable(o);
+    $('#table').show();
+  } else console.log("Unknown view.");
+  $("#progress_img").toggle(false);
+}
+
+var series = [];
+
+function drawGraph(o) {
   var graph = $("#graph");
   // default options
   series = o.series;
@@ -326,7 +361,40 @@ function onReceived(o) {
       show_tooltip(item.pageX + 10, item.pageY, body);
     }
   });
-  $("#progress_img").toggle(false);
+}
+
+function makeTable(o) {
+  var content = '';
+  // shell begin
+  content += '<table border="1">';
+  // captions
+  var captions = [];
+  var xaxis = $("select[name='xaxis']").val();
+  var yaxis = $("select[name='yaxis']").val();
+  var ts = $('.filter_table th').text(function(i, t) {captions.push(t);});
+  captions.push("result");
+  content += '<tr>';
+  for (var i in captions) content += '<th>' + captions[i] + '</th>';
+  content += '</tr>';
+  // data
+  var data = o.series[0].data;
+  for (var i = 0; i < data.length; ++i) {
+    content += '<tr>';
+    var point = data[i];
+    var props = point[2];
+    for (var j in captions) {
+      var c = captions[j];
+      var v;
+      if (c == xaxis) v = point[0];
+      else if (c == yaxis) v = point[1];
+      else v = props[c];
+      content += '<td>' + v + '</td>';
+    }
+    content += '</tr>';
+  }
+  // shell end + output
+  content += '</table>';
+  $('#table').html(content);
 }
 
 function onAsyncFail(XMLHttpRequest, textStatus, errorThrown) {
