@@ -1,7 +1,7 @@
 NATIVE_ENABLED=true
 USE_OCAMLFIND=true
 OCAMLPACKS=core,postgresql,str
-OCAMLFLAGS=-g -thread -linkpkg
+OCAMLFLAGS=-g -thread -linkpkg -warn-error +a-4-6-9-27-28-29
 FILES=main utils
 
 UseCamlp4(sexplib.syntax, main utils)
