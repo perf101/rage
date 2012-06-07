@@ -377,6 +377,8 @@ function makeTable(o) {
   for (var i in captions) content += '<th>' + captions[i] + '</th>';
   content += '</tr>';
   // data
+  var x_has_labels = has_labels(o, "x");
+  var y_has_labels = has_labels(o, "y");
   var data = o.series[0].data;
   for (var i = 0; i < data.length; ++i) {
     content += '<tr>';
@@ -385,9 +387,13 @@ function makeTable(o) {
     for (var j in captions) {
       var c = captions[j];
       var v;
-      if (c == xaxis) v = point[0];
-      else if (c == yaxis) v = point[1];
-      else v = props[c];
+      if (c == xaxis) {
+        v = point[0];
+        if (x_has_labels) v = o.x_labels[v];
+      } else if (c == yaxis) {
+        v = point[1];
+        if (y_has_labels) v = o.y_labels[v];
+      } else v = props[c];
       content += '<td>' + v + '</td>';
     }
     content += '</tr>';
