@@ -366,20 +366,20 @@ function drawGraph(o) {
 function makeTable(o) {
   var content = '';
   // shell begin
-  content += '<table border="1">';
+  content += '<table border="1" class="tablesorter">';
   // captions
   var captions = [];
   var xaxis = $("select[name='xaxis']").val();
   var yaxis = $("select[name='yaxis']").val();
   var ts = $('.filter_table th').text(function(i, t) {captions.push(t);});
   captions.push("result");
-  content += '<tr>';
+  content += '<thead><tr>';
   for (var i in captions) content += '<th>' + captions[i] + '</th>';
-  content += '</tr>';
+  content += '</tr></thead><tbody>';
   // data
   var x_has_labels = has_labels(o, "x");
   var y_has_labels = has_labels(o, "y");
-  var data = o.series[0].data;
+  var data = o.series.length == 0 ? [] : o.series[0].data;
   for (var i = 0; i < data.length; ++i) {
     content += '<tr>';
     var point = data[i];
@@ -399,8 +399,9 @@ function makeTable(o) {
     content += '</tr>';
   }
   // shell end + output
-  content += '</table>';
+  content += '</tbody></table>';
   $('#table').html(content);
+  $("#table .tablesorter").tablesorter();
 }
 
 function onAsyncFail(XMLHttpRequest, textStatus, errorThrown) {
