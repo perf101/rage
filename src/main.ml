@@ -295,6 +295,9 @@ let html_to_text html =
   List.fold_left rules ~init:html
     ~f:(fun h (r, t) -> Str.global_replace r t h)
 
+(** Pre-generated regexp for use within asyncsom_handler. *)
+let quote_re = Str.regexp "\""
+
 let extract_filter tc_config_tbl som_config_tbl col_fqns col_types params =
   let m = String.Table.create () in
   let update_m v vs_opt =
@@ -464,7 +467,8 @@ let asyncsom_handler ~conn som_id params =
   let convert_row row =
     let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in
     let process_val i v =
-      "\"" ^ (List.nth_exn keys (i+2)) ^ "\":\"" ^ v ^ "\"" in
+      let v' = Str.global_replace quote_re "\\\"" v in
+      "\"" ^ (List.nth_exn keys (i+2)) ^ "\":\"" ^ v' ^ "\"" in
     let prop_array = Array.mapi other_vals ~f:process_val in
     let props = concat_array prop_array in
     "[" ^ row.(0) ^ "," ^ row.(1) ^ ",{" ^ props ^ "}]"
