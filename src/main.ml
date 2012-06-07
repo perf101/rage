@@ -238,12 +238,11 @@ let show_configurations ~conn som_id tc_config_tbl =
   let query = "SELECT DISTINCT job_id FROM measurements WHERE " ^
     (sprintf "som_id=%d" som_id) in
   let job_ids = exec_query_exn conn query in
-  let query = "SELECT DISTINCT build_id FROM jobs AS j, measurements AS m " ^
-    (sprintf "WHERE j.job_id=m.job_id AND som_id=%d" som_id) in
-  let build_ids = concat (get_first_col (exec_query_exn conn query)) in
-  let build_ids_str = if build_ids = "" then "-1" else build_ids in
-  let query = "SELECT branch, build_number, build_tag FROM builds WHERE " ^
-    (sprintf "build_id IN (%s)" build_ids_str) in
+  let query =
+    "SELECT DISTINCT branch, build_number, build_tag " ^
+    "FROM builds AS b, jobs AS j, measurements AS m " ^
+    "WHERE m.job_id=j.job_id AND j.build_id=b.build_id " ^
+    (sprintf "AND m.som_id=%d" som_id) in
   let builds = exec_query_exn conn query in
   let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
   let som_configs_opt =
