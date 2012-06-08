@@ -15,6 +15,7 @@ let string_of_build {branch; build_no; tag} =
 
 type place =
   | Default
+  | ReportCreate of (string * string) list
   | ReportGenerator
   | Report
   | ReportPart of int
@@ -32,6 +33,7 @@ let string_of_som_place name id cids =
 
 let string_of_place = function
   | Default -> "Default"
+  | ReportCreate params -> "ReportCreate"
   | ReportGenerator -> "ReportGenerator"
   | Report -> "Report"
   | ReportPart id -> sprintf "ReportPart %d" id
@@ -71,6 +73,7 @@ let get_first_val params k d =
 let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
+  match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
   match find pairs "reports" with Some _ -> Report | None ->
   match find pairs "report_part" with
@@ -103,9 +106,14 @@ let som_config_tbl_exists conn som_id =
     (sprintf "tablename='%s'" som_config_tbl) in
   som_config_tbl, (exec_query_exn conn query)#ntuples = 1
 
-let report_generator_handler ~place ~conn =
+let report_generator_handler ~conn =
   print_header ();
   printf "<h2>Report Generator</h2>\n";
+  printf "<form action='/' method='get'>\n";
+  printf "<input type='hidden' name='report_create' />\n";
+  (* Show input boxes for entering basic information. *)
+  printf "<hr /><h3>Basic information</h3>\n";
+  printf "Report name: <input type='text' name='name' /><br />\n";
   (* Display standard and all builds in dropboxes. *)
   let query = "SELECT build_name, build_number FROM standard_builds " ^
     "ORDER BY build_name" in
@@ -115,15 +123,15 @@ let report_generator_handler ~place ~conn =
   let query =
     "SELECT DISTINCT build_number FROM builds ORDER BY build_number" in
   let all_builds = get_first_col (exec_query_exn conn query) in
-  printf "<hr /><h3>Builds to compare against</h3>\n";
+  printf "<hr /><h3>Builds to compare</h3>\n";
   printf "<table border='1'><tr><th>Standard</th><th>All</th></tr><tr>";
   print_select ~td:true ~selected:["ALL"]
     ~attrs:[("name", "standard_builds"); ("multiple", "multiple");
             ("size", "3"); ("class", "multiselect")]
     (("ALL", "ALL")::standard_builds);
-  print_select_list ~td:true ~selected:["ALL"]
+  print_select_list ~td:true ~selected:["NONE"]
     ~attrs:[("name", "all_builds"); ("multiple", "multiple"); ("size", "3")]
-    ("ALL"::all_builds);
+    ("NONE"::all_builds);
   printf "</tr></table>";
   (* Show all test cases and their soms. *)
   printf "<hr /><h3>Test cases and their SOMs</h3>\n";
@@ -146,6 +154,14 @@ let report_generator_handler ~place ~conn =
     Array.iter ~f:(fun r -> process_som r.(0) r.(1)) soms#get_all
   in
   Array.iter ~f:(fun r -> process_tc r.(0) r.(1)) test_cases#get_all;
+  printf "<hr /><input type='submit' value='Create Report' />\n";
+  printf "</form>\n";
+  print_footer ()
+
+let report_create_handler ~conn params =
+  print_header ();
+  debug "report_create_handler";
+  List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params;
   print_footer ()
 
 let report_handler ~place ~conn =
@@ -574,7 +590,8 @@ let handle_request () =
     | AsyncSom (id, params) -> asyncsom_handler ~conn id params
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
-    | ReportGenerator -> report_generator_handler ~place ~conn
+    | ReportCreate params -> report_create_handler ~conn params
+    | ReportGenerator -> report_generator_handler ~conn
     | Report -> report_handler ~place ~conn
     | ReportPart id -> report_part_handler ~place ~conn id
     | Default -> default_handler ~place ~conn
