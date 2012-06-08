@@ -58,8 +58,10 @@ let get_first_entry_exn r =
   | None -> failwith "get_first_entry_exn"
   | Some v -> v
 
-let get_first_col result =
-  Array.to_list (Array.map ~f:(fun row -> row.(0)) result#get_all)
+let get_col result col =
+  Array.to_list (Array.map ~f:(fun row -> row.(col)) result#get_all)
+
+let get_first_col result = get_col result 0
 
 let print_col_default row_i col_i tag data =
   printf "<%s>%s</%s>" tag data tag

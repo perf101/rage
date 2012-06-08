@@ -15,6 +15,7 @@ let string_of_build {branch; build_no; tag} =
 
 type place =
   | Default
+  | ReportGenerator
   | Report
   | ReportPart of int
   | Som of int * int list
@@ -31,6 +32,7 @@ let string_of_som_place name id cids =
 
 let string_of_place = function
   | Default -> "Default"
+  | ReportGenerator -> "ReportGenerator"
   | Report -> "Report"
   | ReportPart id -> sprintf "ReportPart %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
@@ -69,6 +71,7 @@ let get_first_val params k d =
 let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
+  match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
   match find pairs "reports" with Some _ -> Report | None ->
   match find pairs "report_part" with
   | Some id -> ReportPart (int_of_string id)
@@ -93,6 +96,45 @@ let place_of_request req =
       | _ -> Som (id, cids_sorted)
 
 let get_place () = place_of_request (get_request ())
+
+let report_generator_handler ~place ~conn =
+  print_header ();
+  printf "<h2>Report Generator</h2>\n";
+  (* Display standard and all builds in dropboxes. *)
+  let query = "SELECT build_name, build_number FROM standard_builds " ^
+    "ORDER BY build_name" in
+  let result = exec_query_exn conn query in
+  let standard_builds =
+    List.combine_exn (get_col result 0) (get_col result 1) in
+  let query =
+    "SELECT DISTINCT build_number FROM builds ORDER BY build_number" in
+  let all_builds = get_first_col (exec_query_exn conn query) in
+  printf "<h3>Builds to compare against</h3>\n";
+  printf "<table border='1'><tr><th>Standard</th><th>All</th></tr><tr>";
+  print_select ~td:true ~selected:["ALL"]
+    ~attrs:[("name", "standard_builds"); ("multiple", "multiple");
+            ("size", "3")]
+    (("ALL", "ALL")::standard_builds);
+  print_select_list ~td:true ~selected:["ALL"]
+    ~attrs:[("name", "all_builds"); ("multiple", "multiple"); ("size", "3")]
+    ("ALL"::all_builds);
+  printf "</tr></table>";
+  (* Show all test cases. *)
+  printf "<h3>Test cases and their SOMs</h3>\n";
+  let query = "SELECT tc_fqn, description FROM test_cases ORDER BY tc_fqn" in
+  let result = exec_query_exn conn query in
+  let process_tc tc_fqn tc_desc =
+    printf "<h4>%s (<i>%s</i>)</h4>\n" tc_fqn tc_desc;
+    let query = "SELECT som_id, som_name FROM soms " ^
+      (sprintf "WHERE tc_fqn='%s'" tc_fqn) in
+    let result = exec_query_exn conn query in
+    let process_som som_id som_name =
+      printf "%s (<i>%s</i>)<br />\n" som_id som_name
+    in
+    Array.iter ~f:(fun r -> process_som r.(0) r.(1)) result#get_all
+  in
+  Array.iter ~f:(fun r -> process_tc r.(0) r.(1)) result#get_all;
+  print_footer ()
 
 let report_handler ~place ~conn =
   print_header ();
@@ -526,6 +568,7 @@ let handle_request () =
     | AsyncSom (id, params) -> asyncsom_handler ~conn id params
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
+    | ReportGenerator -> report_generator_handler ~place ~conn
     | Report -> report_handler ~place ~conn
     | ReportPart id -> report_part_handler ~place ~conn id
     | Default -> default_handler ~place ~conn
