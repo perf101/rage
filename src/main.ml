@@ -97,6 +97,12 @@ let place_of_request req =
 
 let get_place () = place_of_request (get_request ())
 
+let som_config_tbl_exists conn som_id =
+  let som_config_tbl = sprintf "som_config_%d" som_id in
+  let query = "SELECT * FROM pg_tables WHERE schemaname='public' AND " ^
+    (sprintf "tablename='%s'" som_config_tbl) in
+  som_config_tbl, (exec_query_exn conn query)#ntuples = 1
+
 let report_generator_handler ~place ~conn =
   print_header ();
   printf "<h2>Report Generator</h2>\n";
@@ -109,31 +115,37 @@ let report_generator_handler ~place ~conn =
   let query =
     "SELECT DISTINCT build_number FROM builds ORDER BY build_number" in
   let all_builds = get_first_col (exec_query_exn conn query) in
-  printf "<h3>Builds to compare against</h3>\n";
+  printf "<hr /><h3>Builds to compare against</h3>\n";
   printf "<table border='1'><tr><th>Standard</th><th>All</th></tr><tr>";
   print_select ~td:true ~selected:["ALL"]
     ~attrs:[("name", "standard_builds"); ("multiple", "multiple");
-            ("size", "3")]
+            ("size", "3"); ("class", "multiselect")]
     (("ALL", "ALL")::standard_builds);
   print_select_list ~td:true ~selected:["ALL"]
     ~attrs:[("name", "all_builds"); ("multiple", "multiple"); ("size", "3")]
     ("ALL"::all_builds);
   printf "</tr></table>";
-  (* Show all test cases. *)
-  printf "<h3>Test cases and their SOMs</h3>\n";
+  (* Show all test cases and their soms. *)
+  printf "<hr /><h3>Test cases and their SOMs</h3>\n";
   let query = "SELECT tc_fqn, description FROM test_cases ORDER BY tc_fqn" in
-  let result = exec_query_exn conn query in
+  let test_cases = exec_query_exn conn query in
   let process_tc tc_fqn tc_desc =
     printf "<h4>%s (<i>%s</i>)</h4>\n" tc_fqn tc_desc;
+    let tc_tbl = sprintf "tc_config_%s" tc_fqn in
+    print_options_for_fields conn tc_tbl tc_fqn;
     let query = "SELECT som_id, som_name FROM soms " ^
       (sprintf "WHERE tc_fqn='%s'" tc_fqn) in
-    let result = exec_query_exn conn query in
+    let soms = exec_query_exn conn query in
     let process_som som_id som_name =
-      printf "%s (<i>%s</i>)<br />\n" som_id som_name
+      printf "%s (<i>%s</i>)<br />\n" som_id som_name;
+      match som_config_tbl_exists conn (int_of_string som_id) with
+      | som_config_tbl, true ->
+          print_options_for_fields conn som_config_tbl som_id
+      | _ -> ()
     in
-    Array.iter ~f:(fun r -> process_som r.(0) r.(1)) result#get_all
+    Array.iter ~f:(fun r -> process_som r.(0) r.(1)) soms#get_all
   in
-  Array.iter ~f:(fun r -> process_tc r.(0) r.(1)) result#get_all;
+  Array.iter ~f:(fun r -> process_tc r.(0) r.(1)) test_cases#get_all;
   print_footer ()
 
 let report_handler ~place ~conn =
@@ -264,12 +276,6 @@ let print_filter_table job_ids builds configs som_configs_opt machines =
     printf "</tr></table>\n"
   in
   List.iter ~f:print_table_for (List.combine_exn labels options_lst)
-
-let som_config_tbl_exists conn som_id =
-  let som_config_tbl = sprintf "som_config_%d" som_id in
-  let query = "SELECT * FROM pg_tables WHERE schemaname='public' AND " ^
-    (sprintf "tablename='%s'" som_config_tbl) in
-  som_config_tbl, (exec_query_exn conn query)#ntuples = 1
 
 let show_configurations ~conn som_id tc_config_tbl =
   let query =

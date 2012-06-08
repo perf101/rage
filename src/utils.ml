@@ -123,3 +123,22 @@ let get_options_for_field db_result col =
     with _ -> output_string stderr (x ^ ", " ^ y ^ "\n"); 0
   in
   List.sort ~cmp (List.dedup (aux [] nRows))
+
+let print_options_for_field namespace db_result col =
+  let fname = db_result#fname col in
+  let opts = get_options_for_field db_result col in
+  let form_name = sprintf "%s_%s" namespace fname in
+  printf "<table border='1' class='filter_table'>";
+  printf "<tr><th>%s</th></tr><tr>" fname;
+  print_select_list ~td:true ~selected:["ALL"]
+    ~attrs:[("name", form_name); ("multiple", "multiple"); ("size", "3");
+            ("class", "multiselect")]
+    ("ALL"::opts);
+  printf "</tr></table>"
+
+let print_options_for_fields conn tbl namespace =
+  let query = "SELECT * FROM " ^ tbl in
+  let result = exec_query_exn conn query in
+  List.iter ~f:(print_options_for_field namespace result)
+    (List.range 1 result#nfields);
+  printf "<br style='clear: both' />\n"
