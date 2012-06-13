@@ -18,6 +18,7 @@ type place =
   | ReportCreate of (string * string) list
   | ReportGenerator
   | Reports
+  | Report of int
   | Som of int * int list
   | AsyncSom of int * (string * string) list
   | CreateTiny of string
@@ -35,6 +36,7 @@ let string_of_place = function
   | ReportCreate params -> "ReportCreate"
   | ReportGenerator -> "ReportGenerator"
   | Reports -> "Reports"
+  | Report id -> sprintf "Report %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
   | AsyncSom (id, params) -> string_of_som_place "AsyncSom" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
@@ -71,9 +73,10 @@ let get_first_val params k d =
 let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
-  match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
+  match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "reports" with Some _ -> Reports | None ->
+  match find pairs "report" with Some id -> Report (int_of_string id) | None ->
   match find pairs "som" with
   | None ->
     begin match find pairs "t" with
@@ -260,11 +263,36 @@ let report_create_handler ~conn params =
   List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params;
   print_footer ()
 
-let report_handler ~place ~conn =
+let reports_handler ~conn =
   print_header ();
   let query = "SELECT * FROM reports" in
   let result = exec_query_exn conn query in
-  print_table result;
+  let print_col row_i col_i tag data =
+    if row_i >= 0 && col_i = 0
+    then printf "<%s><a href='/?report=%s'>%s</a></%s>" tag data data tag
+    else print_col_default row_i col_i tag data
+  in
+  print_table_custom_row (print_row_custom ~print_col) result;
+  print_footer ()
+
+let report_handler ~conn report_id =
+  print_header ();
+  printf "<h2>Report ID</h2>\n%d\n" report_id;
+  let query =
+    sprintf "SELECT report_desc FROM reports WHERE report_id=%d" report_id in
+  let desc = get_first_entry_exn (exec_query_exn conn query) in
+  printf "<h2>Description</h2>\n%s\n" desc;
+  let query =
+    "SELECT b.branch, b.build_number, b.build_tag, rb.primary " ^
+    "FROM builds AS b, report_builds AS rb " ^
+    "WHERE b.build_id = rb.build_id AND " ^
+    (sprintf "rb.report_id = %d" report_id) in
+  printf "<h2>Builds</h2>\n";
+  print_table (exec_query_exn conn query);
+  let query =
+    sprintf "SELECT * FROM report_configs WHERE report_id = %d" report_id in
+  printf "<h2>SOMs (and their configurations)</h2>\n";
+  print_table (exec_query_exn conn query);
   print_footer ()
 
 let default_handler ~place ~conn =
@@ -594,7 +622,8 @@ let handle_request () =
     | RedirectTiny id -> redirecttiny_handler ~conn id
     | ReportCreate params -> report_create_handler ~conn params
     | ReportGenerator -> report_generator_handler ~conn
-    | Reports -> report_handler ~place ~conn
+    | Reports -> reports_handler ~conn
+    | Report id -> report_handler ~conn id
     | Default -> default_handler ~place ~conn
   end;
   conn#finish
