@@ -17,8 +17,7 @@ type place =
   | Default
   | ReportCreate of (string * string) list
   | ReportGenerator
-  | Report
-  | ReportPart of int
+  | Reports
   | Som of int * int list
   | AsyncSom of int * (string * string) list
   | CreateTiny of string
@@ -35,8 +34,7 @@ let string_of_place = function
   | Default -> "Default"
   | ReportCreate params -> "ReportCreate"
   | ReportGenerator -> "ReportGenerator"
-  | Report -> "Report"
-  | ReportPart id -> sprintf "ReportPart %d" id
+  | Reports -> "Reports"
   | Som (id, cids) -> string_of_som_place "Som" id cids
   | AsyncSom (id, params) -> string_of_som_place "AsyncSom" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
@@ -75,10 +73,7 @@ let place_of_request req =
   let pairs = pairs_of_request req in
   match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
-  match find pairs "reports" with Some _ -> Report | None ->
-  match find pairs "report_part" with
-  | Some id -> ReportPart (int_of_string id)
-  | None ->
+  match find pairs "reports" with Some _ -> Reports | None ->
   match find pairs "som" with
   | None ->
     begin match find pairs "t" with
@@ -270,23 +265,6 @@ let report_handler ~place ~conn =
   let query = "SELECT * FROM reports" in
   let result = exec_query_exn conn query in
   print_table result;
-  print_footer ()
-
-let report_part_handler ~place ~conn id =
-  print_header ();
-  let query = "SELECT som_id, tc_config_id, som_config_id FROM reports " ^
-    (sprintf "WHERE report_part_id=%d" id) in
-  let result = exec_query_exn conn query in
-  let row = result#get_all.(0) in
-  let som_id = int_of_string (row.(0)) in
-  let tc_config_id = int_of_string (row.(1)) in
-  let som_config_id = if result#getisnull 0 2 then "(NULL)" else row.(2) in
-  printf "REPORT PART: %d<br />\n" id;
-  printf "SOM ID: %d<br />\n" som_id;
-  printf "TC CONFIG ID: %d<br />\n" tc_config_id;
-  printf "SOM CONFIG ID: %s<br />\n" som_config_id;
-  let url = sprintf "/?som=%d&v_config_id=%d" som_id tc_config_id in
-  printf "URL: <a href='%s'>%s</a>" url url;
   print_footer ()
 
 let default_handler ~place ~conn =
@@ -616,8 +594,7 @@ let handle_request () =
     | RedirectTiny id -> redirecttiny_handler ~conn id
     | ReportCreate params -> report_create_handler ~conn params
     | ReportGenerator -> report_generator_handler ~conn
-    | Report -> report_handler ~place ~conn
-    | ReportPart id -> report_part_handler ~place ~conn id
+    | Reports -> report_handler ~place ~conn
     | Default -> default_handler ~place ~conn
   end;
   conn#finish
