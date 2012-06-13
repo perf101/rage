@@ -113,8 +113,9 @@ let report_generator_handler ~conn =
   printf "<input type='hidden' name='report_create' />\n";
   (* Show input boxes for entering basic information. *)
   printf "<hr /><h3>Basic information</h3>\n";
-  printf "Report name: <input type='text' name='name' /><br />\n";
+  printf "Report description: <input type='text' name='desc' /><br />\n";
   (* Display standard and all builds in dropboxes. *)
+  printf "<hr /><h3>Builds to compare</h3>\n";
   let query = "SELECT build_name, build_number FROM standard_builds " ^
     "ORDER BY build_name" in
   let result = exec_query_exn conn query in
@@ -123,16 +124,22 @@ let report_generator_handler ~conn =
   let query =
     "SELECT DISTINCT build_number FROM builds ORDER BY build_number" in
   let all_builds = get_first_col (exec_query_exn conn query) in
-  printf "<hr /><h3>Builds to compare</h3>\n";
-  printf "<table border='1'><tr><th>Standard</th><th>All</th></tr><tr>";
-  print_select ~td:true ~selected:["ALL"]
-    ~attrs:[("name", "standard_builds"); ("multiple", "multiple");
-            ("size", "3"); ("class", "multiselect")]
-    (("ALL", "ALL")::standard_builds);
-  print_select_list ~td:true ~selected:["NONE"]
-    ~attrs:[("name", "all_builds"); ("multiple", "multiple"); ("size", "3")]
-    ("NONE"::all_builds);
-  printf "</tr></table>";
+  let print_build_options prefix desc =
+    printf "<b>%s</b>:<br />\n" desc;
+    printf "<table border='1'><tr><th>Standard</th><th>All</th></tr><tr>";
+    print_select ~td:true ~selected:["NONE"]
+      ~attrs:[("name", prefix ^ "_standard_builds"); ("multiple", "multiple");
+              ("size", "3"); ("class", "multiselect")]
+      (("NONE", "NONE")::("ALL", "ALL")::standard_builds);
+    print_select_list ~td:true ~selected:["NONE"]
+      ~attrs:[("name", prefix ^ "_all_builds"); ("multiple", "multiple");
+              ("size", "3")]
+      ("NONE"::all_builds);
+    printf "</tr></table><br />\n";
+  in
+  print_build_options "primary" "Primary builds (data must be present)";
+  print_build_options "secondary"
+    "Secondary builds (for comparing against; no data required)";
   (* Show all test cases and their soms. *)
   printf "<hr /><h3>Test cases and their SOMs</h3>\n";
   let query = "SELECT tc_fqn, description FROM test_cases ORDER BY tc_fqn" in
@@ -145,6 +152,7 @@ let report_generator_handler ~conn =
       (sprintf "WHERE tc_fqn='%s'" tc_fqn) in
     let soms = exec_query_exn conn query in
     let process_som som_id som_name =
+      printf "<input name='include_%s' type='checkbox' />" som_id;
       printf "%s (<i>%s</i>)<br />\n" som_id som_name;
       match som_config_tbl_exists conn (int_of_string som_id) with
       | som_config_tbl, true ->
@@ -158,9 +166,102 @@ let report_generator_handler ~conn =
   printf "</form>\n";
   print_footer ()
 
+let get_builds_from_params conn params key tbl =
+  let build_vals = List.filter ~f:((<>) "NONE") (values_for_key params key) in
+  let builds_str =
+    if List.mem "ALL" build_vals
+    then get_first_col (exec_query_exn conn ("SELECT build_number FROM " ^ tbl))
+    else build_vals
+  in List.map ~f:int_of_string builds_str
+
+let get_build_group conn params group =
+  let std_builds = get_builds_from_params conn params
+    (group ^ "_standard_builds") "standard_builds" in
+  let all_builds = get_builds_from_params conn params
+    (group ^ "_all_builds") "builds" in
+  List.sort ~cmp:compare (std_builds @ all_builds)
+
 let report_create_handler ~conn params =
   print_header ();
-  debug "report_create_handler";
+  (* Obtain metadata. *)
+  let desc = List.hd_exn (values_for_key params "desc") in
+  (* let query = sprintf "INSERT INTO reports (report_desc) VALUES ('%s')" desc in *)
+  (* debug query; *)
+  let tuples = [("report_desc", desc, Non_numeric)] in
+  let report_id =
+    int_of_string (insert_and_get_first_col conn "reports" tuples) in
+  (* Gather and record builds. *)
+  let primary_builds = get_build_group conn params "primary" in
+  let secondary_builds = get_build_group conn params "secondary" in
+  (* XXX note that build_tag is assumed to be empty! *)
+  let insert_build primary build_number =
+    let query = "SELECT build_id FROM builds " ^
+      (sprintf "WHERE build_number=%d AND build_tag=''" build_number) in
+    debug query;
+    match get_first_entry (exec_query_exn conn query) with
+    | None ->
+      if primary then
+        failwith (sprintf "Cannot find build with build_number %d." build_number)
+    | Some build_id ->
+      let query = "INSERT INTO report_builds (report_id, build_id, \"primary\") " ^
+        (sprintf "VALUES (%d, %s, %B)" report_id build_id primary) in
+      debug query;
+      exec_sql_exn conn query
+  in
+  List.iter ~f:(insert_build true) primary_builds;
+  List.iter ~f:(insert_build false) secondary_builds;
+  (* Find included SOMs. *)
+  let param_keys = fst (List.split params) in
+  let som_ids_str =
+    List.filter_map ~f:(String.chop_prefix ~prefix:"include_") param_keys in
+  let som_ids = List.map ~f:int_of_string som_ids_str in
+  let process_som som_id =
+    let tc_fqn =
+      let q = sprintf "SELECT tc_fqn FROM soms WHERE som_id=%d" som_id in
+      get_first_entry_exn (exec_query_exn conn q)
+    in
+    let prefix = tc_fqn ^ "_" in
+    let tc_config_tbl = "tc_config_" ^ tc_fqn in
+    let col_fqns = get_column_fqns conn tc_config_tbl in
+    let col_types = get_column_types conn tc_config_tbl in
+    let filter = extract_filter col_fqns col_types params prefix in
+    let query = sprintf "SELECT tc_config_id FROM %s WHERE %s"
+      tc_config_tbl filter in
+    let tc_config_ids_str = get_first_col (exec_query_exn conn query) in
+    let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
+    match som_config_tbl_exists conn som_id with
+    | som_config_tbl, true ->
+        let prefix = sprintf "%d_" som_id in
+        let col_fqns = get_column_fqns conn som_config_tbl in
+        let col_types = get_column_types conn som_config_tbl in
+        let filter = extract_filter col_fqns col_types params prefix in
+        let query = sprintf "SELECT som_config_id FROM %s WHERE %s"
+          som_config_tbl filter in
+        let som_config_ids_str = get_first_col (exec_query_exn conn query) in
+        let som_config_ids = List.map ~f:int_of_string som_config_ids_str in
+        let insert_report_config tc_config_id som_config_id =
+          let query =
+            "INSERT INTO report_configs " ^
+            "(report_id, som_id, tc_config_id, som_config_id) VALUES " ^
+            (sprintf "(%d, %d, " report_id som_id) ^
+            (sprintf "%d, %d)" tc_config_id som_config_id) in
+          debug query;
+          exec_sql_exn conn query
+        in
+        List.iter tc_config_ids
+          ~f:(fun tci -> List.iter som_config_ids ~f:(insert_report_config tci))
+    | _ ->
+        let insert_report_config tc_config_id =
+          let query =
+            "INSERT INTO report_configs (report_id, som_id, tc_config_id) " ^
+            (sprintf "VALUES (%d, %d, %d)" report_id som_id tc_config_id) in
+          debug query;
+          exec_sql_exn conn query
+        in
+        List.iter ~f:insert_report_config tc_config_ids
+  in
+  List.iter ~f:process_som som_ids;
+  (* Print all GET parameters. *)
   List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params;
   print_footer ()
 
@@ -351,84 +452,8 @@ let som_handler ~place ~conn som_id config_ids =
   show_configurations ~conn som_id tc_config_tbl;
   print_footer ()
 
-let html_to_text html =
-  let rules =
-    let pairs = [("%20", " "); ("%2C", ","); ("+", " ")] in
-    List.map pairs ~f:(fun (r, t) -> (Str.regexp r, t))
-  in
-  List.fold_left rules ~init:html
-    ~f:(fun h (r, t) -> Str.global_replace r t h)
-
 (** Pre-generated regexp for use within asyncsom_handler. *)
 let quote_re = Str.regexp "\""
-
-let extract_filter tc_config_tbl som_config_tbl col_fqns col_types params =
-  let m = String.Table.create () in
-  let update_m v vs_opt =
-    let vs = Option.value vs_opt ~default:[] in Some (v::vs) in
-  let filter_insert (k, v) =
-    if v = "ALL" then () else
-    if String.is_prefix k ~prefix:values_prefix then begin
-      let k2 = String.chop_prefix_exn k ~prefix:values_prefix in
-      String.Table.change m k2 (update_m v)
-    end in
-  List.iter params ~f:filter_insert;
-  let l = String.Table.to_alist m in
-  let conds = List.map l
-    ~f:(fun (k, vs) ->
-      let vs = List.map vs ~f:html_to_text in
-      let has_null = List.mem ~set:vs "(NULL)" in
-      let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
-      let ty_opt = String.Table.find col_types k in
-      let quote = match ty_opt with
-      | None -> false
-      | Some ty -> List.mem ~set:["character varying"; "boolean"; "text"] ty in
-      let vs_oq =
-        if quote then List.map vs ~f:(fun v -> "'" ^ v ^ "'") else vs in
-      let fqn = String.Table.find_exn col_fqns k in
-      let val_list = concat vs_oq in
-      let in_cond = sprintf "%s IN (%s)" fqn val_list in
-      let null_cond = if has_null then sprintf "%s IS NULL" fqn else "" in
-      if List.is_empty vs then null_cond else
-      if has_null then sprintf "(%s OR %s)" in_cond null_cond else
-      in_cond
-    ) in
-  concat ~sep:" AND " conds
-
-let get_column_types conn tbl =
-  let query =
-    ("SELECT column_name, data_type FROM information_schema.columns ") ^
-    (sprintf "WHERE table_name='%s'" tbl) in
-  let col_types_data = exec_query_exn conn query in
-  let nameToType = String.Table.create () in
-  let process_column nameTypeList =
-    let name = List.nth_exn nameTypeList 0 in
-    let ty = List.nth_exn nameTypeList 1 in
-    String.Table.replace nameToType ~key:name ~data:ty
-  in List.iter col_types_data#get_all_lst ~f:process_column;
-  nameToType
-
-let get_column_fqns conn tbl =
-  let query =
-    ("SELECT column_name FROM information_schema.columns ") ^
-    (sprintf "WHERE table_name='%s'" tbl) in
-  let col_names = get_first_col (exec_query_exn conn query) in
-  let nameToFqn = String.Table.create () in
-  let process_column name =
-    let fqn = tbl ^ "." ^ name in
-    String.Table.replace nameToFqn ~key:name ~data:fqn
-  in List.iter col_names ~f:process_column;
-  nameToFqn
-
-let combine_maps conn tbls f =
-  let m = String.Table.create () in
-  List.iter tbls ~f:(fun t -> merge_table_into (f conn t) m);
-  m
-let get_column_types_many conn tbls = combine_maps conn tbls get_column_types
-let get_column_fqns_many conn tbls = combine_maps conn tbls get_column_fqns
-
-let extract_column rows col =
-  Array.to_list (Array.map rows ~f:(fun row -> row.(col)))
 
 let get_generic_string_mapping rows col col_name col_types =
   match String.Table.find col_types col_name with None -> None | Some ty ->
@@ -483,8 +508,7 @@ let asyncsom_handler ~conn som_id params =
       xaxis :: yaxis :: get_relevant_params params |! List.stable_dedup
   in
   let fqns = List.map keys ~f:(String.Table.find_exn col_fqns) in
-  let filter =
-    extract_filter tc_config_tbl som_config_tbl col_fqns col_types params in
+  let filter = extract_filter col_fqns col_types params values_prefix in
   (* obtain data from database *)
   let query =
     (sprintf "SELECT %s " (String.concat ~sep:", " fqns)) ^
@@ -599,4 +623,5 @@ let handle_request () =
   conn#finish
 
 let _ =
-  handle_request ()
+  try handle_request ()
+  with Failure msg -> Printexc.print_backtrace stderr; printf "<b>%s</b>" msg
