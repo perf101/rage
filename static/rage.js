@@ -53,6 +53,46 @@ function som_page_init() {
 function report_page_init() {
   var report_id = parseInt(url_params.report[0]);
   console.log("report page", report_id);
+  var request = window.location.href + "&async=true";
+  console.log(request);
+  $.ajax({
+    url: request,
+    method: 'GET',
+    dataType: 'json',
+    success: on_report_received,
+    error: onAsyncFail
+  });
+}
+
+function get_table_for(o) {
+  if (o.length == 0) return "N/A";
+  var s = "<table border='1'>";
+  var ks = get_sorted_keys(o[0]);
+  s += "<tr>";
+  for (var k in ks)
+    s += "<th>" + ks[k] + "</th>";
+  for (var i in o) {
+    s += "<tr>";
+    for (var k in ks)
+      s += "<td>" + o[i][ks[k]] + "</td>";
+    s += "</tr>";
+  }
+  s += "</tr>";
+  s += "</table>";
+  return s;
+}
+
+function on_report_received(r) {
+  console.log(r);
+  var s = "";
+  s += "<h2>Report ID</h2>" + r.id;
+  s += "<h2>Report description</h2>" + r.desc;
+  s += "<h2>Primary builds</h2>";
+  s += get_table_for(r.builds.primary);
+  s += "<h2>Secondary builds</h2>";
+  s += get_table_for(r.builds.secondary);
+  // console.log(s);
+  $('body').append(s);
 }
 
 function view_change() {

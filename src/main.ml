@@ -19,8 +19,9 @@ type place =
   | ReportGenerator
   | Reports
   | Report of int
+  | ReportAsync of int
   | Som of int * int list
-  | AsyncSom of int * (string * string) list
+  | SomAsync of int * (string * string) list
   | CreateTiny of string
   | RedirectTiny of int
 
@@ -37,8 +38,9 @@ let string_of_place = function
   | ReportGenerator -> "ReportGenerator"
   | Reports -> "Reports"
   | Report id -> sprintf "Report %d" id
+  | ReportAsync id -> sprintf "ReportAsync %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
-  | AsyncSom (id, params) -> string_of_som_place "AsyncSom" id []
+  | SomAsync (id, params) -> string_of_som_place "SomAsync" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
   | RedirectTiny id -> sprintf "RedirectTiny %d" id
 
@@ -76,7 +78,11 @@ let place_of_request req =
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
   match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "reports" with Some _ -> Reports | None ->
-  match find pairs "report" with Some id -> Report (int_of_string id) | None ->
+  match find pairs "report" with
+  | Some id_str ->
+      let id = int_of_string id_str in
+      if Option.is_some (find pairs "async") then ReportAsync id else Report id
+  | None ->
   match find pairs "som" with
   | None ->
     begin match find pairs "t" with
@@ -93,7 +99,7 @@ let place_of_request req =
       let cids = List.map ~f:int_of_string cids_s in
       let cids_sorted = List.sort ~cmp:compare cids in
       match find pairs "async" with
-      | Some "true" -> AsyncSom (id, pairs)
+      | Some "true" -> SomAsync (id, pairs)
       | _ -> Som (id, cids_sorted)
 
 let get_place () = place_of_request (get_request ())
@@ -275,20 +281,44 @@ let reports_handler ~conn =
   print_table_custom_row (print_row_custom ~print_col) result;
   print_footer ()
 
-let report_handler ~conn report_id =
-  print_header ();
-  printf "<h2>Report ID</h2>\n%d\n" report_id;
+let report_async_handler ~conn report_id =
   let query =
     sprintf "SELECT report_desc FROM reports WHERE report_id=%d" report_id in
   let desc = get_first_entry_exn (exec_query_exn conn query) in
-  printf "<h2>Description</h2>\n%s\n" desc;
-  let query =
-    "SELECT b.branch, b.build_number, b.build_tag, rb.primary " ^
+  let builds_query primary =
+    "SELECT b.build_id, b.branch, b.build_number, b.build_tag " ^
     "FROM builds AS b, report_builds AS rb " ^
-    "WHERE b.build_id = rb.build_id AND " ^
-    (sprintf "rb.report_id = %d" report_id) in
-  printf "<h2>Builds</h2>\n";
-  print_table (exec_query_exn conn query);
+    "WHERE b.build_id = rb.build_id " ^
+    (sprintf "AND rb.report_id = %d " report_id) ^
+    (sprintf "AND rb.primary = %B " primary) in
+  let primary_builds = exec_query_exn conn (builds_query true) in
+  let secondary_builds = exec_query_exn conn (builds_query false) in
+  ignore primary_builds;
+  ignore secondary_builds;
+  let string_of_builds builds =
+    let string_of_build build =
+      "{" ^
+      (sprintf "\"build_id\": %s," build.(0)) ^
+      (sprintf "\"branch\": \"%s\"," build.(1)) ^
+      (sprintf "\"build_number\": %s," build.(2)) ^
+      (sprintf "\"build_tag\": \"%s\"" build.(3)) ^
+      "}"
+    in
+    concat (Array.to_list (Array.map ~f:string_of_build builds#get_all))
+  in
+  printf "Content-type: application/json\n\n";
+  printf "{";
+  printf "\"id\": %d," report_id;
+  printf "\"desc\": \"%s\"," desc;
+  printf "\"builds\": {";
+  printf "\"primary\": [%s]," (string_of_builds primary_builds);
+  printf "\"secondary\": [%s]" (string_of_builds secondary_builds);
+  printf "}";
+  printf "}"
+
+let report_handler ~conn report_id =
+  print_header ();
+(*
   let query =
     "SELECT som_id, tc_config_id, som_config_id FROM report_configs " ^
     (sprintf "WHERE report_id = %d" report_id) in
@@ -342,6 +372,7 @@ let report_handler ~conn report_id =
     end
   in
   Array.iteri ~f:process_config_tuple result#get_all;
+*)
   printf "<script src='rage.js'></script>";
   print_footer ()
 
@@ -508,7 +539,7 @@ let som_handler ~place ~conn som_id config_ids =
   show_configurations ~conn som_id tc_config_tbl;
   print_footer ()
 
-(** Pre-generated regexp for use within asyncsom_handler. *)
+(** Pre-generated regexp for use within som_async_handler. *)
 let quote_re = Str.regexp "\""
 
 let get_generic_string_mapping rows col col_name col_types =
@@ -545,7 +576,7 @@ let get_values_params params = select_params params values_prefix
 let get_relevant_params params =
   get_filter_params params @ get_values_params params
 
-let asyncsom_handler ~conn som_id params =
+let som_async_handler ~conn som_id params =
   printf "Content-type: application/json\n\n";
   let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
   let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
@@ -667,13 +698,14 @@ let handle_request () =
   let conn = new connection ~conninfo:Sys.argv.(1) () in
   begin match place with
     | Som (id, cids) -> som_handler ~place ~conn id cids
-    | AsyncSom (id, params) -> asyncsom_handler ~conn id params
+    | SomAsync (id, params) -> som_async_handler ~conn id params
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
     | ReportCreate params -> report_create_handler ~conn params
     | ReportGenerator -> report_generator_handler ~conn
     | Reports -> reports_handler ~conn
     | Report id -> report_handler ~conn id
+    | ReportAsync id -> report_async_handler ~conn id
     | Default -> default_handler ~place ~conn
   end;
   conn#finish
