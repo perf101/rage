@@ -9,36 +9,51 @@ Invariants (also reflected on server side):
 - "ALL" is the first (default) option for filter values ("v_").
 */
 
-// ======== MAIN --- begin ===========
-// automatically change available configuration given view
-$("#view").change(view_change);
-// reset configuration button
-$("#reset_config").click(function() {window.location.href = get_som_url();});
-// automatic refresh on change
+// === GLOBAL VARIABLES --- start ===
 var autofetch = true; // if false, the following triggers have no effect
-$("select[name='xaxis']").change(fetch_data_and_process);
-$("select[name='yaxis']").change(fetch_data_and_process);
-$("input[name='show_avgs']").change(fetch_data_and_process);
-$("input[name='x_from_zero']").change(fetch_data_and_process);
-$("input[name='y_from_zero']").change(fetch_data_and_process);
-$("input[name='show_all_meta']").change(fetch_data_and_process);
-$("input[name='yaxis_log']").change(fetch_data_and_process);
-$(".filterselect").change(fetch_data_and_process);
-$(".multiselect").change(fetch_data_and_process);
-// fetch and process data immediately
 var checkboxes_on_by_default = ["show_avgs", "y_from_zero"];
-preselect_fields_based_on_params();
-fetch_data_and_process();
-// extract image button
-load_get_image_if_not_ie();
-// tiny url
-$("#get_tinyurl").click(get_tinyurl);
-// ========= MAIN --- end ============
-
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_from_zero",
   "#show_all_meta", "#yaxis_log", "#get_img"
 ]
+var url_params = get_url_params();
+// ==== GLOBAL VARIABLES --- end ====
+
+// ======== MAIN --- begin ===========
+if ("som" in url_params)
+  som_page_init();
+else if ("report" in url_params)
+  report_page_init();
+// ========= MAIN --- end ============
+
+function som_page_init() {
+  // automatically change available configuration given view
+  $("#view").change(view_change);
+  // reset configuration button
+  $("#reset_config").click(function() {window.location.href = get_som_url();});
+  // automatic refresh on change
+  $("select[name='xaxis']").change(fetch_data_and_process);
+  $("select[name='yaxis']").change(fetch_data_and_process);
+  $("input[name='show_avgs']").change(fetch_data_and_process);
+  $("input[name='x_from_zero']").change(fetch_data_and_process);
+  $("input[name='y_from_zero']").change(fetch_data_and_process);
+  $("input[name='show_all_meta']").change(fetch_data_and_process);
+  $("input[name='yaxis_log']").change(fetch_data_and_process);
+  $(".filterselect").change(fetch_data_and_process);
+  $(".multiselect").change(fetch_data_and_process);
+  // fetch and process data immediately
+  preselect_fields_based_on_params();
+  fetch_data_and_process();
+  // extract image button
+  load_get_image_if_not_ie();
+  // tiny url
+  $("#get_tinyurl").click(get_tinyurl);
+}
+
+function report_page_init() {
+  var report_id = parseInt(url_params.report[0]);
+  console.log("report page", report_id);
+}
 
 function view_change() {
   autofetch = false;

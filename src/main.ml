@@ -342,6 +342,7 @@ let report_handler ~conn report_id =
     end
   in
   Array.iteri ~f:process_config_tuple result#get_all;
+  printf "<script src='rage.js'></script>";
   print_footer ()
 
 let default_handler ~place ~conn =
