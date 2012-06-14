@@ -290,9 +290,58 @@ let report_handler ~conn report_id =
   printf "<h2>Builds</h2>\n";
   print_table (exec_query_exn conn query);
   let query =
-    sprintf "SELECT * FROM report_configs WHERE report_id = %d" report_id in
+    "SELECT som_id, tc_config_id, som_config_id FROM report_configs " ^
+    (sprintf "WHERE report_id = %d" report_id) in
   printf "<h2>SOMs (and their configurations)</h2>\n";
-  print_table (exec_query_exn conn query);
+  let result = exec_query_exn conn query in
+  (* print_table result; *)
+  let process_config_tuple report_part tuple =
+    let som_id : int = int_of_string tuple.(0) in
+    let tc_config_id : int = int_of_string tuple.(1) in
+    let som_config_id_opt : int option =
+      if tuple.(2) = "" then None else Some (int_of_string tuple.(2)) in
+    let som_config_id_opt_str =
+      Option.value_map som_config_id_opt ~f:string_of_int ~default:"none" in
+    let query = "SELECT som_name, tc_fqn FROM soms " ^
+      (sprintf "WHERE som_id = %d" som_id) in
+    let som_info = (exec_query_exn conn query)#get_tuple 0 in
+    let som_name = som_info.(0) in
+    let tc_fqn = som_info.(1) in
+    let query = "SELECT description FROM test_cases " ^
+      (sprintf "WHERE tc_fqn = '%s'" tc_fqn) in
+    let tc_desc = get_first_entry_exn (exec_query_exn conn query) in
+    let query =
+      (sprintf "SELECT * FROM tc_config_%s " tc_fqn) ^
+      (sprintf "WHERE tc_config_id = %d" tc_config_id) in
+    let tc_config_info = exec_query_exn conn query in
+    let som_config_info_opt =
+      match som_config_id_opt with None -> None | Some som_config_id ->
+      let query =
+        (sprintf "SELECT * FROM som_config_%d " som_id) ^
+        (sprintf "WHERE som_config_id = %d" som_config_id) in
+      Some (exec_query_exn conn query)
+    in
+    let print_config_info_part config_info desc col =
+      let fname = config_info#fname col in
+      let value = config_info#getvalue 0 col in
+      printf "%s config \"%s\": %s<br />\n" desc fname value
+    in
+    printf "<h3>Part %d</h3>\n" (report_part + 1);
+    printf "SOM id: %d<br />\n" som_id;
+    printf "SOM name: %s<br />\n" som_name;
+    printf "TC fqn: %s<br />\n" tc_fqn;
+    printf "TC description: %s<br />\n" tc_desc;
+    printf "TC configuration id: %d<br />\n" tc_config_id;
+    List.iter ~f:(print_config_info_part tc_config_info "TC")
+      (List.range 1 tc_config_info#nfields);
+    printf "SOM configuration id: %s<br />\n" som_config_id_opt_str;
+    begin
+      match som_config_info_opt with None -> () | Some som_config_info ->
+      List.iter ~f:(print_config_info_part som_config_info "SOM")
+        (List.range 1 som_config_info#nfields);
+    end
+  in
+  Array.iteri ~f:process_config_tuple result#get_all;
   print_footer ()
 
 let default_handler ~place ~conn =
