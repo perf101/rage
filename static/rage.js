@@ -91,7 +91,6 @@ function on_report_received(r) {
   s += get_table_for(r.builds.primary);
   s += "<h2>Secondary builds</h2>";
   s += get_table_for(r.builds.secondary);
-  // console.log(s);
   $('body').append(s);
 }
 

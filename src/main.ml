@@ -293,8 +293,6 @@ let report_async_handler ~conn report_id =
     (sprintf "AND rb.primary = %B " primary) in
   let primary_builds = exec_query_exn conn (builds_query true) in
   let secondary_builds = exec_query_exn conn (builds_query false) in
-  ignore primary_builds;
-  ignore secondary_builds;
   let string_of_builds builds =
     let string_of_build build =
       "{" ^
@@ -306,32 +304,15 @@ let report_async_handler ~conn report_id =
     in
     concat (Array.to_list (Array.map ~f:string_of_build builds#get_all))
   in
-  printf "Content-type: application/json\n\n";
-  printf "{";
-  printf "\"id\": %d," report_id;
-  printf "\"desc\": \"%s\"," desc;
-  printf "\"builds\": {";
-  printf "\"primary\": [%s]," (string_of_builds primary_builds);
-  printf "\"secondary\": [%s]" (string_of_builds secondary_builds);
-  printf "}";
-  printf "}"
-
-let report_handler ~conn report_id =
-  print_header ();
-(*
   let query =
     "SELECT som_id, tc_config_id, som_config_id FROM report_configs " ^
     (sprintf "WHERE report_id = %d" report_id) in
-  printf "<h2>SOMs (and their configurations)</h2>\n";
-  let result = exec_query_exn conn query in
-  (* print_table result; *)
-  let process_config_tuple report_part tuple =
-    let som_id : int = int_of_string tuple.(0) in
-    let tc_config_id : int = int_of_string tuple.(1) in
-    let som_config_id_opt : int option =
-      if tuple.(2) = "" then None else Some (int_of_string tuple.(2)) in
-    let som_config_id_opt_str =
-      Option.value_map som_config_id_opt ~f:string_of_int ~default:"none" in
+  let report_configs = exec_query_exn conn query in
+  let string_of_report_config config =
+    let som_id : int = int_of_string config.(0) in
+    let tc_config_id : int = int_of_string config.(1) in
+    let som_config_id : int =
+      if config.(2) = "" then -1 else int_of_string config.(2) in
     let query = "SELECT som_name, tc_fqn FROM soms " ^
       (sprintf "WHERE som_id = %d" som_id) in
     let som_info = (exec_query_exn conn query)#get_tuple 0 in
@@ -345,12 +326,57 @@ let report_handler ~conn report_id =
       (sprintf "WHERE tc_config_id = %d" tc_config_id) in
     let tc_config_info = exec_query_exn conn query in
     let som_config_info_opt =
-      match som_config_id_opt with None -> None | Some som_config_id ->
+      if som_config_id = -1 then None else
       let query =
         (sprintf "SELECT * FROM som_config_%d " som_id) ^
         (sprintf "WHERE som_config_id = %d" som_config_id) in
       Some (exec_query_exn conn query)
     in
+    let string_of_config_info_part config_info col =
+      let fname = config_info#fname col in
+      let value = config_info#getvalue 0 col in
+      sprintf "\"%s\": \"%s\"" fname value
+    in
+    let tc_config =
+      let parts = List.map ~f:(string_of_config_info_part tc_config_info)
+        (List.range 1 tc_config_info#nfields) in
+      concat parts
+    in
+    let som_config =
+      match som_config_info_opt with None -> "" | Some som_config_info ->
+      let parts = List.map ~f:(string_of_config_info_part som_config_info)
+        (List.range 1 som_config_info#nfields) in
+      concat parts
+    in
+    "{" ^
+    (sprintf "\"som_id\": %d," som_id) ^
+    (sprintf "\"tc_config_id\": %d," tc_config_id) ^
+    (sprintf "\"som_config_id\": %d," som_config_id) ^
+    (sprintf "\"som_name\": \"%s\"," som_name) ^
+    (sprintf "\"tc_fqn\": \"%s\"," tc_fqn) ^
+    (sprintf "\"tc_desc\": \"%s\"," tc_desc) ^
+    (sprintf "\"tc_config\": {%s}," tc_config) ^
+    (sprintf "\"som_config\": {%s}" som_config) ^
+    "}"
+  in
+  let report_configs_str =
+    let arr = Array.map ~f:string_of_report_config report_configs#get_all in
+    concat (Array.to_list arr) in
+  printf "Content-type: application/json\n\n";
+  printf "{";
+  printf "\"id\": %d," report_id;
+  printf "\"desc\": \"%s\"," desc;
+  printf "\"builds\": {";
+  printf "\"primary\": [%s]," (string_of_builds primary_builds);
+  printf "\"secondary\": [%s]" (string_of_builds secondary_builds);
+  printf "},";
+  printf "\"configs\": [%s]" report_configs_str;
+  printf "}"
+
+let report_handler ~conn report_id =
+  print_header ();
+(*
+  let process_config_tuple report_part tuple =
     let print_config_info_part config_info desc col =
       let fname = config_info#fname col in
       let value = config_info#getvalue 0 col in
