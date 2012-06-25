@@ -8,6 +8,9 @@ html {
   position: relative;
   top: 10px;
 }
+.error {
+  color: red;
+}
 canvas.flot-base {
   background: white;
 }

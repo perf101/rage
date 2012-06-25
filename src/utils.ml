@@ -70,6 +70,9 @@ let get_col result col = extract_column result#get_all col
 
 let get_first_col result = get_col result 0
 
+let get_value r row col null_val =
+  if r#getisnull row col then null_val else r#getvalue row col
+
 let combine_maps conn tbls f =
   let m = String.Table.create () in
   List.iter tbls ~f:(fun t -> merge_table_into (f conn t) m);

@@ -313,11 +313,13 @@ let report_async_handler ~conn report_id =
     let tc_config_id : int = int_of_string config.(1) in
     let som_config_id : int =
       if config.(2) = "" then -1 else int_of_string config.(2) in
-    let query = "SELECT som_name, tc_fqn FROM soms " ^
+    let query = "SELECT som_name, tc_fqn, more_is_better, units FROM soms " ^
       (sprintf "WHERE som_id = %d" som_id) in
-    let som_info = (exec_query_exn conn query)#get_tuple 0 in
-    let som_name = som_info.(0) in
-    let tc_fqn = som_info.(1) in
+    let som_info = exec_query_exn conn query in
+    let som_name = som_info#getvalue 0 0 in
+    let tc_fqn = som_info#getvalue 0 1 in
+    let more_is_better = get_value som_info 0 2 "NULL" in
+    let units = get_value som_info 0 3 "NULL" in
     let query = "SELECT description FROM test_cases " ^
       (sprintf "WHERE tc_fqn = '%s'" tc_fqn) in
     let tc_desc = get_first_entry_exn (exec_query_exn conn query) in
@@ -349,13 +351,15 @@ let report_async_handler ~conn report_id =
       concat parts
     in
     "{" ^
-    (sprintf "\"som_id\": %d," som_id) ^
-    (sprintf "\"tc_config_id\": %d," tc_config_id) ^
-    (sprintf "\"som_config_id\": %d," som_config_id) ^
-    (sprintf "\"som_name\": \"%s\"," som_name) ^
     (sprintf "\"tc_fqn\": \"%s\"," tc_fqn) ^
     (sprintf "\"tc_desc\": \"%s\"," tc_desc) ^
+    (sprintf "\"tc_config_id\": %d," tc_config_id) ^
     (sprintf "\"tc_config\": {%s}," tc_config) ^
+    (sprintf "\"som_id\": %d," som_id) ^
+    (sprintf "\"som_name\": \"%s\"," som_name) ^
+    (sprintf "\"som_polarity\": \"%s\"," more_is_better) ^
+    (sprintf "\"som_units\": \"%s\"," units) ^
+    (sprintf "\"som_config_id\": %d," som_config_id) ^
     (sprintf "\"som_config\": {%s}" som_config) ^
     "}"
   in

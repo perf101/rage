@@ -60,7 +60,7 @@ function report_page_init() {
     method: 'GET',
     dataType: 'json',
     success: on_report_received,
-    error: onAsyncFail
+    error: on_async_fail
   });
 }
 
@@ -96,10 +96,29 @@ function builds_for(builds) {
   return s;
 }
 
+function string_to_polarity(s) {
+  if (s == "t") return "More is better.";
+  if (s == "f") return "Less is better.";
+  if (s == "NULL") return "(Not set.)";
+  return "(Corrupt: " + s + ")"
+}
+
+function string_to_units(s) {
+  if (s == "NULL") return "(Not set.)";
+  return s;
+}
+
+var report_primary_builds = {}
+
 function on_report_received(r) {
   console.log(r);
-  var s = "";
+  // store primary builds globally
+  report_primary_builds = {}
+  for (var i in r.builds.primary)
+    report_primary_builds[r.builds.primary[i].build_number] = true;
+  console.log(report_primary_builds);
   // basic metadata
+  var s = "";
   s += "<h2>Report ID</h2>" + r.id;
   s += "<h2>Report description</h2>" + r.desc;
   // builds
@@ -107,28 +126,36 @@ function on_report_received(r) {
   s += get_table_for(r.builds.primary);
   s += "<h2>Secondary builds</h2>";
   s += get_table_for(r.builds.secondary);
-  var builds = builds_for(r.builds.primary) + builds_for(r.builds.secondary);
+  s += "<input type='checkbox' name='y_from_zero' ";
+  s += "checked='checked' style='display: none' />";
+  $('body').append(s);
   // configs
+  var builds = builds_for(r.builds.primary) + builds_for(r.builds.secondary);
   for (var i in r.configs) {
     var c = r.configs[i];
     var part = 1 + parseInt(i);
     var som_config_id_str = c.som_config_id == -1 ? "N/A" : c.som_config_id;
     // print info
+    s = "";
     s += "<h3>Part " + part + "</h3>";
-    s += "SOM ID: " + c.som_id + "<br />";
-    s += "SOM name: " + c.som_name + "<br />";
     s += "TC fqn: " + c.tc_fqn + "<br />";
     s += "TC description: " + c.tc_desc + "<br />";
     s += "TC configuration ID: " + c.tc_config_id + "<br />";
     s += get_config_list("TC", c.tc_config);
+    s += "SOM ID: " + c.som_id + "<br />";
+    s += "SOM name: " + c.som_name + "<br />";
     s += "SOM configuration ID: " + som_config_id_str + "<br />";
     s += get_config_list("SOM", c.som_config);
+    s += "SOM polarity: " + string_to_polarity(c.som_polarity) + "<br />";
+    s += "SOM units: " + string_to_units(c.som_units) + "<br />";
     var graph_id = "graph_" + part;
     var graph_style = "width: 1000px; height: 600px";
     s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
+    $('body').append(s);
     // fetch data
     var request = "/";
     request += "?som=" + c.som_id;
+    request += "&xaxis=build_number";
     request += "&v_tc_config_id=" + c.tc_config_id;
     if (c.som_config_id != -1)
       request += "&v_som_config_id=" + c.som_config_id;
@@ -141,12 +168,34 @@ function on_report_received(r) {
       url: request,
       method: 'GET',
       dataType: 'json',
-      success: function(o) {console.log(o); draw_graph(o);},
-      error: onAsyncFail
+      success: on_report_part_received,
+      error: on_async_fail
     });
   }
   // DOM generation
-  $('body').append(s);
+}
+
+function on_report_part_received(o) {
+  console.log(o);
+  var primary_builds = $.extend({}, report_primary_builds);
+  if (o.series.length > 0) {
+    var points = o.series[0].data;
+    for (var i in points) {
+      if (Object.keys(primary_builds).length == 0) break;
+      delete primary_builds[points[i][0]];
+    }
+  }
+  if (Object.keys(primary_builds).length == 0)
+    draw_graph(o);
+  else {
+    var target = $("#" + o.target);
+    target.toggle(false);
+    var s = "<p class='error'>";
+    s += "NO DATA FOR PRIMARY BUILDS: ";
+    s += Object.keys(primary_builds).join(", ");
+    s += ".</p>";
+    $(s).insertAfter(target);
+  }
 }
 
 function view_change() {
@@ -232,7 +281,7 @@ function get_tinyurl() {
       $("#tinyurl").html(tiny_url);
       $("#tinyurl").toggle(true);
     },
-    error: onAsyncFail
+    error: on_async_fail
   });
 }
 
@@ -292,7 +341,7 @@ function fetch_data_and_process() {
     method: 'GET',
     dataType: 'json',
     success: on_received,
-    error: onAsyncFail
+    error: on_async_fail
   });
 }
 
@@ -513,7 +562,7 @@ function make_table(o) {
   $("#table .tablesorter").tablesorter();
 }
 
-function onAsyncFail(XMLHttpRequest, textStatus, errorThrown) {
+function on_async_fail(XMLHttpRequest, textStatus, errorThrown) {
   console.log(XMLHttpRequest);
   console.log(textStatus);
   console.log(errorThrown);
