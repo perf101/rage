@@ -375,30 +375,6 @@ let report_async_handler ~conn report_id =
 
 let report_handler ~conn report_id =
   print_header ();
-(*
-  let process_config_tuple report_part tuple =
-    let print_config_info_part config_info desc col =
-      let fname = config_info#fname col in
-      let value = config_info#getvalue 0 col in
-      printf "%s config \"%s\": %s<br />\n" desc fname value
-    in
-    printf "<h3>Part %d</h3>\n" (report_part + 1);
-    printf "SOM id: %d<br />\n" som_id;
-    printf "SOM name: %s<br />\n" som_name;
-    printf "TC fqn: %s<br />\n" tc_fqn;
-    printf "TC description: %s<br />\n" tc_desc;
-    printf "TC configuration id: %d<br />\n" tc_config_id;
-    List.iter ~f:(print_config_info_part tc_config_info "TC")
-      (List.range 1 tc_config_info#nfields);
-    printf "SOM configuration id: %s<br />\n" som_config_id_opt_str;
-    begin
-      match som_config_info_opt with None -> () | Some som_config_info ->
-      List.iter ~f:(print_config_info_part som_config_info "SOM")
-        (List.range 1 som_config_info#nfields);
-    end
-  in
-  Array.iteri ~f:process_config_tuple result#get_all;
-*)
   printf "<script src='rage.js'></script>";
   print_footer ()
 
@@ -658,8 +634,11 @@ let som_async_handler ~conn som_id params =
     ListKey.Table.change all_series row_key (add_to_series row)
   in
   Array.iter rows ~f:update_all_series;
+  (* forward target div back to client *)
+  let target = get_first_val params "target" "graph" in
   (* output axis labels and a "series" for each data group *)
   printf "{";
+  printf "\"target\":\"%s\"," target;
   printf "\"xaxis\":\"%s\"," xaxis;
   printf "\"yaxis\":\"%s\"," yaxis;
   strings_to_numbers ~conn rows 0 xaxis col_types "x_labels";

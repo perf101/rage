@@ -82,15 +82,70 @@ function get_table_for(o) {
   return s;
 }
 
+function get_config_list(desc, o) {
+  var s = "";
+  for (var k in o)
+    s += desc + " config '" + k + "': " + o[k] + "<br />";
+  return s;
+}
+
+function builds_for(builds) {
+  var s = "";
+  for (var i in builds)
+    s += "&v_build_number=" + builds[i].build_number;
+  return s;
+}
+
 function on_report_received(r) {
   console.log(r);
   var s = "";
+  // basic metadata
   s += "<h2>Report ID</h2>" + r.id;
   s += "<h2>Report description</h2>" + r.desc;
+  // builds
   s += "<h2>Primary builds</h2>";
   s += get_table_for(r.builds.primary);
   s += "<h2>Secondary builds</h2>";
   s += get_table_for(r.builds.secondary);
+  var builds = builds_for(r.builds.primary) + builds_for(r.builds.secondary);
+  // configs
+  for (var i in r.configs) {
+    var c = r.configs[i];
+    var part = 1 + parseInt(i);
+    var som_config_id_str = c.som_config_id == -1 ? "N/A" : c.som_config_id;
+    // print info
+    s += "<h3>Part " + part + "</h3>";
+    s += "SOM ID: " + c.som_id + "<br />";
+    s += "SOM name: " + c.som_name + "<br />";
+    s += "TC fqn: " + c.tc_fqn + "<br />";
+    s += "TC description: " + c.tc_desc + "<br />";
+    s += "TC configuration ID: " + c.tc_config_id + "<br />";
+    s += get_config_list("TC", c.tc_config);
+    s += "SOM configuration ID: " + som_config_id_str + "<br />";
+    s += get_config_list("SOM", c.som_config);
+    var graph_id = "graph_" + part;
+    var graph_style = "width: 1000px; height: 600px";
+    s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
+    // fetch data
+    var request = "/";
+    request += "?som=" + c.som_id;
+    request += "&v_tc_config_id=" + c.tc_config_id;
+    if (c.som_config_id != -1)
+      request += "&v_som_config_id=" + c.som_config_id;
+    request += builds;
+    request += "&target=" + graph_id;
+    request += "&show_all_meta=on";
+    request += "&async=true";
+    console.log(request);
+    $.ajax({
+      url: request,
+      method: 'GET',
+      dataType: 'json',
+      success: function(o) {console.log(o); draw_graph(o);},
+      error: onAsyncFail
+    });
+  }
+  // DOM generation
   $('body').append(s);
 }
 
@@ -236,7 +291,7 @@ function fetch_data_and_process() {
     url: request,
     method: 'GET',
     dataType: 'json',
-    success: onReceived,
+    success: on_received,
     error: onAsyncFail
   });
 }
@@ -313,16 +368,16 @@ function show_tooltip(x, y, contents) {
   }).appendTo("body").fadeIn(200);
 }
 
-function onReceived(o) {
+function on_received(o) {
   console.log("Received: ", o);
   var view = $('#view').val();
   if (view == "Graph") {
     $('#table').hide();
-    drawGraph(o);
+    draw_graph(o);
     $('#graph').show();
   } else if (view == "Table") {
     $('#graph').hide();
-    makeTable(o);
+    make_table(o);
     $('#table').show();
   } else console.log("Unknown view.");
   $("#progress_img").toggle(false);
@@ -330,8 +385,8 @@ function onReceived(o) {
 
 var series = [];
 
-function drawGraph(o) {
-  var graph = $("#graph");
+function draw_graph(o) {
+  var graph = $("#" + o.target);
   // default options
   series = o.series;
   var num_series = series.length;
@@ -417,7 +472,7 @@ function drawGraph(o) {
   });
 }
 
-function makeTable(o) {
+function make_table(o) {
   var content = '';
   // shell begin
   content += '<table border="1" class="tablesorter">';
