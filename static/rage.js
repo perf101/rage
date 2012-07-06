@@ -147,7 +147,10 @@ function on_report_generator_checkbox_received(o) {
 
 function report_generator_page_init() {
   $("input[type='checkbox']").change(on_report_generator_checkbox_change);
-  if (!("id" in url_params)) return;
+  if (!("id" in url_params)) {
+    enable_report_generator_triggers();
+    return;
+  }
   var report_id = parseInt(url_params.id[0]);
   console.log(report_id);
   var request = "/?report=" + report_id + "&async=true";
@@ -200,10 +203,41 @@ function on_report_received_edit(o) {
   }
   for (var tcc in tccs)
     $('[name="tc-' + tcc + '"]').val(Object.keys(tccs[tcc]));
-  for (var som_id in soms)
-    $("input[name='include_som_" + som_id + "']").prop("checked", true);
   for (var sc in somcs)
     $('[name="som-' + sc + '"]').val(Object.keys(somcs[sc]));
+  for (var som_id in soms)
+    $("input[name='include_som_" + som_id + "']").prop("checked", true).change();
+  enable_report_generator_triggers();
+}
+
+function enable_report_generator_triggers() {
+  var update_all_soms = function() {
+    console.log($(this));
+    $("input[name^='include_som_']").each(function() {
+      if ($(this).is(":checked")) $(this).change();
+    });
+  }
+  $("select[name='primary_standard_builds']").change(update_all_soms);
+  $("select[name='primary_all_builds']").change(update_all_soms);
+  $("select[name^='tc-']").change(function() {
+    var name = $(this).attr("name");
+    var caller = name.substring(3, name.indexOf("_"));
+    $("input[name^='include_som_']").each(function() {
+      if (!$(this).is(":checked")) return;
+      var som_id = $(this).attr("name").substring(12);
+      var tc_fqn = $("#tc_of_" + som_id).html();
+      if (caller == tc_fqn) $(this).change();
+    });
+  });
+  $("select[name^='som-']").change(function() {
+    console.log($(this));
+    var name = $(this).attr("name");
+    var som_id = name.substring(4, name.indexOf("_"));
+    console.log(som_id);
+    var checkbox = $("input[name='include_som_" + som_id + "']");
+    console.log(checkbox);
+    if (checkbox.is(":checked")) checkbox.change();
+  });
 }
 
 function get_table_for(o) {
