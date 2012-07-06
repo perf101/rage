@@ -54,11 +54,18 @@ let path =
 
 let get_request () = Sys.getenv_exn "QUERY_STRING"
 
-let print_header () =
-  printf "Content-type: text/html\n\n";
-  cat (path ^ "header.html")
+let header_inserted : bool ref = ref false
 
-let print_footer () = cat (path ^ "footer.html")
+let insert_header () =
+  printf "Content-type: text/html\n\n";
+  cat (path ^ "header.html");
+  header_inserted := true
+
+let insert_footer () = cat (path ^ "footer.html")
+
+let failwith msg =
+  if not !header_inserted then insert_header ();
+  failwith msg
 
 let pairs_of_request req =
   let parts = String.split req ~on:'&' in
@@ -123,9 +130,9 @@ let som_config_tbl_exists conn som_id =
   som_config_tbl, (exec_query_exn conn query)#ntuples = 1
 
 let report_generator_handler ~conn =
-  print_header ();
+  insert_header ();
   printf "<h2>Report Generator</h2>\n";
-  printf "<form action='/' method='post'>\n";
+  printf "<form action='/' method='get'>\n";
   printf "<input type='hidden' name='report_create' />\n";
   (* Show input boxes for entering basic information. *)
   printf "<hr /><h3>Basic information</h3>\n";
@@ -163,17 +170,21 @@ let report_generator_handler ~conn =
   let process_tc tc_fqn tc_desc =
     printf "<h4>%s (<i>%s</i>)</h4>\n" tc_fqn tc_desc;
     let tc_tbl = sprintf "tc_config_%s" tc_fqn in
-    print_options_for_fields conn tc_tbl tc_fqn;
+    print_options_for_fields conn tc_tbl ("tc-" ^ tc_fqn);
     let query = "SELECT som_id, som_name FROM soms " ^
       (sprintf "WHERE tc_fqn='%s'" tc_fqn) ^
       "ORDER BY som_id" in
     let soms = exec_query_exn conn query in
     let process_som som_id som_name =
-      printf "<input name='include_%s' type='checkbox' />" som_id;
-      printf "%s (<i>%s</i>)<br />\n" som_id som_name;
+      printf "<input name='include_som_%s' type='checkbox' />" som_id;
+      printf "%s (<i>%s</i>)" som_id som_name;
+      printf "<span id='configs_%s' style='display: none'></span>" som_id;
+      printf "<span id='points_%s' style='display: none'></span>" som_id;
+      printf "<span id='tc_of_%s' style='display: none'>%s</span>" som_id tc_fqn;
+      printf "<br />";
       match som_config_tbl_exists conn (int_of_string som_id) with
       | som_config_tbl, true ->
-          print_options_for_fields conn som_config_tbl som_id
+          print_options_for_fields conn som_config_tbl ("som-" ^ som_id)
       | _ -> ()
     in
     Array.iter ~f:(fun r -> process_som r.(0) r.(1)) soms#get_all
@@ -182,7 +193,7 @@ let report_generator_handler ~conn =
   printf "<hr /><input type='submit' value='Create Report' />\n";
   printf "</form>\n";
   printf "<script src='rage.js'></script>";
-  print_footer ()
+  insert_footer ()
 
 let get_builds_from_params conn params key tbl =
   let build_vals = List.filter ~f:((<>) "NONE") (values_for_key params key) in
@@ -197,7 +208,7 @@ let get_build_group conn params group =
     (group ^ "_standard_builds") "standard_builds" in
   let all_builds = get_builds_from_params conn params
     (group ^ "_all_builds") "builds" in
-  List.sort ~cmp:compare (std_builds @ all_builds)
+  List.sort ~cmp:compare (List.dedup (std_builds @ all_builds))
 
 let javascript_redirect url =
   printf "Content-type: text/html\n\n";
@@ -259,44 +270,45 @@ let report_create_handler ~conn params =
   let primary_builds = get_build_group conn params "primary" in
   let secondary_builds = get_build_group conn params "secondary" in
   (* XXX note that build_tag is assumed to be empty! *)
-  let insert_build primary build_number =
+  let insert_build ~primary build_number =
     let query = "SELECT build_id FROM builds " ^
       (sprintf "WHERE build_number=%d AND build_tag=''" build_number) in
     debug query;
     match get_first_entry (exec_query_exn conn query) with
     | None ->
       if primary then
-        failwith (sprintf "Cannot find build with build_number %d." build_number)
+        failwith (sprintf "Could not find build with build_number %d." build_number)
     | Some build_id ->
       let query = "INSERT INTO report_builds (report_id, build_id, \"primary\") " ^
         (sprintf "VALUES (%d, %s, %B)" report_id build_id primary) in
       debug query;
       exec_sql_exn conn query
   in
-  List.iter ~f:(insert_build true) primary_builds;
-  List.iter ~f:(insert_build false) secondary_builds;
+  List.iter ~f:(insert_build ~primary:true) primary_builds;
+  List.iter ~f:(insert_build ~primary:false) secondary_builds;
   (* Find included SOMs. *)
   let param_keys = fst (List.split params) in
   let som_ids_str =
-    List.filter_map ~f:(String.chop_prefix ~prefix:"include_") param_keys in
+    List.filter_map ~f:(String.chop_prefix ~prefix:"include_som_") param_keys in
   let som_ids = List.map ~f:int_of_string som_ids_str in
   let process_som som_id =
     let tc_fqn =
       let q = sprintf "SELECT tc_fqn FROM soms WHERE som_id=%d" som_id in
       get_first_entry_exn (exec_query_exn conn q)
     in
-    let prefix = tc_fqn ^ "_" in
+    let prefix = "tc-" ^ tc_fqn ^ "_" in
     let tc_config_tbl = "tc_config_" ^ tc_fqn in
     let col_fqns = get_column_fqns conn tc_config_tbl in
     let col_types = get_column_types conn tc_config_tbl in
     let filter = extract_filter col_fqns col_types params prefix in
-    let query = sprintf "SELECT tc_config_id FROM %s WHERE %s"
-      tc_config_tbl filter in
+    let query =
+      (sprintf "SELECT tc_config_id FROM %s" tc_config_tbl) ^
+      (if filter = "" then "" else sprintf " WHERE %s" filter) in
     let tc_config_ids_str = get_first_col (exec_query_exn conn query) in
     let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
     match som_config_tbl_exists conn som_id with
     | som_config_tbl, true ->
-        let prefix = sprintf "%d_" som_id in
+        let prefix = sprintf "som-%d_" som_id in
         let col_fqns = get_column_fqns conn som_config_tbl in
         let col_types = get_column_types conn som_config_tbl in
         let filter = extract_filter col_fqns col_types params prefix in
@@ -327,13 +339,12 @@ let report_create_handler ~conn params =
   in
   List.iter ~f:process_som som_ids;
   (* Print all GET parameters. *)
-  print_header ();
-  List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params;
-  print_footer ()
-  (* javascript_redirect "/?reports" *)
+  (* List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params; *)
+  (* insert_footer () *)
+  javascript_redirect "/?reports"
 
 let reports_handler ~conn =
-  print_header ();
+  insert_header ();
   let query = "SELECT report_id, report_desc FROM reports" in
   let result = exec_query_exn conn query in
   let print_report report =
@@ -352,8 +363,9 @@ let reports_handler ~conn =
   printf "<tr><th>ID</th><th>Description</th><th colspan='4'>Actions</th></tr>";
   Array.iter ~f:print_report result#get_all;
   printf "</table>\n";
+  printf "<a href='/?report_generator'>New</a>\n";
   printf "<script src='rage.js'></script>";
-  print_footer ()
+  insert_footer ()
 
 let report_async_handler ~conn report_id =
   let query =
@@ -452,12 +464,12 @@ let report_async_handler ~conn report_id =
   printf "}"
 
 let report_handler ~conn report_id =
-  print_header ();
+  insert_header ();
   printf "<script src='rage.js'></script>";
-  print_footer ()
+  insert_footer ()
 
 let default_handler ~place ~conn =
-  print_header ();
+  insert_header ();
   let query = "SELECT som_id, som_name FROM soms " ^
               "ORDER BY som_id" in
   let result = exec_query_exn conn query in
@@ -470,7 +482,7 @@ let default_handler ~place ~conn =
     printf "<%s><a href='?som=%s'>%s</a></%s>" tag som_id name tag;
     print_string "   </tr>" in
   print_table_custom_row print_row result;
-  print_footer ()
+  insert_footer ()
 
 let get_tc_config_tbl_name conn som_id =
   let query = "SELECT tc_fqn FROM soms " ^
@@ -614,10 +626,10 @@ let show_configurations ~conn som_id tc_config_tbl =
   printf "<script src='rage.js'></script>"
 
 let som_handler ~place ~conn som_id config_ids =
-  print_header ();
+  insert_header ();
   let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
   show_configurations ~conn som_id tc_config_tbl;
-  print_footer ()
+  insert_footer ()
 
 (** Pre-generated regexp for use within som_async_handler. *)
 let quote_re = Str.regexp "\""

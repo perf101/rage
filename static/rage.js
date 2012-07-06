@@ -78,7 +78,75 @@ function report_page_init() {
   });
 }
 
+function get_options_for(name) {
+  var options = $("select[name='" + name + "']").val();
+  return options == null ? [] : options;
+}
+
+function on_report_generator_checkbox_change() {
+  var som_id = parseInt($(this).attr("name").substring(12));
+  $("#configs_" + som_id).toggle(false);
+  $("#points_" + som_id).toggle(false);
+  if (!$(this).is(":checked")) return;
+  var request = "/?som=" + som_id;
+  var tc_fqn = $("#tc_of_" + som_id).html();
+  var builds = [];
+  var prim_std_builds = get_options_for("primary_standard_builds");
+  if ($.inArray("ALL", prim_std_builds) != -1) {
+    $("select[name='primary_standard_builds'] option").each(function() {
+      var value = $(this).attr("value");
+      builds.push(value);
+    });
+  } else builds = prim_std_builds;
+  builds = builds.concat(get_options_for("primary_all_builds"));
+  builds = $.grep(builds, function(v) {return v != "NONE" && v != "ALL";});
+  for (var i in builds) request += "&v_build_number=" + builds[i];
+  var num_configs = 1;
+  $("select[name^='tc-" + tc_fqn + "']").each(function() {
+    var name = $(this).attr("name");
+    var config = name.substring(name.indexOf("_") + 1);
+    var vals = $(this).val();
+    if ($.inArray("ALL", vals) != -1)
+      num_configs *= $(this).children().length - 1;
+    else num_configs *= vals.length;
+    for (var i in vals) request += "&v_" + config + "=" + vals[i];
+  });
+  $("select[name^='som-" + som_id + "']").each(function() {
+    var name = $(this).attr("name");
+    var config = name.substring(name.indexOf("_") + 1);
+    var vals = $(this).val();
+    if ($.inArray("ALL", vals) != -1)
+      num_configs *= $(this).children().length - 1;
+    else num_configs *= vals.length;
+    for (var i in vals) request += "&v_" + config + "=" + vals[i];
+  });
+  var field = $("#configs_" + som_id);
+  field.html("(configs = " + num_configs + ")");
+  field.toggle(true);
+  request += "&target=" + som_id;
+  request += "&async=true";
+  console.log(request);
+  $.ajax({
+    url: request,
+    method: 'GET',
+    dataType: 'json',
+    success: on_report_generator_checkbox_received,
+    error: on_async_fail
+  });
+}
+
+function on_report_generator_checkbox_received(o) {
+  console.log(o);
+  if (o == null) result = "error"
+  else if (o.series.length == 0) result = 0;
+  else result = o.series[0].data.length;
+  var field = $("#points_" + o.target);
+  field.html("(samples = " + result + ")");
+  field.toggle(true);
+}
+
 function report_generator_page_init() {
+  $("input[type='checkbox']").change(on_report_generator_checkbox_change);
   if (!("id" in url_params)) return;
   var report_id = parseInt(url_params.id[0]);
   console.log(report_id);
@@ -131,11 +199,11 @@ function on_report_received_edit(o) {
     }
   }
   for (var tcc in tccs)
-    $('[name="' + tcc + '"]').val(Object.keys(tccs[tcc]));
+    $('[name="tc-' + tcc + '"]').val(Object.keys(tccs[tcc]));
   for (var som_id in soms)
-    $("input[name='include_" + som_id + "']").prop("checked", true);
+    $("input[name='include_som_" + som_id + "']").prop("checked", true);
   for (var sc in somcs)
-    $('[name="' + sc + '"]').val(Object.keys(somcs[sc]));
+    $('[name="som-' + sc + '"]').val(Object.keys(somcs[sc]));
 }
 
 function get_table_for(o) {
