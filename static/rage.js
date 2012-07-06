@@ -20,11 +20,25 @@ var url_params = get_url_params();
 // ==== GLOBAL VARIABLES --- end ====
 
 // ======== MAIN --- begin ===========
+decode_all();
 if ("som" in url_params)
   som_page_init();
 else if ("report" in url_params)
   report_page_init();
+else if ("report_generator" in url_params)
+  report_generator_page_init();
 // ========= MAIN --- end ============
+
+function decode(encoded) {
+  return decodeURIComponent(encoded).replace(/\+/g, " ");
+}
+
+function decode_all() {
+  $(".encoded").each(function() {
+    var elem = $(this)[0];
+    elem.innerHTML = decode(elem.innerHTML);
+  });
+}
 
 function som_page_init() {
   // automatically change available configuration given view
@@ -62,6 +76,66 @@ function report_page_init() {
     success: on_report_received,
     error: on_async_fail
   });
+}
+
+function report_generator_page_init() {
+  if (!("id" in url_params)) return;
+  var report_id = parseInt(url_params.id[0]);
+  console.log(report_id);
+  var request = "/?report=" + report_id + "&async=true";
+  console.log(request);
+  $.ajax({
+    url: request,
+    method: 'GET',
+    dataType: 'json',
+    success: on_report_received_edit,
+    error: on_async_fail
+  });
+}
+
+function on_report_received_edit(o) {
+  console.log(o);
+  var report_id = url_params.id;
+  var id_input = "<input type='hidden' name='id' value='" + report_id + "' />";
+  $('input[name="report_create"]').after(id_input)
+  $('input[name="desc"]').val(decode(o.desc));
+  var primary_bns = Object.keys(extract_build_numbers(o.builds.primary));
+  var secondary_bns = Object.keys(extract_build_numbers(o.builds.secondary));
+  $('[name="primary_standard_builds"]').val(primary_bns);
+  $('[name="primary_all_builds"]').val(primary_bns);
+  $('[name="secondary_standard_builds"]').val(secondary_bns);
+  $('[name="secondary_all_builds"]').val(secondary_bns);
+  var tccs = {};  // <tc_fqn>_<tc_config_name> ==> <tc_config_value> ==> true
+  var soms = {};  // <som_id> ==> true
+  var somcs = {}; // <som_id>_<som_config_name> ==> <som_config_value> ==> true
+  for (var i in o.configs) {
+    var c = o.configs[i];
+    var som_id = c.som_id;
+    soms[som_id] = true;
+    var tc_fqn = c.tc_fqn;
+    var tc_config = c.tc_config;
+    for (var tcc_k in tc_config) {
+      var tcc_v = tc_config[tcc_k];
+      var tcc_fqn = tc_fqn + "_" + tcc_k;
+      if (!(tcc_fqn in tccs)) tccs[tcc_fqn] = {};
+      tccs[tcc_fqn][tcc_v] = true;
+    }
+    if ("som_config" in c) {
+      var som_config = c.som_config;
+      for (var sc_k in som_config) {
+        var sc_v = som_config[sc_k];
+        var sc_fqn = som_id + "_" + sc_k;
+        if (!(sc_fqn in somcs)) somcs[sc_fqn] = {};
+        somcs[sc_fqn][sc_v] = true;
+      }
+    }
+  }
+  for (var tcc in tccs)
+    $('[name="' + tcc + '"]').val(Object.keys(tccs[tcc]));
+  for (var som_id in soms)
+    $("input[name='include_" + som_id + "']").prop("checked", true);
+  for (var sc in somcs)
+    $('[name="' + sc + '"]').val(Object.keys(somcs[sc]));
 }
 
 function get_table_for(o) {
@@ -108,14 +182,19 @@ function string_to_units(s) {
   return s;
 }
 
+function extract_build_numbers(builds) {
+  var build_numbers = {};
+  for (var i in builds)
+    build_numbers[builds[i].build_number] = true;
+  return build_numbers;
+}
+
 var report_primary_builds = {}
 
 function on_report_received(r) {
   console.log(r);
   // store primary builds globally
-  report_primary_builds = {}
-  for (var i in r.builds.primary)
-    report_primary_builds[r.builds.primary[i].build_number] = true;
+  report_primary_builds = extract_build_numbers(r.builds.primary);
   console.log(report_primary_builds);
   // basic metadata
   var s = "";
@@ -247,6 +326,7 @@ function extract_params(s) {
   for(var i in pairs) {
     var pair = pairs[i].split('=');
     if (!result[pair[0]]) result[pair[0]] = [];
+    if (typeof(pair[1]) === 'undefined') pair[1] = "";
     result[pair[0]].push(pair[1].replace(/\+/g, " "));
   }
   return result;

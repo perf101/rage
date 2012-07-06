@@ -96,6 +96,12 @@ let get_column_types_many conn tbls = combine_maps conn tbls get_column_types
 let is_db_type_quotable ty =
   List.mem ~set:["character varying"; "boolean"; "text"] ty
 
+type sql_meta_type = Numeric (* not quoted *) | Non_numeric (* quoted *)
+
+let sql_meta_from_psql = function
+  | BOOL | INT2 | INT4 | INT8 | FLOAT4 | FLOAT8 | NUMERIC -> Numeric
+  | _ -> Non_numeric
+
 let is_db_field_quotable col_types name =
   let ty_opt = String.Table.find col_types name in
   Option.value_map ty_opt ~default:false ~f:is_db_type_quotable
@@ -152,14 +158,12 @@ let extract_filter col_fqns col_types params key_prefix =
     ) in
   concat ~sep:" AND " conds
 
-type sql_meta_type = Numeric (* not quoted *) | Non_numeric (* quoted *)
-
 let opt_quote s quote_rule =
   match quote_rule with Numeric -> s | Non_numeric -> "'" ^ s ^ "'"
 
 let sql_equals_of_tuples tuples =
   let pair (name, value, quote) =
-    sprintf "%s=%s" name (opt_quote value quote)
+    sprintf "\"%s\"=%s" name (opt_quote value quote)
   in List.map ~f:pair tuples
 
 let sql_cond_of_tuples tuples =
@@ -168,7 +172,9 @@ let sql_cond_of_tuples tuples =
 let sql_names_values_of_tuples tuples =
   let fst (name, _, _) = name in
   let qt (_, value, quote) = opt_quote value quote in
-  let names = String.concat ~sep:"," (List.map ~f:fst tuples) in
+  let names = List.map ~f:fst tuples in
+  let names = List.map ~f:(fun n -> "\"" ^ n ^ "\"") names in
+  let names = String.concat ~sep:"," names in
   let values = String.concat ~sep:"," (List.map ~f:qt tuples) in
   sprintf "(%s) VALUES (%s)" names values
 

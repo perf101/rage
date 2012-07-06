@@ -20,6 +20,8 @@ type place =
   | Reports
   | Report of int
   | ReportAsync of int
+  | ReportClone of int
+  | ReportDelete of int
   | Som of int * int list
   | SomAsync of int * (string * string) list
   | CreateTiny of string
@@ -39,6 +41,8 @@ let string_of_place = function
   | Reports -> "Reports"
   | Report id -> sprintf "Report %d" id
   | ReportAsync id -> sprintf "ReportAsync %d" id
+  | ReportClone id -> sprintf "ReportClone %d" id
+  | ReportDelete id -> sprintf "ReportDelete %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
   | SomAsync (id, params) -> string_of_som_place "SomAsync" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
@@ -77,6 +81,14 @@ let place_of_request req =
   let pairs = pairs_of_request req in
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
   match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
+  match find pairs "report_clone" with
+  | Some _ ->
+    ReportClone (int_of_string (List.hd_exn (values_for_key pairs "id")))
+  | None ->
+  match find pairs "report_delete" with
+  | Some _ ->
+    ReportDelete (int_of_string (List.hd_exn (values_for_key pairs "id")))
+  | None ->
   match find pairs "reports" with Some _ -> Reports | None ->
   match find pairs "report" with
   | Some id_str ->
@@ -113,7 +125,7 @@ let som_config_tbl_exists conn som_id =
 let report_generator_handler ~conn =
   print_header ();
   printf "<h2>Report Generator</h2>\n";
-  printf "<form action='/' method='get'>\n";
+  printf "<form action='/' method='post'>\n";
   printf "<input type='hidden' name='report_create' />\n";
   (* Show input boxes for entering basic information. *)
   printf "<hr /><h3>Basic information</h3>\n";
@@ -153,7 +165,8 @@ let report_generator_handler ~conn =
     let tc_tbl = sprintf "tc_config_%s" tc_fqn in
     print_options_for_fields conn tc_tbl tc_fqn;
     let query = "SELECT som_id, som_name FROM soms " ^
-      (sprintf "WHERE tc_fqn='%s'" tc_fqn) in
+      (sprintf "WHERE tc_fqn='%s'" tc_fqn) ^
+      "ORDER BY som_id" in
     let soms = exec_query_exn conn query in
     let process_som som_id som_name =
       printf "<input name='include_%s' type='checkbox' />" som_id;
@@ -168,6 +181,7 @@ let report_generator_handler ~conn =
   Array.iter ~f:(fun r -> process_tc r.(0) r.(1)) test_cases#get_all;
   printf "<hr /><input type='submit' value='Create Report' />\n";
   printf "</form>\n";
+  printf "<script src='rage.js'></script>";
   print_footer ()
 
 let get_builds_from_params conn params key tbl =
@@ -185,13 +199,60 @@ let get_build_group conn params group =
     (group ^ "_all_builds") "builds" in
   List.sort ~cmp:compare (std_builds @ all_builds)
 
+let javascript_redirect url =
+  printf "Content-type: text/html\n\n";
+  printf "<html><head>\n";
+  printf "<script language='javascript' type='text/javascript'>\n";
+  printf "window.location.replace(decodeURIComponent('%s'));\n" url;
+  printf "</script>\n</head><body></body></html>\n"
+
+(* TODO: simplify *)
+let report_clone_handler ~conn id =
+  let query = sprintf "SELECT * FROM reports WHERE report_id = %d" id in
+  let result = exec_query_exn conn query in
+  let source = result#get_tuple_lst 0 in
+  let field_to_tuple ?id' ~result ~reports_tbl row col v =
+    let name = result#fname col in
+    let v = match name with
+    | "report_id" -> Option.value id' ~default:v
+    | "report_desc" -> v ^ " COPY"
+    | _ -> match v with "t" -> "true" | "f" -> "false" | _ -> v
+    in
+    if name = "report_id" && reports_tbl || result#getisnull row col then None
+    else Some (name, v, sql_meta_from_psql (result#ftype col))
+  in
+  let tuples = List.filter_mapi ~f:(field_to_tuple ~result ~reports_tbl:true 0) source in
+  let id' = insert_and_get_first_col conn "reports" tuples in
+  let query = sprintf "SELECT * FROM report_builds WHERE report_id = %d" id in
+  let result = exec_query_exn conn query in
+  List.iteri ~f:(fun i row ->
+    let tuples = List.filter_mapi ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
+    ignore (insert_and_get_first_col conn "report_builds" tuples)
+  ) result#get_all_lst;
+  let query = sprintf "SELECT * FROM report_configs WHERE report_id = %d" id in
+  let result = exec_query_exn conn query in
+  List.iteri ~f:(fun i row ->
+    let tuples = List.filter_mapi ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
+    ignore (insert_and_get_first_col conn "report_configs" tuples)
+  ) result#get_all_lst;
+  javascript_redirect "/?reports"
+
+let report_delete_handler ~conn id =
+  exec_sql_exn conn (sprintf "DELETE FROM reports WHERE report_id = %d" id);
+  javascript_redirect "/?reports"
+
 let report_create_handler ~conn params =
-  print_header ();
+  (* If "id" is specified, then modify report <id>. *)
+  let id_opt = List.hd (values_for_key params "id") in
+  ignore (Option.map id_opt ~f:(fun id ->
+    exec_sql_exn conn ("DELETE FROM reports WHERE report_id = " ^ id)
+  ));
   (* Obtain metadata. *)
   let desc = List.hd_exn (values_for_key params "desc") in
-  (* let query = sprintf "INSERT INTO reports (report_desc) VALUES ('%s')" desc in *)
-  (* debug query; *)
-  let tuples = [("report_desc", desc, Non_numeric)] in
+  let tuples =
+    (match id_opt with None -> [] | Some id -> [("report_id", id, Numeric)]) @
+    [("report_desc", desc, Non_numeric)]
+  in
   let report_id =
     int_of_string (insert_and_get_first_col conn "reports" tuples) in
   (* Gather and record builds. *)
@@ -266,19 +327,32 @@ let report_create_handler ~conn params =
   in
   List.iter ~f:process_som som_ids;
   (* Print all GET parameters. *)
+  print_header ();
   List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params;
   print_footer ()
+  (* javascript_redirect "/?reports" *)
 
 let reports_handler ~conn =
   print_header ();
-  let query = "SELECT * FROM reports" in
+  let query = "SELECT report_id, report_desc FROM reports" in
   let result = exec_query_exn conn query in
-  let print_col row_i col_i tag data =
-    if row_i >= 0 && col_i = 0
-    then printf "<%s><a href='/?report=%s'>%s</a></%s>" tag data data tag
-    else print_col_default row_i col_i tag data
+  let print_report report =
+    let id = report.(0) in
+    let desc = report.(1) in
+    printf "<tr>";
+    printf "<td>%s</td>" id;
+    printf "<td class='encoded'>%s</td>" desc;
+    printf "<td><a href='/?report=%s'>View</a></td>" id;
+    printf "<td><a href='/?report_generator&id=%s'>Edit</a></td>" id;
+    printf "<td><a href='/?report_clone&id=%s'>Clone</a></td>" id;
+    printf "<td><a href='/?report_delete&id=%s'>Delete</a></td>" id;
+    printf "</tr>";
   in
-  print_table_custom_row (print_row_custom ~print_col) result;
+  printf "<table border='1'>\n";
+  printf "<tr><th>ID</th><th>Description</th><th colspan='4'>Actions</th></tr>";
+  Array.iter ~f:print_report result#get_all;
+  printf "</table>\n";
+  printf "<script src='rage.js'></script>";
   print_footer ()
 
 let report_async_handler ~conn report_id =
@@ -688,13 +762,6 @@ let print_404 () =
   printf "Content-Type: text/html\n\n";
   printf "<h1>404 --- this is not the page you are looking for ...</h1>"
 
-let javascript_redirect url =
-  printf "Content-type: text/html\n\n";
-  printf "<html><head>\n";
-  printf "<script language='javascript' type='text/javascript'>\n";
-  printf "window.location = decodeURIComponent('%s');\n" url;
-  printf "</script>\n</head></html>\n"
-
 let redirecttiny_handler ~conn id =
   let q = sprintf "SELECT url FROM tiny_urls WHERE key=%d" id in
   let r = exec_query_exn conn q in
@@ -710,6 +777,8 @@ let handle_request () =
     | SomAsync (id, params) -> som_async_handler ~conn id params
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
+    | ReportClone id -> report_clone_handler ~conn id
+    | ReportDelete id -> report_delete_handler ~conn id
     | ReportCreate params -> report_create_handler ~conn params
     | ReportGenerator -> report_generator_handler ~conn
     | Reports -> reports_handler ~conn
