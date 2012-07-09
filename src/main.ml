@@ -217,7 +217,6 @@ let javascript_redirect url =
   printf "window.location.replace(decodeURIComponent('%s'));\n" url;
   printf "</script>\n</head><body></body></html>\n"
 
-(* TODO: simplify *)
 let report_clone_handler ~conn id =
   let query = sprintf "SELECT * FROM reports WHERE report_id = %d" id in
   let result = exec_query_exn conn query in
@@ -232,20 +231,20 @@ let report_clone_handler ~conn id =
     if name = "report_id" && reports_tbl || result#getisnull row col then None
     else Some (name, v, sql_meta_from_psql (result#ftype col))
   in
-  let tuples = List.filter_mapi ~f:(field_to_tuple ~result ~reports_tbl:true 0) source in
+  let tuples =
+    List.filter_mapi ~f:(field_to_tuple ~result ~reports_tbl:true 0) source in
   let id' = insert_and_get_first_col conn "reports" tuples in
-  let query = sprintf "SELECT * FROM report_builds WHERE report_id = %d" id in
-  let result = exec_query_exn conn query in
-  List.iteri ~f:(fun i row ->
-    let tuples = List.filter_mapi ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
-    ignore (insert_and_get_first_col conn "report_builds" tuples)
-  ) result#get_all_lst;
-  let query = sprintf "SELECT * FROM report_configs WHERE report_id = %d" id in
-  let result = exec_query_exn conn query in
-  List.iteri ~f:(fun i row ->
-    let tuples = List.filter_mapi ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
-    ignore (insert_and_get_first_col conn "report_configs" tuples)
-  ) result#get_all_lst;
+  let clone_tbl tbl =
+    let query = sprintf "SELECT * FROM %s WHERE report_id = %d" tbl id in
+    let result = exec_query_exn conn query in
+    List.iteri ~f:(fun i row ->
+      let tuples = List.filter_mapi
+        ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
+      ignore (insert_and_get_first_col conn tbl tuples)
+    ) result#get_all_lst;
+  in
+  clone_tbl "report_builds";
+  clone_tbl "report_configs";
   javascript_redirect "/?reports"
 
 let report_delete_handler ~conn id =
