@@ -282,10 +282,12 @@ let report_create_handler ~conn params =
       if primary then
         failwith (sprintf "Could not find build with build_number %d." build_number)
     | Some build_id ->
-      let query = "INSERT INTO report_builds (report_id, build_id, \"primary\") " ^
-        (sprintf "VALUES (%d, %s, %B)" report_id build_id primary) in
-      debug query;
-      Sql.exec_ign_exn ~conn ~query
+      let tuples = [
+        ("report_id", string_of_int report_id);
+        ("build_id", build_id);
+        ("primary", string_of_bool primary);
+      ] in
+      Sql.ensure_inserted ~conn ~tbl:"report_builds" ~tuples
   in
   List.iter ~f:(insert_build ~primary:true) primary_builds;
   List.iter ~f:(insert_build ~primary:false) secondary_builds;
@@ -797,6 +799,12 @@ let handle_request () =
   end;
   conn#finish
 
+let bind_modules () =
+  Sql.debug_fn := Some debug;
+  (* Sql.show_sql := true; *)
+  Sql.mode := Sql.Live
+
 let _ =
+  bind_modules ();
   try handle_request ()
   with Failure msg -> Printexc.print_backtrace stderr; printf "<b>%s</b>" msg
