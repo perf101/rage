@@ -39,30 +39,6 @@ let cat filename =
 
 (* DATABASE INTERACTION *)
 
-let exec_query (conn : connection) (query : string) : result option =
-  let result = conn#exec query in
-  match result#status with
-    | Command_ok | Tuples_ok -> Some result
-    | _ -> debug conn#error_message; None
-
-let exec_query_exn (conn : connection) (query : string) : result =
-  match exec_query conn query with
-  | None -> failwith ("Failed to execute query: " ^ query)
-  | Some result -> result
-
-let exec_sql_exn (conn : connection) (query : string) : unit =
-  ignore (exec_query_exn conn query)
-
-let get_first_entry r =
-  if r#nfields > 0 && r#ntuples > 0
-  then Some (String.strip (r#getvalue 0 0))
-  else None
-
-let get_first_entry_exn r =
-  match get_first_entry r with
-  | None -> failwith "get_first_entry_exn"
-  | Some v -> v
-
 let extract_column rows col =
   Array.to_list (Array.map ~f:(fun row -> row.(col)) rows)
 
@@ -79,38 +55,12 @@ let combine_maps conn tbls f =
   m
 
 let get_column_types conn tbl =
-  let query =
-    ("SELECT column_name, data_type FROM information_schema.columns ") ^
-    (sprintf "WHERE table_name='%s'" tbl) in
-  let col_types_data = exec_query_exn conn query in
-  let nameToType = String.Table.create () in
-  let process_column nameTypeList =
-    let name = List.nth_exn nameTypeList 0 in
-    let ty = List.nth_exn nameTypeList 1 in
-    String.Table.replace nameToType ~key:name ~data:ty
-  in List.iter col_types_data#get_all_lst ~f:process_column;
-  nameToType
+  String.Table.of_alist_exn (Sql.get_col_types_lst ~conn ~tbl)
 
 let get_column_types_many conn tbls = combine_maps conn tbls get_column_types
 
-let is_db_type_quotable ty =
-  List.mem ~set:["character varying"; "boolean"; "text"] ty
-
-type sql_meta_type = Numeric (* not quoted *) | Non_numeric (* quoted *)
-
-let sql_meta_from_psql = function
-  | BOOL | INT2 | INT4 | INT8 | FLOAT4 | FLOAT8 | NUMERIC -> Numeric
-  | _ -> Non_numeric
-
-let is_db_field_quotable col_types name =
-  let ty_opt = String.Table.find col_types name in
-  Option.value_map ty_opt ~default:false ~f:is_db_type_quotable
-
 let get_column_fqns conn tbl =
-  let query =
-    ("SELECT column_name FROM information_schema.columns ") ^
-    (sprintf "WHERE table_name='%s'" tbl) in
-  let col_names = get_first_col (exec_query_exn conn query) in
+  let col_names = Sql.get_col_names ~conn ~tbl in
   let nameToFqn = String.Table.create () in
   let process_column name =
     let fqn = tbl ^ "." ^ name in
@@ -145,7 +95,8 @@ let extract_filter col_fqns col_types params key_prefix =
       let vs = List.map vs ~f:html_to_text in
       let has_null = List.mem ~set:vs "(NULL)" in
       let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
-      let quote = is_db_field_quotable col_types k in
+      let ty = String.Table.find_exn col_types k in
+      let quote = Sql.Type.is_quoted ty in
       let vs_oq =
         if quote then List.map vs ~f:(fun v -> "'" ^ v ^ "'") else vs in
       let fqn = String.Table.find_exn col_fqns k in
@@ -157,49 +108,6 @@ let extract_filter col_fqns col_types params key_prefix =
       in_cond
     ) in
   concat ~sep:" AND " conds
-
-let opt_quote s quote_rule =
-  match quote_rule with Numeric -> s | Non_numeric -> "'" ^ s ^ "'"
-
-let sql_equals_of_tuples tuples =
-  let pair (name, value, quote) =
-    sprintf "\"%s\"=%s" name (opt_quote value quote)
-  in List.map ~f:pair tuples
-
-let sql_cond_of_tuples tuples =
-  String.concat ~sep:" AND " (sql_equals_of_tuples tuples)
-
-let sql_names_values_of_tuples tuples =
-  let fst (name, _, _) = name in
-  let qt (_, value, quote) = opt_quote value quote in
-  let names = List.map ~f:fst tuples in
-  let names = List.map ~f:(fun n -> "\"" ^ n ^ "\"") names in
-  let names = String.concat ~sep:"," names in
-  let values = String.concat ~sep:"," (List.map ~f:qt tuples) in
-  sprintf "(%s) VALUES (%s)" names values
-
-let insert_and_get_first_col conn tbl tuples =
-  (* let d = sprintf "%-25s: %s" tbl (string_of_sql_tuples tuples) in *)
-  let insert = match tuples with
-    | [] ->
-        (* There's only one column in the table -- the (serial) ID column *)
-        sprintf "INSERT INTO %s VALUES (DEFAULT)" tbl
-    | _ ->
-        let values = sql_names_values_of_tuples tuples in
-        sprintf "INSERT INTO %s %s" tbl values
-  in
-  let select = match tuples with
-    | [] -> sprintf "SELECT * FROM %s" tbl
-    | _ ->
-        let cond = sql_cond_of_tuples tuples in
-        sprintf "SELECT * FROM %s WHERE %s" tbl cond
-  in
-  exec_sql_exn conn insert;
-  (*debug ("INSERTED: " ^ d);*)
-  get_first_entry_exn (exec_query_exn conn select)
-
-(* let ensure_inserted conn tbl tuples = *)
-(*   ignore (ensure_inserted_get_first_col conn tbl tuples) *)
 
 (* PRINTING HTML *)
 
@@ -278,7 +186,7 @@ let print_options_for_field namespace db_result col =
 
 let print_options_for_fields conn tbl namespace =
   let query = "SELECT * FROM " ^ tbl in
-  let result = exec_query_exn conn query in
+  let result = Sql.exec_exn conn query in
   List.iter ~f:(print_options_for_field namespace result)
     (List.range 1 result#nfields);
   printf "<br style='clear: both' />\n"

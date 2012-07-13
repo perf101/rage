@@ -1,8 +1,14 @@
 NATIVE_ENABLED=true
 USE_OCAMLFIND=true
+OCAMLINCLUDES+=ocaml-sql
 OCAMLPACKS=core,postgresql,str
-OCAMLFLAGS=-g -thread -linkpkg -warn-error +a-4-6-9-27-28-29
-FILES=main utils
+OCAMLFLAGS=-g -thread -linkpkg -warn-error +a
+FILES=ocaml-sql/sql main utils
+
+.SUBDIRS: ocaml-sql
+	UseCamlp4(sexplib.syntax, sql)
+	clean:
+		make -C $(ROOT)/src/ocaml-sql clean
 
 UseCamlp4(sexplib.syntax, main utils)
 
