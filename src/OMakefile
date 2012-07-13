@@ -2,7 +2,7 @@ NATIVE_ENABLED=true
 USE_OCAMLFIND=true
 OCAMLINCLUDES+=ocaml-sql
 OCAMLPACKS=core,postgresql,str
-OCAMLFLAGS=-g -thread -linkpkg -warn-error +a
+OCAMLFLAGS=-g -thread -linkpkg -warn-error +a -w +a-4 -principal
 FILES=ocaml-sql/sql main utils
 
 .SUBDIRS: ocaml-sql

@@ -36,7 +36,7 @@ let string_of_som_place name id cids =
 
 let string_of_place = function
   | Default -> "Default"
-  | ReportCreate params -> "ReportCreate"
+  | ReportCreate _ -> "ReportCreate"
   | ReportGenerator -> "ReportGenerator"
   | Reports -> "Reports"
   | Report id -> sprintf "Report %d" id
@@ -44,7 +44,7 @@ let string_of_place = function
   | ReportClone id -> sprintf "ReportClone %d" id
   | ReportDelete id -> sprintf "ReportDelete %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
-  | SomAsync (id, params) -> string_of_som_place "SomAsync" id []
+  | SomAsync (id, _) -> string_of_som_place "SomAsync" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
   | RedirectTiny id -> sprintf "RedirectTiny %d" id
 
@@ -139,12 +139,14 @@ let report_generator_handler ~conn =
   printf "<hr /><h3>Builds to compare</h3>\n";
   let query = "SELECT build_name, build_number FROM standard_builds " ^
     "ORDER BY build_name" in
-  let result = Sql.exec_exn conn query in
+  let result = Sql.exec_exn ~conn ~query in
+  let standard_build_names = Sql.get_col ~result ~col:0 in
+  let standard_build_numbers = Sql.get_col ~result ~col:1 in
   let standard_builds =
-    List.combine_exn (get_col result 0) (get_col result 1) in
+    List.combine_exn standard_build_names standard_build_numbers in
   let query =
     "SELECT DISTINCT build_number FROM builds ORDER BY build_number" in
-  let all_builds = get_first_col (Sql.exec_exn conn query) in
+  let all_builds = Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
   let print_build_options prefix desc =
     printf "<b>%s</b>:<br />\n" desc;
     printf "<table border='1'><tr><th>Standard</th><th>All</th></tr><tr>";
@@ -164,7 +166,7 @@ let report_generator_handler ~conn =
   (* Show all test cases and their soms. *)
   printf "<hr /><h3>Test cases and their SOMs</h3>\n";
   let query = "SELECT tc_fqn, description FROM test_cases ORDER BY tc_fqn" in
-  let test_cases = Sql.exec_exn conn query in
+  let test_cases = Sql.exec_exn ~conn ~query in
   let process_tc tc_fqn tc_desc =
     printf "<h4>%s (<i>%s</i>)</h4>\n" tc_fqn tc_desc;
     let tc_tbl = sprintf "tc_config_%s" tc_fqn in
@@ -172,7 +174,7 @@ let report_generator_handler ~conn =
     let query = "SELECT som_id, som_name FROM soms " ^
       (sprintf "WHERE tc_fqn='%s'" tc_fqn) ^
       "ORDER BY som_id" in
-    let soms = Sql.exec_exn conn query in
+    let soms = Sql.exec_exn ~conn ~query in
     let process_som som_id som_name =
       printf "<input name='include_som_%s' type='checkbox' />" som_id;
       printf "%s (<i>%s</i>)" som_id som_name;
@@ -196,8 +198,11 @@ let report_generator_handler ~conn =
 let get_builds_from_params conn params key tbl =
   let build_vals = List.filter ~f:((<>) "NONE") (values_for_key params key) in
   let builds_str =
-    if List.mem "ALL" build_vals
-    then get_first_col (Sql.exec_exn conn ("SELECT build_number FROM " ^ tbl))
+    if List.mem "ALL" ~set:build_vals
+    then
+      let result =
+        Sql.exec_exn ~conn ~query:("SELECT build_number FROM " ^ tbl) in
+      Sql.get_col ~result ~col:0
     else build_vals
   in List.map ~f:int_of_string builds_str
 
@@ -217,7 +222,7 @@ let javascript_redirect url =
 
 let report_clone_handler ~conn id =
   let query = sprintf "SELECT * FROM reports WHERE report_id = %d" id in
-  let result = Sql.exec_exn conn query in
+  let result = Sql.exec_exn ~conn ~query in
   let source = result#get_tuple_lst 0 in
   let field_to_tuple ?id' ~result ~reports_tbl row col v =
     let name = result#fname col in
@@ -234,7 +239,7 @@ let report_clone_handler ~conn id =
   let id' = Sql.ensure_inserted_get_id ~conn ~tbl:"reports" ~tuples in
   let clone_tbl tbl =
     let query = sprintf "SELECT * FROM %s WHERE report_id = %d" tbl id in
-    let result = Sql.exec_exn conn query in
+    let result = Sql.exec_exn ~conn ~query in
     List.iteri ~f:(fun i row ->
       let tuples = List.filter_mapi
         ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
@@ -246,14 +251,16 @@ let report_clone_handler ~conn id =
   javascript_redirect "/?reports"
 
 let report_delete_handler ~conn id =
-  Sql.exec_ign_exn conn (sprintf "DELETE FROM reports WHERE report_id = %d" id);
+  let query = sprintf "DELETE FROM reports WHERE report_id = %d" id in
+  Sql.exec_ign_exn ~conn ~query;
   javascript_redirect "/?reports"
 
 let report_create_handler ~conn params =
   (* If "id" is specified, then modify report <id>. *)
   let id_opt = List.hd (values_for_key params "id") in
   ignore (Option.map id_opt ~f:(fun id ->
-    Sql.exec_ign_exn conn ("DELETE FROM reports WHERE report_id = " ^ id)
+    let query = "DELETE FROM reports WHERE report_id = " ^ id in
+    Sql.exec_ign_exn ~conn ~query
   ));
   (* Obtain metadata. *)
   let desc = List.hd_exn (values_for_key params "desc") in
@@ -270,7 +277,7 @@ let report_create_handler ~conn params =
     let query = "SELECT build_id FROM builds " ^
       (sprintf "WHERE build_number=%d AND build_tag=''" build_number) in
     debug query;
-    match Sql.get_first_entry (Sql.exec_exn conn query) with
+    match Sql.get_first_entry ~result:(Sql.exec_exn ~conn ~query) with
     | None ->
       if primary then
         failwith (sprintf "Could not find build with build_number %d." build_number)
@@ -278,7 +285,7 @@ let report_create_handler ~conn params =
       let query = "INSERT INTO report_builds (report_id, build_id, \"primary\") " ^
         (sprintf "VALUES (%d, %s, %B)" report_id build_id primary) in
       debug query;
-      Sql.exec_ign_exn conn query
+      Sql.exec_ign_exn ~conn ~query
   in
   List.iter ~f:(insert_build ~primary:true) primary_builds;
   List.iter ~f:(insert_build ~primary:false) secondary_builds;
@@ -289,8 +296,8 @@ let report_create_handler ~conn params =
   let som_ids = List.map ~f:int_of_string som_ids_str in
   let process_som som_id =
     let tc_fqn =
-      let q = sprintf "SELECT tc_fqn FROM soms WHERE som_id=%d" som_id in
-      Sql.get_first_entry_exn (Sql.exec_exn conn q)
+      let query = sprintf "SELECT tc_fqn FROM soms WHERE som_id=%d" som_id in
+      Sql.get_first_entry_exn ~result:(Sql.exec_exn ~conn ~query)
     in
     let prefix = "tc-" ^ tc_fqn ^ "_" in
     let tc_config_tbl = "tc_config_" ^ tc_fqn in
@@ -300,7 +307,8 @@ let report_create_handler ~conn params =
     let query =
       (sprintf "SELECT tc_config_id FROM %s" tc_config_tbl) ^
       (if filter = "" then "" else sprintf " WHERE %s" filter) in
-    let tc_config_ids_str = get_first_col (Sql.exec_exn conn query) in
+    let tc_config_ids_str =
+      Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
     let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
     match som_config_tbl_exists conn som_id with
     | som_config_tbl, true ->
@@ -310,7 +318,8 @@ let report_create_handler ~conn params =
         let filter = extract_filter col_fqns col_types params prefix in
         let query = sprintf "SELECT som_config_id FROM %s WHERE %s"
           som_config_tbl filter in
-        let som_config_ids_str = get_first_col (Sql.exec_exn conn query) in
+        let som_config_ids_str =
+          Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
         let som_config_ids = List.map ~f:int_of_string som_config_ids_str in
         let insert_report_config tc_config_id som_config_id =
           let query =
@@ -319,7 +328,7 @@ let report_create_handler ~conn params =
             (sprintf "(%d, %d, " report_id som_id) ^
             (sprintf "%d, %d)" tc_config_id som_config_id) in
           debug query;
-          Sql.exec_ign_exn conn query
+          Sql.exec_ign_exn ~conn ~query
         in
         List.iter tc_config_ids
           ~f:(fun tci -> List.iter som_config_ids ~f:(insert_report_config tci))
@@ -329,7 +338,7 @@ let report_create_handler ~conn params =
             "INSERT INTO report_configs (report_id, som_id, tc_config_id) " ^
             (sprintf "VALUES (%d, %d, %d)" report_id som_id tc_config_id) in
           debug query;
-          Sql.exec_ign_exn conn query
+          Sql.exec_ign_exn ~conn ~query
         in
         List.iter ~f:insert_report_config tc_config_ids
   in
@@ -342,7 +351,7 @@ let report_create_handler ~conn params =
 let reports_handler ~conn =
   insert_header ();
   let query = "SELECT report_id, report_desc FROM reports" in
-  let result = Sql.exec_exn conn query in
+  let result = Sql.exec_exn ~conn ~query in
   let print_report report =
     let id = report.(0) in
     let desc = report.(1) in
@@ -366,15 +375,15 @@ let reports_handler ~conn =
 let report_async_handler ~conn report_id =
   let query =
     sprintf "SELECT report_desc FROM reports WHERE report_id=%d" report_id in
-  let desc = Sql.get_first_entry_exn (Sql.exec_exn conn query) in
+  let desc = Sql.get_first_entry_exn ~result:(Sql.exec_exn ~conn ~query) in
   let builds_query primary =
     "SELECT b.build_id, b.branch, b.build_number, b.build_tag " ^
     "FROM builds AS b, report_builds AS rb " ^
     "WHERE b.build_id = rb.build_id " ^
     (sprintf "AND rb.report_id = %d " report_id) ^
     (sprintf "AND rb.primary = %B " primary) in
-  let primary_builds = Sql.exec_exn conn (builds_query true) in
-  let secondary_builds = Sql.exec_exn conn (builds_query false) in
+  let primary_builds = Sql.exec_exn ~conn ~query:(builds_query true) in
+  let secondary_builds = Sql.exec_exn ~conn ~query:(builds_query false) in
   let string_of_builds builds =
     let string_of_build build =
       "{" ^
@@ -389,7 +398,7 @@ let report_async_handler ~conn report_id =
   let query =
     "SELECT som_id, tc_config_id, som_config_id FROM report_configs " ^
     (sprintf "WHERE report_id = %d" report_id) in
-  let report_configs = Sql.exec_exn conn query in
+  let report_configs = Sql.exec_exn ~conn ~query in
   let string_of_report_config config =
     let som_id : int = int_of_string config.(0) in
     let tc_config_id : int = int_of_string config.(1) in
@@ -397,24 +406,25 @@ let report_async_handler ~conn report_id =
       if config.(2) = "" then -1 else int_of_string config.(2) in
     let query = "SELECT som_name, tc_fqn, more_is_better, units FROM soms " ^
       (sprintf "WHERE som_id = %d" som_id) in
-    let som_info = Sql.exec_exn conn query in
+    let som_info = Sql.exec_exn ~conn ~query in
     let som_name = som_info#getvalue 0 0 in
     let tc_fqn = som_info#getvalue 0 1 in
     let more_is_better = get_value som_info 0 2 "NULL" in
     let units = get_value som_info 0 3 "NULL" in
     let query = "SELECT description FROM test_cases " ^
       (sprintf "WHERE tc_fqn = '%s'" tc_fqn) in
-    let tc_desc = Sql.get_first_entry_exn (Sql.exec_exn conn query) in
+    let tc_desc =
+      Sql.get_first_entry_exn ~result:(Sql.exec_exn ~conn ~query) in
     let query =
       (sprintf "SELECT * FROM tc_config_%s " tc_fqn) ^
       (sprintf "WHERE tc_config_id = %d" tc_config_id) in
-    let tc_config_info = Sql.exec_exn conn query in
+    let tc_config_info = Sql.exec_exn ~conn ~query in
     let som_config_info_opt =
       if som_config_id = -1 then None else
       let query =
         (sprintf "SELECT * FROM som_config_%d " som_id) ^
         (sprintf "WHERE som_config_id = %d" som_config_id) in
-      Some (Sql.exec_exn conn query)
+      Some (Sql.exec_exn ~conn ~query)
     in
     let string_of_config_info_part config_info col =
       let fname = config_info#fname col in
@@ -459,16 +469,16 @@ let report_async_handler ~conn report_id =
   printf "\"configs\": [%s]" report_configs_str;
   printf "}"
 
-let report_handler ~conn report_id =
+let report_handler ~conn:_ _ =
   insert_header ();
   printf "<script src='rage.js'></script>";
   insert_footer ()
 
-let default_handler ~place ~conn =
+let default_handler ~place:_ ~conn =
   insert_header ();
   let query = "SELECT som_id, som_name FROM soms " ^
               "ORDER BY som_id" in
-  let result = Sql.exec_exn conn query in
+  let result = Sql.exec_exn ~conn ~query in
   let print_row row_i tag row =
     match row_i with -1 -> print_row_header row | _ ->
     print_string "   <tr>";
@@ -483,7 +493,7 @@ let default_handler ~place ~conn =
 let get_tc_config_tbl_name conn som_id =
   let query = "SELECT tc_fqn FROM soms " ^
               "WHERE som_id = " ^ (string_of_int som_id) in
-  let result = Sql.exec_exn conn query in
+  let result = Sql.exec_exn ~conn ~query in
   let tc_fqn = String.lowercase (result#getvalue 0 0) in
   (tc_fqn, "tc_config_" ^ tc_fqn)
 
@@ -493,7 +503,7 @@ let get_branch_ordering ~conn branches =
     "SELECT branch FROM branch_order WHERE branch IN ('" ^
     (concat ~sep:"','" branches_uniq) ^ "') ORDER BY seq_number" in
   debug query;
-  let data = Sql.exec_exn conn query in
+  let data = Sql.exec_exn ~conn ~query in
   let process_row i row = (i+1, List.nth_exn row 0) in
   Some (List.mapi data#get_all_lst ~f:process_row)
 
@@ -572,28 +582,29 @@ let print_filter_table job_ids builds configs som_configs_opt machines =
 let show_configurations ~conn som_id tc_config_tbl =
   let query =
     sprintf "SELECT * FROM soms WHERE som_id=%d" som_id in
-  let som_info = Sql.exec_exn conn query in
+  let som_info = Sql.exec_exn ~conn ~query in
   let query = "SELECT * FROM " ^ tc_config_tbl in
-  let configs = Sql.exec_exn conn query in
+  let configs = Sql.exec_exn ~conn ~query in
   let query = "SELECT DISTINCT job_id FROM measurements WHERE " ^
     (sprintf "som_id=%d" som_id) in
-  let job_ids = Sql.exec_exn conn query in
+  let job_ids = Sql.exec_exn ~conn ~query in
   let query =
     "SELECT DISTINCT branch, build_number, build_tag " ^
     "FROM builds AS b, jobs AS j, measurements AS m " ^
     "WHERE m.job_id=j.job_id AND j.build_id=b.build_id " ^
     (sprintf "AND m.som_id=%d" som_id) in
-  let builds = Sql.exec_exn conn query in
+  let builds = Sql.exec_exn ~conn ~query in
   let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
   let som_configs_opt =
     if not som_tbl_exists then None else
-    Some (Sql.exec_exn conn (sprintf "SELECT * FROM %s" som_config_tbl)) in
+    let query = sprintf "SELECT * FROM %s" som_config_tbl in
+    Some (Sql.exec_exn ~conn ~query) in
   let query =
     "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
     "FROM machines AS mn, tc_machines AS tm, measurements AS mr " ^
     "WHERE mn.machine_id=tm.machine_id AND tm.job_id=mr.job_id " ^
     (sprintf "AND som_id=%d" som_id) in
-  let machines = Sql.exec_exn conn query in
+  let machines = Sql.exec_exn ~conn ~query in
   print_som_info som_info;
   print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
   printf "<form name='optionsForm'>\n";
@@ -621,9 +632,9 @@ let show_configurations ~conn som_id tc_config_tbl =
   printf "<div id='table'></div>";
   printf "<script src='rage.js'></script>"
 
-let som_handler ~place ~conn som_id config_ids =
+let som_handler ~place:_ ~conn som_id _ =
   insert_header ();
-  let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
+  let _, tc_config_tbl = get_tc_config_tbl_name conn som_id in
   show_configurations ~conn som_id tc_config_tbl;
   insert_footer ()
 
@@ -633,16 +644,13 @@ let quote_re = Str.regexp "\""
 let get_generic_string_mapping rows col col_name col_types =
   match String.Table.find col_types col_name with None -> None | Some ty ->
   match Sql.Type.is_quoted ty with false -> None | true ->
-  let uniques = List.dedup (extract_column rows col) in
+  let col_data = Array.to_list (Array.map ~f:(fun row -> row.(col)) rows) in
+  let uniques = List.dedup col_data in
   let sorted = List.sort ~cmp:compare uniques in
   Some (List.mapi sorted ~f:(fun i x -> (i+1, x)))
 
-let strings_to_numbers ~conn rows col col_name col_types label =
-  let mapping_opt =
-    (*if col_name = "branch"
-    then get_branch_ordering ~conn (extract_column rows col)
-    else*) get_generic_string_mapping rows col col_name col_types
-  in
+let strings_to_numbers rows col col_name col_types label =
+  let mapping_opt = get_generic_string_mapping rows col col_name col_types in
   match mapping_opt with None -> () | Some mapping ->
   let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i a in
   let mapping_str = concat (List.map mapping ~f:process_entry) in
@@ -656,7 +664,7 @@ let strings_to_numbers ~conn rows col col_name col_types label =
 
 let select_params params ?(value=None) prefix =
   List.filter_map params ~f:(fun (k, v) ->
-    if String.is_prefix k prefix && (Option.is_none value || Some v = value)
+    if String.is_prefix k ~prefix && (Option.is_none value || Some v = value)
     then String.chop_prefix k ~prefix else None
   )
 let get_filter_params params = select_params params filter_prefix
@@ -702,7 +710,7 @@ let som_async_handler ~conn som_id params =
           som_config_tbl else "") ^
     (if not (String.is_empty filter) then sprintf " AND %s" filter else "") in
   debug query;
-  let data = Sql.exec_exn conn query in
+  let data = Sql.exec_exn ~conn ~query in
   let rows = data#get_all in
   (* filter data into groups based on "SPLIT BY"-s *)
   let split_bys =
@@ -727,8 +735,8 @@ let som_async_handler ~conn som_id params =
   printf "\"target\":\"%s\"," target;
   printf "\"xaxis\":\"%s\"," xaxis;
   printf "\"yaxis\":\"%s\"," yaxis;
-  strings_to_numbers ~conn rows 0 xaxis col_types "x_labels";
-  strings_to_numbers ~conn rows 1 yaxis col_types "y_labels";
+  strings_to_numbers rows 0 xaxis col_types "x_labels";
+  strings_to_numbers rows 1 yaxis col_types "y_labels";
   let num_other_keys = List.length keys - 2 in
   let convert_row row =
     let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in
@@ -754,16 +762,9 @@ let som_async_handler ~conn som_id params =
 
 let createtiny_handler ~conn url =
   printf "Content-type: application/json\n\n";
-  let tbl = "tiny_urls" in
-  let select = sprintf "SELECT key FROM %s WHERE url='%s'" tbl url in
-  let r = Sql.exec_exn conn select in
-  match r#ntuples with
-  | 1 -> printf "{\"id\":%s}" (r#getvalue 0 0)
-  | _ ->
-    let insert = sprintf "INSERT INTO %s (url) VALUES ('%s')" tbl url in
-    ignore (Sql.exec_exn conn insert);
-    let r = Sql.exec_exn conn select in
-    printf "{\"id\":%s}" (r#getvalue 0 0)
+  let tuples = [("url", url)] in
+  let id = Sql.ensure_inserted_get_id ~conn ~tbl:"tiny_urls" ~tuples in
+  printf "{\"id\":%d}" id
 
 let print_404 () =
   printf "Status: 404 Not Found\n";
@@ -771,10 +772,10 @@ let print_404 () =
   printf "<h1>404 --- this is not the page you are looking for ...</h1>"
 
 let redirecttiny_handler ~conn id =
-  let q = sprintf "SELECT url FROM tiny_urls WHERE key=%d" id in
-  let r = Sql.exec_exn conn q in
-  match r#ntuples with
-  | 1 -> javascript_redirect (r#getvalue 0 0)
+  let query = sprintf "SELECT url FROM tiny_urls WHERE key=%d" id in
+  let result = Sql.exec_exn ~conn ~query in
+  match result#ntuples with
+  | 1 -> javascript_redirect (Sql.get_first_entry_exn ~result)
   | _ -> print_404 ()
 
 let handle_request () =

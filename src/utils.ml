@@ -31,20 +31,13 @@ let rec concat_array ?(sep = ",") a =
 
 let merge_table_into src dst =
   String.Table.merge_into ~src ~dst
-    ~f:(fun ~key src_v dst_v_opt ->
+    ~f:(fun ~key:_ src_v dst_v_opt ->
       match dst_v_opt with None -> Some src_v | vo -> vo)
 
 let cat filename =
   print_string (In_channel.with_file ~f:In_channel.input_all filename)
 
 (* DATABASE INTERACTION *)
-
-let extract_column rows col =
-  Array.to_list (Array.map ~f:(fun row -> row.(col)) rows)
-
-let get_col result col = extract_column result#get_all col
-
-let get_first_col result = get_col result 0
 
 let get_value r row col null_val =
   if r#getisnull row col then null_val else r#getvalue row col
@@ -111,12 +104,12 @@ let extract_filter col_fqns col_types params key_prefix =
 
 (* PRINTING HTML *)
 
-let print_col_default row_i col_i tag data =
+let print_col_default _ _ tag data =
   printf "<%s>%s</%s>" tag data tag
 
 let print_row_custom ?(print_col = print_col_default) row_i tag row =
   print_string "   <tr>";
-  List.iteri row (fun col_i data -> print_col row_i col_i tag data);
+  List.iteri row ~f:(fun col_i data -> print_col row_i col_i tag data);
   print_endline "</tr>"
 
 let print_row_default row_i tag row =
@@ -129,7 +122,7 @@ let print_table_custom_row print_row result =
   print_endline "  <table border='1'>";
   print_row (-1) "th" result#get_fnames_lst;
   List.iteri result#get_all_lst
-    (fun row_i row -> print_row row_i "td" row);
+    ~f:(fun row_i row -> print_row row_i "td" row);
   print_endline "  </table>"
 
 let print_table result =
@@ -186,7 +179,7 @@ let print_options_for_field namespace db_result col =
 
 let print_options_for_fields conn tbl namespace =
   let query = "SELECT * FROM " ^ tbl in
-  let result = Sql.exec_exn conn query in
+  let result = Sql.exec_exn ~conn ~query in
   List.iter ~f:(print_options_for_field namespace result)
     (List.range 1 result#nfields);
   printf "<br style='clear: both' />\n"
