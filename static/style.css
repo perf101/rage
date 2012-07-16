@@ -22,7 +22,7 @@ canvas.flot-base {
   width: 100%;
   text-align: right;
 }
-#tooltip {
+.tooltip {
   position: absolute;
   display: none;
   border: 1px solid #fdd;
@@ -30,8 +30,15 @@ canvas.flot-base {
   background-color: #fee;
   opacity: 0.60;
 }
-#tooltip th {
+.tooltip table {
+  float: left;
+}
+.tooltip th {
   text-align: right;
+}
+.tooltip img {
+  float: right;
+  cursor: pointer;
 }
 .som {
   font-size: 120%;

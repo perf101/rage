@@ -159,7 +159,6 @@ function report_generator_page_init() {
     return;
   }
   var report_id = parseInt(url_params.id[0]);
-  console.log(report_id);
   var request = "/?report=" + report_id + "&async=true";
   console.log(request);
   $.ajax({
@@ -219,7 +218,6 @@ function on_report_received_edit(o) {
 
 function enable_report_generator_triggers() {
   var update_all_soms = function() {
-    console.log($(this));
     $("input[name^='include_som_']").each(function() {
       if ($(this).is(":checked")) $(this).change();
     });
@@ -237,12 +235,9 @@ function enable_report_generator_triggers() {
     });
   });
   $("select[name^='som-']").change(function() {
-    console.log($(this));
     var name = $(this).attr("name");
     var som_id = name.substring(4, name.indexOf("_"));
-    console.log(som_id);
     var checkbox = $("input[name='include_som_" + som_id + "']");
-    console.log(checkbox);
     if (checkbox.is(":checked")) checkbox.change();
   });
 }
@@ -304,7 +299,6 @@ function on_report_received(r) {
   console.log(r);
   // store primary builds globally
   report_primary_builds = extract_build_numbers(r.builds.primary);
-  console.log(report_primary_builds);
   // basic metadata
   var s = "";
   s += "<h2>Report ID</h2>" + r.id;
@@ -600,9 +594,12 @@ function create_log_ticks(axis) {
 }
 
 function show_tooltip(x, y, contents) {
-  $('<div id="tooltip">' + contents + '</div>').css({
+  var tooltip = $(contents).css({
     'top': y + 5, 'left': x + 5
   }).appendTo("body").fadeIn(200);
+  tooltip.children("img").click(function () {
+    $(this).parent().remove();
+  });
 }
 
 function on_received(o) {
@@ -620,13 +617,16 @@ function on_received(o) {
   $("#progress_img").toggle(false);
 }
 
+var last_received_graph_data = {};
 var series = [];
+var num_series = 0;
 
 function draw_graph(o) {
+  last_received_graph_data = o;
   var graph = $("#" + o.target);
   // default options
   series = o.series;
-  var num_series = series.length;
+  num_series = series.length;
   // averages
   if ($("input[name='show_avgs']").is(":checked")) {
     var i = 0;
@@ -651,6 +651,7 @@ function draw_graph(o) {
     xaxis: {labelAngle: 285},
     yaxis: {},
     grid: {
+      clickable: true,
       hoverable: true,
       canvasText: {show: true}
     },
@@ -677,41 +678,59 @@ function draw_graph(o) {
     options.yaxis.ticks = create_log_ticks;
   }
   var plot = $.plot(graph, series, options);
+  // click
+  graph.bind("plotclick", function (event, pos, item) {
+    if (!item) return;
+    show_tooltip(item.pageX + 10, item.pageY, generate_tooltip(item));
+  });
   // hover
   var previousPoint = null;
   graph.bind("plothover", function (event, pos, item) {
     if (!item) {
-      $("#tooltip").remove();
+      $("#hover_tooltip").remove();
       previousPoint = null;
     } else if (previousPoint != item.dataIndex) {
       previousPoint = item.dataIndex;
-      $("#tooltip").remove();
-      var x = item.datapoint[0].toFixed(2);
-      var y = item.datapoint[1].toFixed(2);
-      var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
-      var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
-      var body = "<table>";
-      var label = "";
-      if ("label" in item.series)
-        label = item.series.label;
-      else if (item.seriesIndex >= num_series) {
-        var s = series[item.seriesIndex - num_series];
-        if ("label" in s) label = s.label + " (mean)";
-      }
-      if (label)
-        body += "<tr><th>series:</th><td>" + label + "</td></tr>";
-      body += "<tr><th>x:</th><td>" + xl + "</td></tr>";
-      body += "<tr><th>y:</th><td>" + yl + "</td></tr>";
-      var itemData = item.series.data[item.dataIndex];
-      if (2 in itemData) {
-        var props = itemData[2];
-        for (p in props)
-          body += "<tr><th>" + p + ":</th><td>" + props[p] + "</td></tr>";
-      }
-      body += "</table>";
-      show_tooltip(item.pageX + 10, item.pageY, body);
+      $("#hover_tooltip").remove();
+      var contents = generate_tooltip(item, "hover_tooltip");
+      show_tooltip(item.pageX + 10, item.pageY, contents);
     }
   });
+}
+
+var tooltip_counter = 0;
+
+function generate_tooltip(item, id) {
+  var click_tooltip = typeof id === 'undefined';
+  id = typeof id === 'undefined' ? "tooltip_" + tooltip_counter++ : id;
+  var body = "<div id='" + id + "' class='tooltip'><table>";
+  var o = last_received_graph_data;
+  var x = item.datapoint[0].toFixed(2);
+  var y = item.datapoint[1].toFixed(2);
+  var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
+  var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
+  var label = "";
+  if ("label" in item.series)
+    label = item.series.label;
+  else if (item.seriesIndex >= num_series) {
+    var s = series[item.seriesIndex - num_series];
+    if ("label" in s) label = s.label + " (mean)";
+  }
+  if (label)
+    body += "<tr><th>series:</th><td>" + label + "</td></tr>";
+  body += "<tr><th>x:</th><td>" + xl + "</td></tr>";
+  body += "<tr><th>y:</th><td>" + yl + "</td></tr>";
+  var itemData = item.series.data[item.dataIndex];
+  if (2 in itemData) {
+    var props = itemData[2];
+    for (p in props)
+      body += "<tr><th>" + p + ":</th><td>" + props[p] + "</td></tr>";
+  }
+  body += "</table>";
+  if (click_tooltip)
+    body += "<img src='/close.png' />";
+  body += "</div>";
+  return body;
 }
 
 function make_table(o) {
