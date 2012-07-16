@@ -312,6 +312,11 @@ let report_create_handler ~conn params =
     let tc_config_ids_str =
       Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
     let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
+    let base_tuple tc_config_id = [
+      ("report_id", string_of_int report_id);
+      ("som_id", string_of_int som_id);
+      ("tc_config_id", string_of_int tc_config_id);
+    ] in
     match som_config_tbl_exists conn som_id with
     | som_config_tbl, true ->
         let prefix = sprintf "som-%d_" som_id in
@@ -324,23 +329,16 @@ let report_create_handler ~conn params =
           Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
         let som_config_ids = List.map ~f:int_of_string som_config_ids_str in
         let insert_report_config tc_config_id som_config_id =
-          let query =
-            "INSERT INTO report_configs " ^
-            "(report_id, som_id, tc_config_id, som_config_id) VALUES " ^
-            (sprintf "(%d, %d, " report_id som_id) ^
-            (sprintf "%d, %d)" tc_config_id som_config_id) in
-          debug query;
-          Sql.exec_ign_exn ~conn ~query
+          let som_tuple = ("som_config_id", string_of_int som_config_id) in
+          let tuples = som_tuple :: (base_tuple tc_config_id) in
+          Sql.ensure_inserted ~conn ~tbl:"report_configs" ~tuples
         in
         List.iter tc_config_ids
           ~f:(fun tci -> List.iter som_config_ids ~f:(insert_report_config tci))
     | _ ->
         let insert_report_config tc_config_id =
-          let query =
-            "INSERT INTO report_configs (report_id, som_id, tc_config_id) " ^
-            (sprintf "VALUES (%d, %d, %d)" report_id som_id tc_config_id) in
-          debug query;
-          Sql.exec_ign_exn ~conn ~query
+          let tuples = base_tuple tc_config_id in
+          Sql.ensure_inserted ~conn ~tbl:"report_configs" ~tuples
         in
         List.iter ~f:insert_report_config tc_config_ids
   in
