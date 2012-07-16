@@ -621,6 +621,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   checkbox "x_from_zero" "Force X from 0";
   checkbox "y_from_zero" "Force Y from 0";
   checkbox "show_all_meta" "Show all meta-data";
+  checkbox "xaxis_log" "Log scale X";
   checkbox "yaxis_log" "Log scale Y";
   printf "<br />\n";
   print_filter_table job_ids builds configs som_configs_opt machines;
