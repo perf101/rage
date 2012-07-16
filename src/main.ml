@@ -620,6 +620,8 @@ let show_configurations ~conn som_id tc_config_tbl =
   checkbox "show_avgs" "Show averages";
   checkbox "x_from_zero" "Force X from 0";
   checkbox "y_from_zero" "Force Y from 0";
+  checkbox "x_as_seq" "Force X data as sequence";
+  checkbox "y_as_seq" "Force Y data as sequence";
   checkbox "show_all_meta" "Show all meta-data";
   checkbox "xaxis_log" "Log scale X";
   checkbox "yaxis_log" "Log scale Y";
@@ -645,16 +647,22 @@ let som_handler ~place:_ ~conn som_id _ =
 (** Pre-generated regexp for use within som_async_handler. *)
 let quote_re = Str.regexp "\""
 
-let get_generic_string_mapping rows col col_name col_types =
-  match String.Table.find col_types col_name with None -> None | Some ty ->
-  match Sql.Type.is_quoted ty with false -> None | true ->
+let should_sort_alphabetically col_types col_name force_as_seq =
+  match force_as_seq with true -> true | false ->
+  match String.Table.find col_types col_name with None -> false | Some ty ->
+  Sql.Type.is_quoted ty
+
+let get_generic_string_mapping rows col col_name col_types force_as_seq =
+  if not (should_sort_alphabetically col_types col_name force_as_seq)
+  then None else
   let col_data = Array.to_list (Array.map ~f:(fun row -> row.(col)) rows) in
   let uniques = List.dedup col_data in
   let sorted = List.sort ~cmp:compare uniques in
   Some (List.mapi sorted ~f:(fun i x -> (i+1, x)))
 
-let strings_to_numbers rows col col_name col_types label =
-  let mapping_opt = get_generic_string_mapping rows col col_name col_types in
+let strings_to_numbers rows col col_name col_types label force_as_seq =
+  let mapping_opt =
+    get_generic_string_mapping rows col col_name col_types force_as_seq in
   match mapping_opt with None -> () | Some mapping ->
   let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i a in
   let mapping_str = concat (List.map mapping ~f:process_entry) in
@@ -739,8 +747,10 @@ let som_async_handler ~conn som_id params =
   printf "\"target\":\"%s\"," target;
   printf "\"xaxis\":\"%s\"," xaxis;
   printf "\"yaxis\":\"%s\"," yaxis;
-  strings_to_numbers rows 0 xaxis col_types "x_labels";
-  strings_to_numbers rows 1 yaxis col_types "y_labels";
+  let x_as_seq = ("on" = get_first_val params "x_as_seq" "off") in
+  let y_as_seq = ("on" = get_first_val params "y_as_seq" "off") in
+  strings_to_numbers rows 0 xaxis col_types "x_labels" x_as_seq;
+  strings_to_numbers rows 1 yaxis col_types "y_labels" y_as_seq;
   let num_other_keys = List.length keys - 2 in
   let convert_row row =
     let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in

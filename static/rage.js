@@ -14,7 +14,8 @@ var autofetch = true; // if false, the following triggers have no effect
 var checkboxes_on_by_default = ["show_avgs", "y_from_zero"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_from_zero",
-  "#show_all_meta", "xaxis_log", "#yaxis_log", "#get_img"
+  "#x_as_seq", "#y_as_seq", "#show_all_meta", "#xaxis_log", "#yaxis_log",
+  "#get_img"
 ]
 var url_params = get_url_params();
 // ==== GLOBAL VARIABLES --- end ====
@@ -51,6 +52,8 @@ function som_page_init() {
   $("input[name='show_avgs']").change(fetch_data_and_process);
   $("input[name='x_from_zero']").change(fetch_data_and_process);
   $("input[name='y_from_zero']").change(fetch_data_and_process);
+  $("input[name='x_as_seq']").change(fetch_data_and_process);
+  $("input[name='y_as_seq']").change(fetch_data_and_process);
   $("input[name='show_all_meta']").change(fetch_data_and_process);
   $("input[name='xaxis_log']").change(fetch_data_and_process);
   $("input[name='yaxis_log']").change(fetch_data_and_process);
@@ -391,8 +394,6 @@ function view_change() {
     $(graph_only_fields[i]).toggle(is_graph);
   $("input[name='show_avgs']").prop("checked", is_graph);
   $("input[name='show_all_meta']").prop("checked", !is_graph);
-  $("input[name='xaxis_log']").prop("checked", false);
-  $("input[name='yaxis_log']").prop("checked", false);
   autofetch = true;
   fetch_data_and_process();
 }
