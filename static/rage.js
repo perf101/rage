@@ -593,10 +593,13 @@ function create_log_ticks(axis) {
   return result;
 }
 
-function show_tooltip(x, y, contents) {
+function show_tooltip(graph, page_x, page_y, contents) {
+  var graph_pos = graph.position();
+  var x = page_x - graph_pos.left;
+  var y = page_y - graph_pos.top;
   var tooltip = $(contents).css({
-    'top': y + 5, 'left': x + 5
-  }).appendTo("body").fadeIn(200);
+    'top': y - 20, 'left': x + 5
+  }).appendTo(graph).fadeIn(200);
   tooltip.children("img").click(function () {
     $(this).parent().remove();
   });
@@ -681,7 +684,7 @@ function draw_graph(o) {
   // click
   graph.bind("plotclick", function (event, pos, item) {
     if (!item) return;
-    show_tooltip(item.pageX + 10, item.pageY, generate_tooltip(item));
+    show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
   });
   // hover
   var previousPoint = null;
@@ -693,7 +696,7 @@ function draw_graph(o) {
       previousPoint = item.dataIndex;
       $("#hover_tooltip").remove();
       var contents = generate_tooltip(item, "hover_tooltip");
-      show_tooltip(item.pageX + 10, item.pageY, contents);
+      show_tooltip(graph, item.pageX + 10, item.pageY, contents);
     }
   });
 }
