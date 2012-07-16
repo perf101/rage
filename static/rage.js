@@ -85,6 +85,7 @@ function get_options_for(name) {
 
 function on_report_generator_checkbox_change() {
   var som_id = parseInt($(this).attr("name").substring(12));
+  $("#view_container_" + som_id).toggle(false);
   $("#configs_" + som_id).toggle(false);
   $("#points_" + som_id).toggle(false);
   if (!$(this).is(":checked")) return;
@@ -120,6 +121,8 @@ function on_report_generator_checkbox_change() {
     else num_configs *= vals.length;
     for (var i in vals) request += "&v_" + config + "=" + vals[i];
   });
+  $("#view_" + som_id).attr("href", request);
+  $("#view_container_" + som_id).toggle(true);
   var field = $("#configs_" + som_id);
   field.html("(configs = " + num_configs + ")");
   field.toggle(true);

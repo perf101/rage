@@ -168,7 +168,7 @@ let report_generator_handler ~conn =
   let query = "SELECT tc_fqn, description FROM test_cases ORDER BY tc_fqn" in
   let test_cases = Sql.exec_exn ~conn ~query in
   let process_tc tc_fqn tc_desc =
-    printf "<h4>%s (<i>%s</i>)</h4>\n" tc_fqn tc_desc;
+    printf "<h4 class='clear'>%s (<i>%s</i>)</h4>\n" tc_fqn tc_desc;
     let tc_tbl = sprintf "tc_config_%s" tc_fqn in
     print_options_for_fields conn tc_tbl ("tc-" ^ tc_fqn);
     let query = "SELECT som_id, som_name FROM soms " ^
@@ -178,10 +178,13 @@ let report_generator_handler ~conn =
     let process_som som_id som_name =
       printf "<input name='include_som_%s' type='checkbox' />" som_id;
       printf "%s (<i>%s</i>)" som_id som_name;
+      printf "<span id='view_container_%s' style='display: none'>[" som_id;
+      printf "<a id='view_%s' target='_blank'>View</a>" som_id;
+      printf "]</span>";
       printf "<span id='configs_%s' style='display: none'></span>" som_id;
       printf "<span id='points_%s' style='display: none'></span>" som_id;
       printf "<span id='tc_of_%s' style='display: none'>%s</span>" som_id tc_fqn;
-      printf "<br />";
+      printf "<br class='clear' />";
       match som_config_tbl_exists conn (int_of_string som_id) with
       | som_config_tbl, true ->
           print_options_for_fields conn som_config_tbl ("som-" ^ som_id)

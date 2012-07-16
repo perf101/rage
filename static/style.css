@@ -48,3 +48,6 @@ canvas.flot-base {
 #get_img, #progress_img {
   display: none;
 }
+.clear {
+  clear: both;
+}
