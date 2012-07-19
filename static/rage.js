@@ -682,12 +682,14 @@ function draw_graph(o) {
   }
   var plot = $.plot(graph, series, options);
   // click
+  graph.unbind("plotclick");
   graph.bind("plotclick", function (event, pos, item) {
     if (!item) return;
     show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
   });
   // hover
   var previousPoint = null;
+  graph.unbind("plothover");
   graph.bind("plothover", function (event, pos, item) {
     if (!item) {
       $("#hover_tooltip").remove();
