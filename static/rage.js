@@ -47,7 +47,7 @@ function som_page_init() {
   // reset configuration button
   $("#reset_config").click(function() {window.location.href = get_som_url();});
   // "stop" button is disabled by default
-  $("#cancel").attr("disabled", true);
+  $("#cancel").prop("disabled", true);
   $("#cancel").click(cancel_draw_graph);
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
@@ -696,12 +696,12 @@ function draw_graph(o, cb) {
   }
   // enable "stop" button
   is_drawing = true;
-  $("#cancel").attr("disabled", false);
+  $("#cancel").prop("disabled", false);
   flot_object = $.plot(graph, series, options, on_finish);
   function on_finish() {
     // disable "stop" button
     is_drawing = false;
-    $("#cancel").attr("disabled", true);
+    $("#cancel").prop("disabled", true);
     // click
     graph.unbind("plotclick");
     graph.bind("plotclick", function (event, pos, item) {
