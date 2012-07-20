@@ -594,11 +594,11 @@ function create_log_ticks(axis) {
 }
 
 function show_tooltip(graph, page_x, page_y, contents) {
-  var graph_pos = graph.position();
+  var graph_pos = graph.offset();
   var x = page_x - graph_pos.left;
   var y = page_y - graph_pos.top;
   var tooltip = $(contents).css({
-    'top': y - 20, 'left': x + 5
+    'top': y, 'left': x + 5
   }).appendTo(graph).fadeIn(200);
   tooltip.children("img").click(function () {
     $(this).parent().remove();
@@ -688,12 +688,14 @@ function draw_graph(o, cb) {
   var plot = $.plot(graph, series, options, on_finish);
   function on_finish() {
     // click
+    graph.unbind("plotclick");
     graph.bind("plotclick", function (event, pos, item) {
       if (!item) return;
       show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
     });
     // hover
     var previousPoint = null;
+    graph.unbind("plothover");
     graph.bind("plothover", function (event, pos, item) {
       if (!item) {
         $("#hover_tooltip").remove();
