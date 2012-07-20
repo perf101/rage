@@ -46,6 +46,9 @@ function som_page_init() {
   $("#view").change(view_change);
   // reset configuration button
   $("#reset_config").click(function() {window.location.href = get_som_url();});
+  // "stop" button is disabled by default
+  $("#cancel").attr("disabled", true);
+  $("#cancel").click(cancel_draw_graph);
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
   $("select[name='yaxis']").change(fetch_data_and_process);
@@ -626,6 +629,7 @@ function on_received(o) {
 }
 
 var last_received_graph_data = {};
+var flot_object = null;
 var series = [];
 var num_series = 0;
 
@@ -685,8 +689,12 @@ function draw_graph(o, cb) {
     options.yaxis.inverseTransform = Math.exp;
     options.yaxis.ticks = create_log_ticks;
   }
-  var plot = $.plot(graph, series, options, on_finish);
+  // enable "stop" button
+  $("#cancel").attr("disabled", false);
+  flot_object = $.plot(graph, series, options, on_finish);
   function on_finish() {
+    // disable "stop" button
+    $("#cancel").attr("disabled", true);
     // click
     graph.unbind("plotclick");
     graph.bind("plotclick", function (event, pos, item) {
@@ -709,6 +717,11 @@ function draw_graph(o, cb) {
     });
     cb();
   }
+}
+
+function cancel_draw_graph() {
+  if (flot_object)
+    flot_object.shutdown();
 }
 
 var tooltip_counter = 0;
