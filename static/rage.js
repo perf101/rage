@@ -630,10 +630,15 @@ function on_received(o) {
 
 var last_received_graph_data = {};
 var flot_object = null;
+var is_drawing = false;
 var series = [];
 var num_series = 0;
 
 function draw_graph(o, cb) {
+  // if there's still a draw operation from before, cancel it
+  if (is_drawing)
+    cancel_draw_graph();
+
   last_received_graph_data = o;
   var graph = $("#" + o.target);
   // default options
@@ -690,10 +695,12 @@ function draw_graph(o, cb) {
     options.yaxis.ticks = create_log_ticks;
   }
   // enable "stop" button
+  is_drawing = true;
   $("#cancel").attr("disabled", false);
   flot_object = $.plot(graph, series, options, on_finish);
   function on_finish() {
     // disable "stop" button
+    is_drawing = false;
     $("#cancel").attr("disabled", true);
     // click
     graph.unbind("plotclick");
