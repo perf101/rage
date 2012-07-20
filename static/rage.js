@@ -610,21 +610,26 @@ function on_received(o) {
   var view = $('#view').val();
   if (view == "Graph") {
     $('#table').hide();
-    draw_graph(o);
     $('#graph').show();
-  } else if (view == "Table") {
-    $('#graph').hide();
-    make_table(o);
-    $('#table').show();
-  } else console.log("Unknown view.");
-  $("#progress_img").toggle(false);
+    draw_graph(o, on_finish);
+  } else {
+    if (view == "Table") {
+      $('#graph').hide();
+      $('#table').show();
+      make_table(o);
+    } else console.log("Unknown view.");
+    on_finish();
+  }
+  function on_finish() {
+    $("#progress_img").toggle(false);
+  }
 }
 
 var last_received_graph_data = {};
 var series = [];
 var num_series = 0;
 
-function draw_graph(o) {
+function draw_graph(o, cb) {
   last_received_graph_data = o;
   var graph = $("#" + o.target);
   // default options
@@ -680,25 +685,28 @@ function draw_graph(o) {
     options.yaxis.inverseTransform = Math.exp;
     options.yaxis.ticks = create_log_ticks;
   }
-  var plot = $.plot(graph, series, options);
-  // click
-  graph.bind("plotclick", function (event, pos, item) {
-    if (!item) return;
-    show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
-  });
-  // hover
-  var previousPoint = null;
-  graph.bind("plothover", function (event, pos, item) {
-    if (!item) {
-      $("#hover_tooltip").remove();
-      previousPoint = null;
-    } else if (previousPoint != item.dataIndex) {
-      previousPoint = item.dataIndex;
-      $("#hover_tooltip").remove();
-      var contents = generate_tooltip(item, "hover_tooltip");
-      show_tooltip(graph, item.pageX + 10, item.pageY, contents);
-    }
-  });
+  var plot = $.plot(graph, series, options, on_finish);
+  function on_finish() {
+    // click
+    graph.bind("plotclick", function (event, pos, item) {
+      if (!item) return;
+      show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
+    });
+    // hover
+    var previousPoint = null;
+    graph.bind("plothover", function (event, pos, item) {
+      if (!item) {
+        $("#hover_tooltip").remove();
+        previousPoint = null;
+      } else if (previousPoint != item.dataIndex) {
+        previousPoint = item.dataIndex;
+        $("#hover_tooltip").remove();
+        var contents = generate_tooltip(item, "hover_tooltip");
+        show_tooltip(graph, item.pageX + 10, item.pageY, contents);
+      }
+    });
+    cb();
+  }
 }
 
 var tooltip_counter = 0;
