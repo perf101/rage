@@ -83,5 +83,5 @@ Make sure that your `~/.bashrc` includes the following lines:
 
     export PATH=/usr/local/perf/js/bin:$PATH
     export MANPATH=/usr/local/perf/js/man:$MANPATH
-    
+
 This makes sure that you are using the correct versions of OCaml tools.

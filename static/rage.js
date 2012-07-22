@@ -680,7 +680,10 @@ function draw_graph(o) {
     options.yaxis.inverseTransform = Math.exp;
     options.yaxis.ticks = create_log_ticks;
   }
-  var plot = $.plot(graph, series, options);
+  var start = new Date();
+  var plot = $.plot(graph, series, options, function() {
+    console.log("Plotting took " + (new Date() - start) + "ms.");
+  });
   // click
   graph.unbind("plotclick");
   graph.bind("plotclick", function (event, pos, item) {
