@@ -53,6 +53,24 @@ We also provide the SQL to generate the main tables:
 * [Core](http://www.janestreet.com/ocaml/doc/core/index.html), 107.01
 * [postgresql-ocaml](http://www.ocaml.info/home/ocaml_sources.html#postgresql-ocaml), 1.16.0
 * [flot](http://code.google.com/p/flot/)
+* [ocaml-sql](https://github.com/perf101/ocaml-sql)
+
+## Dealing with Git submodules
+
+After cloning this repository, you need to execute the following command
+in order to fetch all Git submodules (e.g. `ocaml-sql`):
+
+    git submodule update --init
+
+To obtain the latest changes for all submodules, use:
+
+    git submodule foreach git pull
+
+To make changes in a submodule:
+
+* `cd` to the submodule, and make, commit, and push changes;
+* `cd` to the supermodule, and commit and push (the changed reference to
+submodule).
 
 ## Development instructions
 
