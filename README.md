@@ -42,12 +42,6 @@ We also provide the SQL to generate the main tables:
 \[[blob](https://github.com/perf101/rage/blob/master/sql/schema.sql)\],
 \[[raw](https://github.com/perf101/rage/raw/master/sql/schema.sql)\].
 
-## Importing data into RAGE
-
-To make the task of importing data into RAGE database easier, we have created
-a tool that will hopefully be of help:
-[RAGE Importer](https://github.com/perf101/rage-importer).
-
 ## Tools used
 
 * [OCaml](http://caml.inria.fr/ocaml/index.en.html), 3.12.1
