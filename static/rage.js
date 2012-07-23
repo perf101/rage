@@ -48,7 +48,7 @@ function som_page_init() {
   $("#reset_config").click(function() {window.location.href = get_som_url();});
   // "stop" button is disabled by default
   $("#stop_plotting").prop("disabled", true);
-  $("#stop_plotting").click(stop_plotting);
+  $("#stop_plotting").click(on_stop_plotting);
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
   $("select[name='yaxis']").change(fetch_data_and_process);
@@ -614,16 +614,14 @@ function on_received(o) {
   if (view == "Graph") {
     $('#table').hide();
     $('#graph').show();
-    draw_graph(o, function() {
-      $("#progress_img").toggle(false);
-    });
+    draw_graph(o, on_plotting_finished);
   } else {
     if (view == "Table") {
       $('#graph').hide();
       $('#table').show();
       make_table(o);
     } else console.log("Unknown view.");
-    on_finish();
+    on_plotting_finished();
   }
 }
 
@@ -718,8 +716,16 @@ function draw_graph(o, cb) {
   });
 }
 
+function on_stop_plotting() {
+  stop_plotting();
+  on_plotting_finished();
+}
+
 function stop_plotting() {
   if (flot_object) flot_object.shutdown();
+}
+
+function on_plotting_finished() {
   $("#progress_img").toggle(false);
 }
 
