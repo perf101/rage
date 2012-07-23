@@ -691,7 +691,6 @@ function draw_graph(o, cb) {
   var start = new Date();
   flot_object = $.plot(graph, series, options, function() {
     console.log("Plotting took " + (new Date() - start) + "ms.");
-    $("#stop_plotting").prop("disabled", true);
     // click
     graph.unbind("plotclick");
     graph.bind("plotclick", function (event, pos, item) {
@@ -716,16 +715,20 @@ function draw_graph(o, cb) {
   });
 }
 
+// Called when the user clicks on the Stop button.
 function on_stop_plotting() {
   stop_plotting();
   on_plotting_finished();
 }
 
+// Called when starting a new plot, or when user clicks on Stop.
 function stop_plotting() {
   if (flot_object) flot_object.shutdown();
 }
 
+// Called after a successful plot, or when user clicks on Stop.
 function on_plotting_finished() {
+  $("#stop_plotting").prop("disabled", true);
   $("#progress_img").toggle(false);
 }
 
