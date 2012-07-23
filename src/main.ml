@@ -629,6 +629,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   print_filter_table job_ids builds configs som_configs_opt machines;
   printf "</form>\n";
   let submit_prefix = "<input type='submit' id=" in
+  printf "%s'cancel' value='Stop' />" submit_prefix;
   printf "%s'reset_config' value='Reset Configuration' />" submit_prefix;
   printf "%s'get_img' value='Get Image' />" submit_prefix;
   printf "%s'get_tinyurl' value='Get Tiny URL' />" submit_prefix;

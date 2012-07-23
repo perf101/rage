@@ -46,6 +46,9 @@ function som_page_init() {
   $("#view").change(view_change);
   // reset configuration button
   $("#reset_config").click(function() {window.location.href = get_som_url();});
+  // "stop" button is disabled by default
+  $("#cancel").prop("disabled", true);
+  $("#cancel").click(cancel_draw_graph);
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
   $("select[name='yaxis']").change(fetch_data_and_process);
@@ -610,21 +613,32 @@ function on_received(o) {
   var view = $('#view').val();
   if (view == "Graph") {
     $('#table').hide();
-    draw_graph(o);
     $('#graph').show();
-  } else if (view == "Table") {
-    $('#graph').hide();
-    make_table(o);
-    $('#table').show();
-  } else console.log("Unknown view.");
-  $("#progress_img").toggle(false);
+    draw_graph(o, on_finish);
+  } else {
+    if (view == "Table") {
+      $('#graph').hide();
+      $('#table').show();
+      make_table(o);
+    } else console.log("Unknown view.");
+    on_finish();
+  }
+  function on_finish() {
+    $("#progress_img").toggle(false);
+  }
 }
 
 var last_received_graph_data = {};
+var flot_object = null;
+var is_drawing = false;
 var series = [];
 var num_series = 0;
 
-function draw_graph(o) {
+function draw_graph(o, cb) {
+  // if there's still a draw operation from before, cancel it
+  if (is_drawing)
+    cancel_draw_graph();
+
   last_received_graph_data = o;
   var graph = $("#" + o.target);
   // default options
@@ -680,30 +694,43 @@ function draw_graph(o) {
     options.yaxis.inverseTransform = Math.exp;
     options.yaxis.ticks = create_log_ticks;
   }
+  // enable "stop" button
+  is_drawing = true;
+  $("#cancel").prop("disabled", false);
+
   var start = new Date();
-  var plot = $.plot(graph, series, options, function() {
+  flot_object = $.plot(graph, series, options, function() {
     console.log("Plotting took " + (new Date() - start) + "ms.");
+    // disable "stop" button
+    is_drawing = false;
+    $("#cancel").prop("disabled", true);
+    // click
+    graph.unbind("plotclick");
+    graph.bind("plotclick", function (event, pos, item) {
+      if (!item) return;
+      show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
+    });
+    // hover
+    var previousPoint = null;
+    graph.unbind("plothover");
+    graph.bind("plothover", function (event, pos, item) {
+      if (!item) {
+        $("#hover_tooltip").remove();
+        previousPoint = null;
+      } else if (previousPoint != item.dataIndex) {
+        previousPoint = item.dataIndex;
+        $("#hover_tooltip").remove();
+        var contents = generate_tooltip(item, "hover_tooltip");
+        show_tooltip(graph, item.pageX + 10, item.pageY, contents);
+      }
+    });
+    cb();
   });
-  // click
-  graph.unbind("plotclick");
-  graph.bind("plotclick", function (event, pos, item) {
-    if (!item) return;
-    show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
-  });
-  // hover
-  var previousPoint = null;
-  graph.unbind("plothover");
-  graph.bind("plothover", function (event, pos, item) {
-    if (!item) {
-      $("#hover_tooltip").remove();
-      previousPoint = null;
-    } else if (previousPoint != item.dataIndex) {
-      previousPoint = item.dataIndex;
-      $("#hover_tooltip").remove();
-      var contents = generate_tooltip(item, "hover_tooltip");
-      show_tooltip(graph, item.pageX + 10, item.pageY, contents);
-    }
-  });
+}
+
+function cancel_draw_graph() {
+  if (flot_object)
+    flot_object.shutdown();
 }
 
 var tooltip_counter = 0;
