@@ -47,8 +47,8 @@ function som_page_init() {
   // reset configuration button
   $("#reset_config").click(function() {window.location.href = get_som_url();});
   // "stop" button is disabled by default
-  $("#cancel").prop("disabled", true);
-  $("#cancel").click(cancel_draw_graph);
+  $("#stop_plotting").prop("disabled", true);
+  $("#stop_plotting").click(stop_plotting);
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
   $("select[name='yaxis']").change(fetch_data_and_process);
@@ -614,7 +614,9 @@ function on_received(o) {
   if (view == "Graph") {
     $('#table').hide();
     $('#graph').show();
-    draw_graph(o, on_finish);
+    draw_graph(o, function() {
+      $("#progress_img").toggle(false);
+    });
   } else {
     if (view == "Table") {
       $('#graph').hide();
@@ -623,22 +625,15 @@ function on_received(o) {
     } else console.log("Unknown view.");
     on_finish();
   }
-  function on_finish() {
-    $("#progress_img").toggle(false);
-  }
 }
 
 var last_received_graph_data = {};
 var flot_object = null;
-var is_drawing = false;
 var series = [];
 var num_series = 0;
 
 function draw_graph(o, cb) {
-  // if there's still a draw operation from before, cancel it
-  if (is_drawing)
-    cancel_draw_graph();
-
+  stop_plotting();
   last_received_graph_data = o;
   var graph = $("#" + o.target);
   // default options
@@ -694,16 +689,11 @@ function draw_graph(o, cb) {
     options.yaxis.inverseTransform = Math.exp;
     options.yaxis.ticks = create_log_ticks;
   }
-  // enable "stop" button
-  is_drawing = true;
-  $("#cancel").prop("disabled", false);
-
+  $("#stop_plotting").prop("disabled", false);
   var start = new Date();
   flot_object = $.plot(graph, series, options, function() {
     console.log("Plotting took " + (new Date() - start) + "ms.");
-    // disable "stop" button
-    is_drawing = false;
-    $("#cancel").prop("disabled", true);
+    $("#stop_plotting").prop("disabled", true);
     // click
     graph.unbind("plotclick");
     graph.bind("plotclick", function (event, pos, item) {
@@ -728,9 +718,9 @@ function draw_graph(o, cb) {
   });
 }
 
-function cancel_draw_graph() {
-  if (flot_object)
-    flot_object.shutdown();
+function stop_plotting() {
+  if (flot_object) flot_object.shutdown();
+  $("#progress_img").toggle(false);
 }
 
 var tooltip_counter = 0;
