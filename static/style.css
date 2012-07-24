@@ -46,7 +46,8 @@ canvas.flot-base {
 .som_name {
   font-weight: bold;
 }
-#reset_config, #get_img, #get_tinyurl, #tinyurl, #progress_img {
+#reset_config, #get_img, #get_tinyurl, #tinyurl, #stop_plotting,
+#progress_img {
   float: left;
 }
 #reset_config {
