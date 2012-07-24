@@ -15,7 +15,7 @@ var checkboxes_on_by_default = ["show_avgs", "y_from_zero"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_from_zero",
   "#x_as_seq", "#y_as_seq", "#show_all_meta", "#xaxis_log", "#yaxis_log",
-  "#get_img"
+  "#legend_position", "#get_img"
 ]
 var url_params = get_url_params();
 // ==== GLOBAL VARIABLES --- end ====
@@ -60,6 +60,7 @@ function som_page_init() {
   $("input[name='show_all_meta']").change(fetch_data_and_process);
   $("input[name='xaxis_log']").change(fetch_data_and_process);
   $("input[name='yaxis_log']").change(fetch_data_and_process);
+  $("select[name='legend_position']").change(fetch_data_and_process);
   $(".filterselect").change(fetch_data_and_process);
   $(".multiselect").change(fetch_data_and_process);
   // fetch and process data immediately
@@ -670,7 +671,11 @@ function draw_graph(o, cb) {
       hoverable: true,
       canvasText: {show: true}
     },
-    legend: {type: "canvas", backgroundColor: "white"},
+    legend: {
+      type: "canvas",
+      backgroundColor: "white",
+      position: $("select[name='legend_position']").val()
+    },
     points: {show: true}
   };
   // force X or Y from 0

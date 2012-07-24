@@ -538,6 +538,18 @@ let print_y_axis_choice configs som_configs_opt machines =
   print_axis_choice "Y axis" "yaxis"
     ("result" :: (get_xy_choices configs som_configs_opt machines))
 
+let print_legend_position_choice id =
+  printf "<div id='%s'>\n" id;
+  let label = "Legend Position" in
+  let legend_positions = [
+    ("North-East", "ne");
+    ("North-West", "nw");
+    ("South-East", "se");
+    ("South-West", "sw");
+  ] in
+  print_select ~label ~attrs:[("name", id)] legend_positions;
+  printf "</div>\n"
+
 let filter_prefix = "f_"
 let values_prefix = "v_"
 let show_for_value = "0"
@@ -625,6 +637,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   checkbox "show_all_meta" "Show all meta-data";
   checkbox "xaxis_log" "Log scale X";
   checkbox "yaxis_log" "Log scale Y";
+  print_legend_position_choice "legend_position";
   printf "<br />\n";
   print_filter_table job_ids builds configs som_configs_opt machines;
   printf "</form>\n";
