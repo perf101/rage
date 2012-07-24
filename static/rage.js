@@ -637,6 +637,11 @@ function draw_graph(o, cb) {
   // default options
   series = o.series;
   num_series = series.length;
+  // truncate legend keys
+  var max_key_length = 60;
+  for (var i in series)
+    if (series[i].label.length > max_key_length)
+      series[i].label = series[i].label.substring(0, max_key_length) + " ...";
   // averages
   if ($("input[name='show_avgs']").is(":checked")) {
     var i = 0;
