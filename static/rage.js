@@ -378,7 +378,8 @@ function on_report_part_received(o) {
     }
   }
   if (Object.keys(primary_builds).length == 0) {
-    var graph = new GraphObject(o);
+    var graph = new GraphObject();
+    graph.set_data(o);
     graph.draw_graph(null);
   } else {
     var target = $("#" + o.target);
@@ -551,7 +552,7 @@ function has_labels(o, axis) {
   return (axis + "_labels") in o;
 }
 
-var last_graph_object = null;
+var graph_object = new GraphObject();
 
 function on_received(o) {
   console.log("Received: ", o);
@@ -559,8 +560,8 @@ function on_received(o) {
   if (view == "Graph") {
     $('#table').hide();
     $('#graph').show();
-    last_graph_object = new GraphObject(o);
-    last_graph_object.draw_graph(on_plotting_finished);
+    graph_object.set_data(o);
+    graph_object.draw_graph(on_plotting_finished);
   } else {
     if (view == "Table") {
       $('#graph').hide();
@@ -573,8 +574,7 @@ function on_received(o) {
 
 // Called when the user clicks on the Stop button.
 function on_stop_plotting() {
-  if (last_graph_object)
-    last_graph_object.stop_plotting();
+  graph_object.stop_plotting();
   on_plotting_finished();
 }
 
@@ -587,15 +587,20 @@ function on_plotting_finished() {
 
 var tooltip_counter = 0;
 
-function GraphObject(o) {
+function GraphObject() {
+  this.set_data = set_data;
   this.draw_graph = draw_graph;
   this.stop_plotting = stop_plotting;
 
-  var o = o;
+  var o = null;
   var graph_data = {};
   var flot_object = null;
   var series = [];
   var num_series = 0;
+
+  function set_data(_o) {
+    o = _o;
+  }
 
   function get_averages_for(series) {
     var sum_map = {};
