@@ -377,9 +377,10 @@ function on_report_part_received(o) {
       delete primary_builds[points[i][0]];
     }
   }
-  if (Object.keys(primary_builds).length == 0)
-    draw_graph(o, null);
-  else {
+  if (Object.keys(primary_builds).length == 0) {
+    var graph = new GraphObject(o);
+    graph.draw_graph(null);
+  } else {
     var target = $("#" + o.target);
     target.toggle(false);
     var s = "<p class='error'>";
@@ -546,76 +547,11 @@ function get_sorted_keys(o) {
   return keys;
 }
 
-function get_averages_for(series) {
-  var sum_map = {};
-  var count_map = {};
-  for (i in series) {
-    var point = series[i];
-    var x = point[0];
-    if (!(x in sum_map)) {sum_map[x] = 0; count_map[x] = 0;}
-    sum_map[x] += point[1];
-    count_map[x] += 1;
-  }
-  var result = [];
-  var sorted_keys = get_sorted_keys(sum_map);
-  for (i in sorted_keys) {
-    var key = sorted_keys[i];
-    result.push([key, sum_map[key] / count_map[key]]);
-  }
-  return result;
-}
-
 function has_labels(o, axis) {
   return (axis + "_labels") in o;
 }
 
-function safe_log(x) {
-  if (x <= 0) x = 0.0001;
-  return Math.log(x);
-}
-
-function configure_labels(o, axis, options) {
-  var axis_options = options[axis + "axis"];
-  var quantity = o[axis + "axis"];
-  if (quantity == "build_number") {
-    axis_options.ticks = 10;
-    axis_options.tickDecimals = 0;
-  }
-  if (!has_labels(o, axis)) return;
-  var labels = o[axis + "_labels"];
-  axis_options.min = 1;
-  axis_options.tickFormatter = function(val, axis) {
-    return (val in labels) ? labels[val] : '';
-  };
-  axis_options.tickSize = 1;
-}
-
-function create_log_ticks(axis) {
-  var result = [];
-  var start = Math.floor(axis.min);
-  if (start <= 1) start = 1;
-  var end = Math.ceil(axis.max);
-  var current = start;
-  while (current < end) {
-    result.push(current);
-    var exp = Math.floor(safe_log(current)/Math.log(10));
-    current += Math.pow(10, exp);
-  }
-  result.push(end);
-  return result;
-}
-
-function show_tooltip(graph, page_x, page_y, contents) {
-  var graph_pos = graph.offset();
-  var x = page_x - graph_pos.left;
-  var y = page_y - graph_pos.top;
-  var tooltip = $(contents).css({
-    'top': y, 'left': x + 5
-  }).appendTo(graph).fadeIn(200);
-  tooltip.children("img").click(function () {
-    $(this).parent().remove();
-  });
-}
+var last_graph_object = null;
 
 function on_received(o) {
   console.log("Received: ", o);
@@ -623,7 +559,8 @@ function on_received(o) {
   if (view == "Graph") {
     $('#table').hide();
     $('#graph').show();
-    draw_graph(o, on_plotting_finished);
+    last_graph_object = new GraphObject(o);
+    last_graph_object.draw_graph(on_plotting_finished);
   } else {
     if (view == "Table") {
       $('#graph').hide();
@@ -634,114 +571,11 @@ function on_received(o) {
   }
 }
 
-var last_received_graph_data = {};
-var flot_object = null;
-var series = [];
-var num_series = 0;
-
-function draw_graph(o, cb) {
-  stop_plotting();
-  last_received_graph_data = o;
-  var graph = $("#" + o.target);
-  // default options
-  series = o.series;
-  num_series = series.length;
-  // truncate legend keys
-  var max_key_length = 60;
-  for (var i in series)
-    if (series[i].label.length > max_key_length)
-      series[i].label = series[i].label.substring(0, max_key_length) + " ...";
-  // averages
-  if ($("input[name='show_avgs']").is(":checked")) {
-    var i = 0;
-    for (i = 0; i < num_series; i++) {
-      var avgs = get_averages_for(series[i].data);
-      series.push({color: series[i].color, data: avgs,
-                   points: {show: false}, lines: {show: true}});
-    }
-  }
-  // options
-  var tickGenerator = function(axis) {
-    var result = [];
-    var step = (axis.max - axis.min) / 10;
-    var current = axis.min;
-    while (current <= axis.max) {
-      result.push(current);
-      current += step;
-    }
-    return result;
-  };
-  var options = {
-    xaxis: {labelAngle: 285},
-    yaxis: {},
-    grid: {
-      clickable: true,
-      hoverable: true,
-      canvasText: {show: true}
-    },
-    legend: {
-      type: "canvas",
-      backgroundColor: "white",
-      position: $("select[name='legend_position']").val()
-    },
-    points: {show: true}
-  };
-  // force X or Y from 0
-  if ($("input[name='x_from_zero']").is(":checked"))
-    options.xaxis.min = 0;
-  if ($("input[name='y_from_zero']").is(":checked"))
-    options.yaxis.min = 0;
-  // labels
-  configure_labels(o, "x", options);
-  configure_labels(o, "y", options);
-  // log scale
-  if ($("input[name='xaxis_log']").is(":checked")) {
-    options.xaxis.transform = safe_log;
-    options.xaxis.inverseTransform = Math.exp;
-    options.xaxis.ticks = create_log_ticks;
-  }
-  if ($("input[name='yaxis_log']").is(":checked")) {
-    options.yaxis.transform = safe_log;
-    options.yaxis.inverseTransform = Math.exp;
-    options.yaxis.ticks = create_log_ticks;
-  }
-  $("#stop_plotting").prop("disabled", false);
-  var start = new Date();
-  flot_object = $.plot(graph, series, options, function() {
-    console.log("Plotting took " + (new Date() - start) + "ms.");
-    // click
-    graph.unbind("plotclick");
-    graph.bind("plotclick", function (event, pos, item) {
-      if (!item) return;
-      show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
-    });
-    // hover
-    var previousPoint = null;
-    graph.unbind("plothover");
-    graph.bind("plothover", function (event, pos, item) {
-      if (!item) {
-        $("#hover_tooltip").remove();
-        previousPoint = null;
-      } else if (previousPoint != item.dataIndex) {
-        previousPoint = item.dataIndex;
-        $("#hover_tooltip").remove();
-        var contents = generate_tooltip(item, "hover_tooltip");
-        show_tooltip(graph, item.pageX + 10, item.pageY, contents);
-      }
-    });
-    if (typeof cb === "function") cb();
-  });
-}
-
 // Called when the user clicks on the Stop button.
 function on_stop_plotting() {
-  stop_plotting();
+  if (last_graph_object)
+    last_graph_object.stop_plotting();
   on_plotting_finished();
-}
-
-// Called when starting a new plot, or when user clicks on Stop.
-function stop_plotting() {
-  if (flot_object) flot_object.shutdown();
 }
 
 // Called after a successful plot, or when user clicks on Stop.
@@ -750,40 +584,219 @@ function on_plotting_finished() {
   $("#progress_img").toggle(false);
 }
 
+
 var tooltip_counter = 0;
 
-function generate_tooltip(item, id) {
-  var click_tooltip = typeof id === 'undefined';
-  id = typeof id === 'undefined' ? "tooltip_" + tooltip_counter++ : id;
-  var body = "<div id='" + id + "' class='tooltip'><table>";
-  var o = last_received_graph_data;
-  var x = item.datapoint[0].toFixed(2);
-  var y = item.datapoint[1].toFixed(2);
-  var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
-  var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
-  var label = "";
-  if ("label" in item.series)
-    label = item.series.label;
-  else if (item.seriesIndex >= num_series) {
-    var s = series[item.seriesIndex - num_series];
-    if ("label" in s) label = s.label + " (mean)";
+function GraphObject(o) {
+  this.draw_graph = draw_graph;
+  this.stop_plotting = stop_plotting;
+
+  var o = o;
+  var graph_data = {};
+  var flot_object = null;
+  var series = [];
+  var num_series = 0;
+
+  function get_averages_for(series) {
+    var sum_map = {};
+    var count_map = {};
+    for (i in series) {
+      var point = series[i];
+      var x = point[0];
+      if (!(x in sum_map)) {sum_map[x] = 0; count_map[x] = 0;}
+      sum_map[x] += point[1];
+      count_map[x] += 1;
+    }
+    var result = [];
+    var sorted_keys = get_sorted_keys(sum_map);
+    for (i in sorted_keys) {
+      var key = sorted_keys[i];
+      result.push([key, sum_map[key] / count_map[key]]);
+    }
+    return result;
   }
-  if (label)
-    body += "<tr><th>series:</th><td>" + label + "</td></tr>";
-  body += "<tr><th>x:</th><td>" + xl + "</td></tr>";
-  body += "<tr><th>y:</th><td>" + yl + "</td></tr>";
-  var itemData = item.series.data[item.dataIndex];
-  if (2 in itemData) {
-    var props = itemData[2];
-    for (p in props)
-      body += "<tr><th>" + p + ":</th><td>" + props[p] + "</td></tr>";
+
+  function safe_log(x) {
+    if (x <= 0) x = 0.0001;
+    return Math.log(x);
   }
-  body += "</table>";
-  if (click_tooltip)
-    body += "<img src='/close.png' />";
-  body += "</div>";
-  return body;
+
+  function configure_labels(o, axis, options) {
+    var axis_options = options[axis + "axis"];
+    var quantity = o[axis + "axis"];
+    if (quantity == "build_number") {
+      axis_options.ticks = 10;
+      axis_options.tickDecimals = 0;
+    }
+    if (!has_labels(o, axis)) return;
+    var labels = o[axis + "_labels"];
+    axis_options.min = 1;
+    axis_options.tickFormatter = function(val, axis) {
+      return (val in labels) ? labels[val] : '';
+    };
+    axis_options.tickSize = 1;
+  }
+
+  function create_log_ticks(axis) {
+    var result = [];
+    var start = Math.floor(axis.min);
+    if (start <= 1) start = 1;
+    var end = Math.ceil(axis.max);
+    var current = start;
+    while (current < end) {
+      result.push(current);
+      var exp = Math.floor(safe_log(current)/Math.log(10));
+      current += Math.pow(10, exp);
+    }
+    result.push(end);
+    return result;
+  }
+
+  function show_tooltip(graph, page_x, page_y, contents) {
+    var graph_pos = graph.offset();
+    var x = page_x - graph_pos.left;
+    var y = page_y - graph_pos.top;
+    var tooltip = $(contents).css({
+      'top': y, 'left': x + 5
+    }).appendTo(graph).fadeIn(200);
+    tooltip.children("img").click(function () {
+      $(this).parent().remove();
+    });
+  }
+
+  function generate_tooltip(item, id) {
+    var click_tooltip = typeof id === 'undefined';
+    id = typeof id === 'undefined' ? "tooltip_" + tooltip_counter++ : id;
+    var body = "<div id='" + id + "' class='tooltip'><table>";
+    var o = graph_data;
+    var x = item.datapoint[0].toFixed(2);
+    var y = item.datapoint[1].toFixed(2);
+    var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
+    var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
+    var label = "";
+    if ("label" in item.series)
+      label = item.series.label;
+    else if (item.seriesIndex >= num_series) {
+      var s = series[item.seriesIndex - num_series];
+      if ("label" in s) label = s.label + " (mean)";
+    }
+    if (label)
+      body += "<tr><th>series:</th><td>" + label + "</td></tr>";
+    body += "<tr><th>x:</th><td>" + xl + "</td></tr>";
+    body += "<tr><th>y:</th><td>" + yl + "</td></tr>";
+    var itemData = item.series.data[item.dataIndex];
+    if (2 in itemData) {
+      var props = itemData[2];
+      for (p in props)
+        body += "<tr><th>" + p + ":</th><td>" + props[p] + "</td></tr>";
+    }
+    body += "</table>";
+    if (click_tooltip)
+      body += "<img src='/close.png' />";
+    body += "</div>";
+    return body;
+  }
+
+  function draw_graph(cb) {
+    stop_plotting();
+    graph_data = o;
+    var graph = $("#" + o.target);
+    // default options
+    series = o.series;
+    num_series = series.length;
+    // truncate legend keys
+    var max_key_length = 60;
+    for (var i in series)
+      if (series[i].label.length > max_key_length)
+        series[i].label = series[i].label.substring(0, max_key_length) + " ...";
+    // averages
+    if ($("input[name='show_avgs']").is(":checked")) {
+      var i = 0;
+      for (i = 0; i < num_series; i++) {
+        var avgs = get_averages_for(series[i].data);
+        series.push({color: series[i].color, data: avgs,
+                     points: {show: false}, lines: {show: true}});
+      }
+    }
+    // options
+    var tickGenerator = function(axis) {
+      var result = [];
+      var step = (axis.max - axis.min) / 10;
+      var current = axis.min;
+      while (current <= axis.max) {
+        result.push(current);
+        current += step;
+      }
+      return result;
+    };
+    var options = {
+      xaxis: {labelAngle: 285},
+      yaxis: {},
+      grid: {
+        clickable: true,
+        hoverable: true,
+        canvasText: {show: true}
+      },
+      legend: {
+        type: "canvas",
+        backgroundColor: "white",
+        position: $("select[name='legend_position']").val()
+      },
+      points: {show: true}
+    };
+    // force X or Y from 0
+    if ($("input[name='x_from_zero']").is(":checked"))
+      options.xaxis.min = 0;
+    if ($("input[name='y_from_zero']").is(":checked"))
+      options.yaxis.min = 0;
+    // labels
+    configure_labels(o, "x", options);
+    configure_labels(o, "y", options);
+    // log scale
+    if ($("input[name='xaxis_log']").is(":checked")) {
+      options.xaxis.transform = safe_log;
+      options.xaxis.inverseTransform = Math.exp;
+      options.xaxis.ticks = create_log_ticks;
+    }
+    if ($("input[name='yaxis_log']").is(":checked")) {
+      options.yaxis.transform = safe_log;
+      options.yaxis.inverseTransform = Math.exp;
+      options.yaxis.ticks = create_log_ticks;
+    }
+    $("#stop_plotting").prop("disabled", false);
+    var start = new Date();
+    flot_object = $.plot(graph, series, options, function() {
+      console.log("Plotting took " + (new Date() - start) + "ms.");
+      // click
+      graph.unbind("plotclick");
+      graph.bind("plotclick", function (event, pos, item) {
+        if (!item) return;
+        show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
+      });
+      // hover
+      var previousPoint = null;
+      graph.unbind("plothover");
+      graph.bind("plothover", function (event, pos, item) {
+        if (!item) {
+          $("#hover_tooltip").remove();
+          previousPoint = null;
+        } else if (previousPoint != item.dataIndex) {
+          previousPoint = item.dataIndex;
+          $("#hover_tooltip").remove();
+          var contents = generate_tooltip(item, "hover_tooltip");
+          show_tooltip(graph, item.pageX + 10, item.pageY, contents);
+        }
+      });
+      if (typeof cb === "function") cb();
+    });
+  }
+
+  // Called when starting a new plot, or when user clicks on Stop.
+  function stop_plotting() {
+    if (flot_object) flot_object.shutdown();
+  }
 }
+
 
 function make_table(o) {
   var content = '';
