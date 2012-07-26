@@ -372,7 +372,7 @@ function on_report_part_received(o) {
     }
   }
   if (Object.keys(primary_builds).length == 0)
-    draw_graph(o);
+    draw_graph(o, null);
   else {
     var target = $("#" + o.target);
     target.toggle(false);
@@ -723,7 +723,7 @@ function draw_graph(o, cb) {
         show_tooltip(graph, item.pageX + 10, item.pageY, contents);
       }
     });
-    cb();
+    if (typeof cb === "function") cb();
   });
 }
 
