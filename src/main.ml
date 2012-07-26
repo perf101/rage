@@ -130,6 +130,36 @@ let som_config_tbl_exists conn som_id =
   let som_config_tbl = sprintf "som_config_%d" som_id in
   som_config_tbl, Sql.tbl_exists ~conn ~tbl:som_config_tbl
 
+let get_std_xy_choices conn =
+  let machine_field_lst =
+    List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
+  "branch" :: "build_number" :: "build_tag" :: machine_field_lst
+
+let get_xy_choices conn configs som_configs_opt =
+  let som_configs_lst = match som_configs_opt with
+    | None -> []
+    | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
+  in get_std_xy_choices conn @ configs#get_fnames_lst @ som_configs_lst
+
+let print_axis_choice label id choices =
+  printf "<div id='%s' style='display: inline'>\n" id;
+  print_select_list ~label ~attrs:[("name", id)] choices;
+  printf "</div>\n"
+
+let print_std_x_axis_choice conn =
+  print_axis_choice "X axis" "xaxis" (get_std_xy_choices conn)
+
+let print_std_y_axis_choice conn =
+  print_axis_choice "Y axis" "yaxis" ("result" :: (get_std_xy_choices conn))
+
+let print_x_axis_choice conn configs som_configs_opt =
+  print_axis_choice "X axis" "xaxis"
+    (get_xy_choices conn configs som_configs_opt)
+
+let print_y_axis_choice conn configs som_configs_opt =
+  print_axis_choice "Y axis" "yaxis"
+    ("result" :: (get_xy_choices conn configs som_configs_opt))
+
 let report_generator_handler ~conn =
   insert_header ();
   printf "<h2>Report Generator</h2>\n";
@@ -138,6 +168,10 @@ let report_generator_handler ~conn =
   (* Show input boxes for entering basic information. *)
   printf "<hr /><h3>Basic information</h3>\n";
   printf "Report description: <input type='text' name='desc' /><br />\n";
+  (* X/Y axis choice. *)
+  printf "<hr /><h3>Axes</h3>\n";
+  print_std_x_axis_choice conn;
+  print_std_y_axis_choice conn;
   (* Display standard and all builds in dropboxes. *)
   printf "<hr /><h3>Builds to compare</h3>\n";
   let query = "SELECT build_name, build_number FROM standard_builds " ^
@@ -270,9 +304,11 @@ let report_create_handler ~conn params =
   ));
   (* Obtain metadata. *)
   let desc = List.hd_exn (values_for_key params "desc") in
+  let xaxis = List.hd_exn (values_for_key params "xaxis") in
+  let yaxis = List.hd_exn (values_for_key params "yaxis") in
   let tuples =
     (match id_opt with None -> [] | Some id -> [("report_id", id)]) @
-    [("report_desc", desc)]
+    [("report_desc", desc); ("xaxis", xaxis); ("yaxis", yaxis)]
   in
   let report_id = Sql.ensure_inserted_get_id ~conn ~tbl:"reports" ~tuples in
   (* Gather and record builds. *)
@@ -379,9 +415,10 @@ let reports_handler ~conn =
   insert_footer ()
 
 let report_async_handler ~conn report_id =
-  let query =
-    sprintf "SELECT report_desc FROM reports WHERE report_id=%d" report_id in
-  let desc = Sql.get_first_entry_exn ~result:(Sql.exec_exn ~conn ~query) in
+  let query = "SELECT report_desc, xaxis, yaxis " ^
+    sprintf "FROM reports WHERE report_id=%d" report_id in
+  let report = (Sql.exec_exn ~conn ~query)#get_all.(0) in
+  let desc, xaxis, yaxis = report.(0), report.(1), report.(2) in
   let builds_query primary =
     "SELECT b.build_id, b.branch, b.build_number, b.build_tag " ^
     "FROM builds AS b, report_builds AS rb " ^
@@ -468,6 +505,8 @@ let report_async_handler ~conn report_id =
   printf "{";
   printf "\"id\": %d," report_id;
   printf "\"desc\": \"%s\"," desc;
+  printf "\"xaxis\": \"%s\"," xaxis;
+  printf "\"yaxis\": \"%s\"," yaxis;
   printf "\"builds\": {";
   printf "\"primary\": [%s]," (string_of_builds primary_builds);
   printf "\"secondary\": [%s]" (string_of_builds secondary_builds);
@@ -527,27 +566,6 @@ let print_som_info som_info =
   let prefix = "<div class='som'>SOM:" in
   let suffix = "</div><br />\n" in
   printf "%s %s (id: %s, tc: %s) %s" prefix name i.(0) i.(2) suffix
-
-let get_xy_choices configs som_configs_opt machines =
-  let som_configs_lst = match som_configs_opt with
-    | None -> []
-    | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
-  in
-  "branch" :: "build_number" :: "build_tag" ::
-    machines#get_fnames_lst @ configs#get_fnames_lst @ som_configs_lst
-
-let print_axis_choice label id choices =
-  printf "<div id='%s' style='display: inline'>\n" id;
-  print_select_list ~label ~attrs:[("name", id)] choices;
-  printf "</div>\n"
-
-let print_x_axis_choice configs som_configs_opt machines =
-  print_axis_choice "X axis" "xaxis"
-    (get_xy_choices configs som_configs_opt machines)
-
-let print_y_axis_choice configs som_configs_opt machines =
-  print_axis_choice "Y axis" "yaxis"
-    ("result" :: (get_xy_choices configs som_configs_opt machines))
 
 let print_legend_position_choice id =
   printf "<div id='%s'>\n" id;
@@ -635,8 +653,8 @@ let show_configurations ~conn som_id tc_config_tbl =
   print_som_info som_info;
   print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
   printf "<form name='optionsForm'>\n";
-  print_x_axis_choice configs som_configs_opt machines;
-  print_y_axis_choice configs som_configs_opt machines;
+  print_x_axis_choice conn configs som_configs_opt;
+  print_y_axis_choice conn configs som_configs_opt;
   let checkbox name caption =
     printf "<div id='%s' style='display: inline'>\n" name;
     printf "<input type='checkbox' name='%s' />%s\n" name caption;

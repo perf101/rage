@@ -180,6 +180,8 @@ function on_report_received_edit(o) {
   var id_input = "<input type='hidden' name='id' value='" + report_id + "' />";
   $('input[name="report_create"]').after(id_input)
   $('input[name="desc"]').val(decode(o.desc));
+  $('select[name="xaxis"]').val(decode(o.xaxis));
+  $('select[name="yaxis"]').val(decode(o.yaxis));
   var primary_bns = Object.keys(extract_build_numbers(o.builds.primary));
   var secondary_bns = Object.keys(extract_build_numbers(o.builds.secondary));
   $('[name="primary_standard_builds"]').val(primary_bns);
@@ -305,8 +307,11 @@ function on_report_received(r) {
   report_primary_builds = extract_build_numbers(r.builds.primary);
   // basic metadata
   var s = "";
-  s += "<h2>Report ID</h2>" + r.id;
-  s += "<h2>Report description</h2>" + r.desc;
+  s += "<h2>Basic information</h2>"
+  s += "ID: " + r.id + "<br />";
+  s += "Description: " + r.desc + "<br />";
+  s += "X axis: " + r.xaxis + "<br />";
+  s += "Y axis: " + r.yaxis + "<br />";
   // builds
   s += "<h2>Primary builds</h2>";
   s += get_table_for(r.builds.primary);
@@ -341,7 +346,8 @@ function on_report_received(r) {
     // fetch data
     var request = "/";
     request += "?som=" + c.som_id;
-    request += "&xaxis=build_number";
+    request += "&xaxis=" + r.xaxis;
+    request += "&yaxis=" + r.yaxis;
     request += "&v_tc_config_id=" + c.tc_config_id;
     if (c.som_config_id != -1)
       request += "&v_som_config_id=" + c.som_config_id;
