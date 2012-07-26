@@ -379,8 +379,7 @@ function on_report_part_received(o) {
   }
   if (Object.keys(primary_builds).length == 0) {
     var graph = new GraphObject();
-    graph.set_data(o);
-    graph.draw_graph(null);
+    graph.draw_graph(o, null);
   } else {
     var target = $("#" + o.target);
     target.toggle(false);
@@ -560,8 +559,7 @@ function on_received(o) {
   if (view == "Graph") {
     $('#table').hide();
     $('#graph').show();
-    graph_object.set_data(o);
-    graph_object.draw_graph(on_plotting_finished);
+    graph_object.draw_graph(o, on_plotting_finished);
   } else {
     if (view == "Table") {
       $('#graph').hide();
@@ -588,19 +586,13 @@ function on_plotting_finished() {
 var tooltip_counter = 0;
 
 function GraphObject() {
-  this.set_data = set_data;
   this.draw_graph = draw_graph;
   this.stop_plotting = stop_plotting;
 
-  var o = null;
   var graph_data = {};
   var flot_object = null;
   var series = [];
   var num_series = 0;
-
-  function set_data(_o) {
-    o = _o;
-  }
 
   function get_averages_for(series) {
     var sum_map = {};
@@ -702,7 +694,7 @@ function GraphObject() {
     return body;
   }
 
-  function draw_graph(cb) {
+  function draw_graph(o, cb) {
     stop_plotting();
     graph_data = o;
     var graph = $("#" + o.target);
