@@ -546,6 +546,7 @@ let print_legend_position_choice id =
     ("North-West", "nw");
     ("South-East", "se");
     ("South-West", "sw");
+    ("(nowhere)", "__");
   ] in
   print_select ~label ~attrs:[("name", id)] legend_positions;
   printf "</div>\n"
