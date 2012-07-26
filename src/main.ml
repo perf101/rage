@@ -711,11 +711,16 @@ let som_async_handler ~conn som_id params =
   let col_types = get_column_types_many conn tbls in
   let xaxis = get_first_val params "xaxis" "branch" in
   let yaxis = get_first_val params "yaxis" "result" in
-  let keys = match get_first_val params "show_all_meta" "off" with
-    | "on" ->
-      xaxis :: yaxis :: String.Table.keys col_fqns |! List.stable_dedup
-    | _ ->
-      xaxis :: yaxis :: get_relevant_params params |! List.stable_dedup
+  let compose_keys ~xaxis ~yaxis ~rest =
+    let deduped = List.stable_dedup rest in
+    let filter_cond = non (List.mem ~set:[xaxis; yaxis]) in
+    xaxis :: yaxis :: (List.filter ~f:filter_cond deduped)
+  in
+  let keys =
+    let rest = match get_first_val params "show_all_meta" "off" with
+    | "on" -> String.Table.keys col_fqns
+    | _ -> get_relevant_params params
+    in compose_keys ~xaxis ~yaxis ~rest
   in
   let fqns = List.map keys ~f:(String.Table.find_exn col_fqns) in
   let filter = extract_filter col_fqns col_types params values_prefix in
