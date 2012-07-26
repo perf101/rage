@@ -24,6 +24,7 @@ type place =
   | ReportDelete of int
   | Som of int * int list
   | SomAsync of int * (string * string) list
+  | Soms
   | CreateTiny of string
   | RedirectTiny of int
 
@@ -44,6 +45,7 @@ let string_of_place = function
   | ReportClone id -> sprintf "ReportClone %d" id
   | ReportDelete id -> sprintf "ReportDelete %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
+  | Soms -> "Soms"
   | SomAsync (id, _) -> string_of_som_place "SomAsync" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
   | RedirectTiny id -> sprintf "RedirectTiny %d" id
@@ -86,6 +88,7 @@ let get_first_val params k d =
 let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
+  match find pairs "soms" with Some _ -> Soms | None ->
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
   match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "report_clone" with
@@ -477,7 +480,15 @@ let report_handler ~conn:_ _ =
   printf "<script src='rage.js'></script>";
   insert_footer ()
 
-let default_handler ~place:_ ~conn =
+let default_handler ~conn =
+  insert_header ();
+  printf "<ul>\n";
+  printf "<li><a href='?reports'>Reports</a></li>\n";
+  printf "<li><a href='?soms'>Scales of Measure</a></li>\n";
+  printf "</ul>\n";
+  insert_footer ()
+
+let soms_handler ~conn =
   insert_header ();
   let query = "SELECT som_id, som_name FROM soms " ^
               "ORDER BY som_id" in
@@ -816,8 +827,7 @@ let handle_request () =
   let place = get_place () in
   let conn = new connection ~conninfo:Sys.argv.(1) () in
   begin match place with
-    | Som (id, cids) -> som_handler ~place ~conn id cids
-    | SomAsync (id, params) -> som_async_handler ~conn id params
+    | Default -> default_handler ~conn
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
     | ReportClone id -> report_clone_handler ~conn id
@@ -827,7 +837,9 @@ let handle_request () =
     | Reports -> reports_handler ~conn
     | Report id -> report_handler ~conn id
     | ReportAsync id -> report_async_handler ~conn id
-    | Default -> default_handler ~place ~conn
+    | Som (id, cids) -> som_handler ~place ~conn id cids
+    | SomAsync (id, params) -> som_async_handler ~conn id params
+    | Soms -> soms_handler ~conn
   end;
   conn#finish
 
