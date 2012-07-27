@@ -133,7 +133,9 @@ let som_config_tbl_exists conn som_id =
 let get_std_xy_choices conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  "branch" :: "build_number" :: "build_tag" :: machine_field_lst
+  "branch" :: "build_number" :: "build_tag" :: 
+  "dom0_memory_static_max" :: "dom0_memory_target" ::
+  machine_field_lst
 
 let get_xy_choices conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with
@@ -585,18 +587,21 @@ let values_prefix = "v_"
 let show_for_value = "0"
 let filter_by_value = "1"
 
-let print_filter_table job_ids builds configs som_configs_opt machines =
+let print_filter_table job_ids builds job_attributes configs som_configs_opt machines =
   (* LABELS *)
   let som_config_labels =
     match som_configs_opt with None -> [] | Some som_configs ->
     List.tl_exn (som_configs#get_fnames_lst) in
   let labels = "job_id" :: "branch" :: "build_number" :: "build_tag" ::
+    "dom0_memory_static_max" :: "dom0_memory_target" ::
     machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
   (* OPTIONS *)
   let job_id_lst = get_options_for_field job_ids 0 in
   let branch_lst = get_options_for_field builds 0 in
   let build_no_lst = get_options_for_field builds 1 in
   let tag_lst = get_options_for_field builds 2 in
+  let dom0_memory_static_max_lst = get_options_for_field job_attributes 0 in
+  let dom0_memory_target_lst = get_options_for_field job_attributes 1 in
   let machine_options_lst = List.map (List.range 0 machines#nfields)
     ~f:(fun col -> get_options_for_field machines col) in
   let config_options_lst = List.map (List.range 0 configs#nfields)
@@ -606,7 +611,8 @@ let print_filter_table job_ids builds configs som_configs_opt machines =
     List.map (List.range 1 som_configs#nfields)
       ~f:(fun col -> get_options_for_field som_configs col) in
   let options_lst = job_id_lst :: branch_lst :: build_no_lst ::
-    tag_lst :: machine_options_lst @ config_options_lst @
+    tag_lst :: dom0_memory_static_max_lst :: dom0_memory_target_lst ::
+    machine_options_lst @ config_options_lst @
     som_config_options_lst in
   let print_table_for (label, options) =
     printf "<table border='1' class='filter_table'>\n";
@@ -639,6 +645,12 @@ let show_configurations ~conn som_id tc_config_tbl =
     "WHERE m.job_id=j.job_id AND j.build_id=b.build_id " ^
     (sprintf "AND m.som_id=%d" som_id) in
   let builds = Sql.exec_exn ~conn ~query in
+  let query =
+    "SELECT DISTINCT dom0_memory_static_max, dom0_memory_target " ^
+    "FROM tc_machines AS tm, jobs AS j, measurements AS m " ^
+    "WHERE m.job_id=j.job_id AND j.job_id=tm.job_id " ^
+    (sprintf "AND m.som_id=%d" som_id) in
+  let job_attributes = Sql.exec_exn ~conn ~query in
   let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
   let som_configs_opt =
     if not som_tbl_exists then None else
@@ -669,7 +681,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   checkbox "yaxis_log" "Log scale Y";
   print_legend_position_choice "legend_position";
   printf "<br />\n";
-  print_filter_table job_ids builds configs som_configs_opt machines;
+  print_filter_table job_ids builds job_attributes configs som_configs_opt machines;
   printf "</form>\n";
   let submit_prefix = "<input type='submit' id=" in
   printf "%s'reset_config' value='Reset Configuration' />" submit_prefix;
