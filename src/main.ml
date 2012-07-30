@@ -135,6 +135,7 @@ let get_std_xy_choices conn =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
   "branch" :: "build_number" :: "build_tag" :: 
   "dom0_memory_static_max" :: "dom0_memory_target" ::
+  "cc_restrictions" ::
   machine_field_lst
 
 let get_xy_choices conn configs som_configs_opt =
@@ -594,6 +595,7 @@ let print_filter_table job_ids builds job_attributes configs som_configs_opt mac
     List.tl_exn (som_configs#get_fnames_lst) in
   let labels = "job_id" :: "branch" :: "build_number" :: "build_tag" ::
     "dom0_memory_static_max" :: "dom0_memory_target" ::
+    "cc_restrictions" ::
     machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
   (* OPTIONS *)
   let job_id_lst = get_options_for_field job_ids 0 in
@@ -602,6 +604,7 @@ let print_filter_table job_ids builds job_attributes configs som_configs_opt mac
   let tag_lst = get_options_for_field builds 2 in
   let dom0_memory_static_max_lst = get_options_for_field job_attributes 0 in
   let dom0_memory_target_lst = get_options_for_field job_attributes 1 in
+  let cc_restrictions_lst = get_options_for_field job_attributes 2 in
   let machine_options_lst = List.map (List.range 0 machines#nfields)
     ~f:(fun col -> get_options_for_field machines col) in
   let config_options_lst = List.map (List.range 0 configs#nfields)
@@ -612,6 +615,7 @@ let print_filter_table job_ids builds job_attributes configs som_configs_opt mac
       ~f:(fun col -> get_options_for_field som_configs col) in
   let options_lst = job_id_lst :: branch_lst :: build_no_lst ::
     tag_lst :: dom0_memory_static_max_lst :: dom0_memory_target_lst ::
+    cc_restrictions_lst ::
     machine_options_lst @ config_options_lst @
     som_config_options_lst in
   let print_table_for (label, options) =
@@ -646,7 +650,7 @@ let show_configurations ~conn som_id tc_config_tbl =
     (sprintf "AND m.som_id=%d" som_id) in
   let builds = Sql.exec_exn ~conn ~query in
   let query =
-    "SELECT DISTINCT dom0_memory_static_max, dom0_memory_target " ^
+    "SELECT DISTINCT dom0_memory_static_max, dom0_memory_target, cc_restrictions " ^
     "FROM tc_machines AS tm, jobs AS j, measurements AS m " ^
     "WHERE m.job_id=j.job_id AND j.job_id=tm.job_id " ^
     (sprintf "AND m.som_id=%d" som_id) in
