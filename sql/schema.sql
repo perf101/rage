@@ -1,5 +1,5 @@
 drop table measurements;
-drop table tc_machines;
+drop table tc_config;
 drop table machines;
 drop table jobs;
 drop table branch_order;
@@ -81,7 +81,7 @@ create table machines (
 );
 grant select on machines to "www-data";
 
-create table tc_machines (
+create table tc_config (
         job_id integer not null,
         tc_fqn varchar(64) not null,
         tc_config_id integer not null,
@@ -91,10 +91,10 @@ create table tc_machines (
         foreign key (tc_fqn) references test_cases(tc_fqn),
         /* (Cannot reference tc_config_id, since table is variable.) */
         foreign key (machine_id) references machines(machine_id),
-        constraint tc_machines_unique_key unique
+        constraint tc_config_unique_key unique
           (job_id, tc_fqn, tc_config_id, machine_id)
 );
-grant select on tc_machines to "www-data";
+grant select on tc_config to "www-data";
 
 create table measurements (
         /* Measurement context. */

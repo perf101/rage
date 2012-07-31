@@ -648,10 +648,10 @@ let show_configurations ~conn som_id tc_config_tbl =
     "WHERE m.job_id=j.job_id AND j.build_id=b.build_id " ^
     (sprintf "AND m.som_id=%d" som_id) in
   let builds = Sql.exec_exn ~conn ~query in
-  let query =
-    "SELECT DISTINCT dom0_memory_static_max, dom0_memory_target, cc_restrictions " ^
-    "FROM tc_machines AS tm, jobs AS j, measurements AS m " ^
-    "WHERE m.job_id=j.job_id AND j.job_id=tm.job_id " ^
+  let query = "SELECT DISTINCT " ^
+    "dom0_memory_static_max, dom0_memory_target, cc_restrictions " ^
+    "FROM tc_config AS c, jobs AS j, measurements AS m " ^
+    "WHERE m.job_id=j.job_id AND j.job_id=c.job_id " ^
     (sprintf "AND m.som_id=%d" som_id) in
   let job_attributes = Sql.exec_exn ~conn ~query in
   let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
@@ -661,8 +661,8 @@ let show_configurations ~conn som_id tc_config_tbl =
     Some (Sql.exec_exn ~conn ~query) in
   let query =
     "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
-    "FROM machines AS mn, tc_machines AS tm, measurements AS mr " ^
-    "WHERE mn.machine_id=tm.machine_id AND tm.job_id=mr.job_id " ^
+    "FROM machines AS mn, tc_config AS c, measurements AS mr " ^
+    "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id " ^
     (sprintf "AND som_id=%d" som_id) in
   let machines = Sql.exec_exn ~conn ~query in
   print_som_info som_info;
@@ -748,7 +748,7 @@ let som_async_handler ~conn som_id params =
   let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
   let som_config_tbl, som_tbl_exists = som_config_tbl_exists conn som_id in
   (* determine filter columns and their types *)
-  let tbls = ["measurements"; "jobs"; "builds"; "tc_machines"; "machines";
+  let tbls = ["measurements"; "jobs"; "builds"; "tc_config"; "machines";
     tc_config_tbl] @
     (if som_tbl_exists then [som_config_tbl] else []) in
   let col_fqns = get_column_fqns_many conn tbls in
@@ -777,10 +777,10 @@ let som_async_handler ~conn som_id params =
     (sprintf "AND measurements.som_id=%d " som_id) ^
     "AND measurements.job_id=jobs.job_id " ^
     "AND jobs.build_id=builds.build_id " ^
-    "AND tc_machines.job_id=jobs.job_id " ^
-    (sprintf "AND tc_machines.tc_fqn='%s' " tc_fqn) ^
-    "AND tc_machines.tc_config_id=measurements.tc_config_id " ^
-    "AND tc_machines.machine_id=machines.machine_id" ^
+    "AND tc_config.job_id=jobs.job_id " ^
+    (sprintf "AND tc_config.tc_fqn='%s' " tc_fqn) ^
+    "AND tc_config.tc_config_id=measurements.tc_config_id " ^
+    "AND tc_config.machine_id=machines.machine_id" ^
     (if som_tbl_exists
      then sprintf " AND measurements.som_config_id=%s.som_config_id"
           som_config_tbl else "") ^
