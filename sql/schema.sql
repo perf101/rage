@@ -40,6 +40,7 @@ grant select on soms to "www-data";
 
 create table builds (
         build_id serial,
+        product varchar(128) not null default 'XenServer',
         branch varchar(128) not null,
         build_number integer not null,
         build_tag varchar(128) null,
@@ -86,6 +87,9 @@ create table tc_config (
         tc_fqn varchar(64) not null,
         tc_config_id integer not null,
         machine_id integer not null,
+        dom0_memory_static_max integer not null default 752,
+        dom0_memory_target integer null,
+        cc_restrictions boolean not null default false,
 
         foreign key (job_id) references jobs(job_id),
         foreign key (tc_fqn) references test_cases(tc_fqn),
