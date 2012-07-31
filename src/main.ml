@@ -593,15 +593,15 @@ let print_filter_table job_ids builds job_attributes configs som_configs_opt mac
   let som_config_labels =
     match som_configs_opt with None -> [] | Some som_configs ->
     List.tl_exn (som_configs#get_fnames_lst) in
-  let labels = "job_id" :: "branch" :: "build_number" :: "build_tag" ::
-    "dom0_memory_static_max" :: "dom0_memory_target" ::
-    "cc_restrictions" ::
+  let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag";
+    "dom0_memory_static_max"; "dom0_memory_target"; "cc_restrictions"] @
     machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
   (* OPTIONS *)
   let job_id_lst = get_options_for_field job_ids 0 in
   let branch_lst = get_options_for_field builds 0 in
   let build_no_lst = get_options_for_field builds 1 in
   let tag_lst = get_options_for_field builds 2 in
+  let product_lst = get_options_for_field builds 3 in
   let dom0_memory_static_max_lst = get_options_for_field job_attributes 0 in
   let dom0_memory_target_lst = get_options_for_field job_attributes 1 in
   let cc_restrictions_lst = get_options_for_field job_attributes 2 in
@@ -613,10 +613,9 @@ let print_filter_table job_ids builds job_attributes configs som_configs_opt mac
     match som_configs_opt with None -> [] | Some som_configs ->
     List.map (List.range 1 som_configs#nfields)
       ~f:(fun col -> get_options_for_field som_configs col) in
-  let options_lst = job_id_lst :: branch_lst :: build_no_lst ::
-    tag_lst :: dom0_memory_static_max_lst :: dom0_memory_target_lst ::
-    cc_restrictions_lst ::
-    machine_options_lst @ config_options_lst @
+  let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst;
+    tag_lst; dom0_memory_static_max_lst; dom0_memory_target_lst;
+    cc_restrictions_lst] @ machine_options_lst @ config_options_lst @
     som_config_options_lst in
   let print_table_for (label, options) =
     printf "<table border='1' class='filter_table'>\n";
@@ -644,7 +643,7 @@ let show_configurations ~conn som_id tc_config_tbl =
     (sprintf "som_id=%d" som_id) in
   let job_ids = Sql.exec_exn ~conn ~query in
   let query =
-    "SELECT DISTINCT branch, build_number, build_tag " ^
+    "SELECT DISTINCT branch, build_number, build_tag, product " ^
     "FROM builds AS b, jobs AS j, measurements AS m " ^
     "WHERE m.job_id=j.job_id AND j.build_id=b.build_id " ^
     (sprintf "AND m.som_id=%d" som_id) in
