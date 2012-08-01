@@ -1,8 +1,12 @@
+drop table report_builds;
+drop table report_configs;
+drop table reports;
 drop table measurements;
 drop table tc_config;
 drop table machines;
 drop table jobs;
 drop table branch_order;
+drop table standard_builds;
 drop table builds;
 drop table soms;
 drop table test_cases;
@@ -31,6 +35,8 @@ create table soms (
   som_id integer not null,
   som_name varchar(128) not null,
   tc_fqn varchar(64) not null,
+  more_is_better boolean null,
+  units varchar(32) null,
 
   primary key (som_id),
   unique (som_name),
@@ -46,10 +52,19 @@ create table builds (
   build_tag varchar(128) null,
 
   primary key (build_id),
-  foreign key (build_id) references builds(build_id),
-  constraint builds_unique_keys unique (branch, build_number, build_tag)
+  constraint builds_unique_keys unique (product, branch, build_number, build_tag)
 );
 grant select on builds to "www-data";
+
+create table standard_builds (
+  build_number integer not null,
+  build_name varchar(256) not null,
+
+  unique (build_number),
+  unique (build_name),
+  foreign key (build_number) references builds(build_number)
+);
+grant select on standard_builds to "www-data";
 
 create table branch_order (
   branch varchar(128) not null,
@@ -120,3 +135,38 @@ create table measurements (
   /* (Cannot reference som_config_id, since table is variable.) */
 );
 grant select on measurements to "www-data";
+
+create table reports (
+  report_id serial,
+  report_desc varchar(256) not null,
+  xaxis varchar(128) not null,
+  yaxis varchar(128) not null,
+
+  primary key (report_id),
+  unique (report_desc)
+);
+grant select on reports to "www-data";
+
+create table report_configs (
+  report_id integer not null,
+  som_id integer not null,
+  tc_config integer not null,
+  som_config_id integer null,
+
+  constraint report_configs_unique_keys unique
+    (report_id, som_id, tc_config, som_config_id),
+  foreign key (report_id) references reports(report_id),
+  foreign key (som_id) references soms(som_id)
+);
+grant select on report_configs to "www-data";
+
+create table report_builds (
+  report_id integer not null,
+  build_id integer not null,
+  "primary" boolean not null,
+
+  constraint report_builds_unique_key unique (report_id, build_id, "primary"),
+  foreign key (report_id) references reports(report_id),
+  foreign key (build_id) references builds(build_id)
+);
+grant select on report_builds to "www-data";
