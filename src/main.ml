@@ -138,6 +138,9 @@ let get_std_xy_choices conn =
   "cc_restrictions" ::
   machine_field_lst
 
+let get_std_x_choices = get_std_xy_choices
+let get_std_y_choices conn = "result" :: get_std_xy_choices conn
+
 let get_xy_choices conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with
     | None -> []
@@ -149,11 +152,11 @@ let print_axis_choice label id choices =
   print_select_list ~label ~attrs:[("name", id)] choices;
   printf "</div>\n"
 
-let print_std_x_axis_choice conn =
-  print_axis_choice "X axis" "xaxis" (get_std_xy_choices conn)
+let print_empty_x_axis_choice conn =
+  print_axis_choice "X axis" "xaxis" []
 
-let print_std_y_axis_choice conn =
-  print_axis_choice "Y axis" "yaxis" ("result" :: (get_std_xy_choices conn))
+let print_empty_y_axis_choice conn =
+  print_axis_choice "Y axis" "yaxis" []
 
 let print_x_axis_choice conn configs som_configs_opt =
   print_axis_choice "X axis" "xaxis"
@@ -173,8 +176,8 @@ let report_generator_handler ~conn =
   printf "Report description: <input type='text' name='desc' /><br />\n";
   (* X/Y axis choice. *)
   printf "<hr /><h3>Axes</h3>\n";
-  print_std_x_axis_choice conn;
-  print_std_y_axis_choice conn;
+  print_empty_x_axis_choice conn;
+  print_empty_y_axis_choice conn;
   (* Display standard and all builds in dropboxes. *)
   printf "<hr /><h3>Builds to compare</h3>\n";
   let query = "SELECT build_name, build_number FROM standard_builds " ^
@@ -368,8 +371,8 @@ let report_create_handler ~conn params =
         let col_fqns = get_column_fqns conn som_config_tbl in
         let col_types = get_column_types conn som_config_tbl in
         let filter = extract_filter col_fqns col_types params prefix in
-        let query = sprintf "SELECT som_config_id FROM %s WHERE %s"
-          som_config_tbl filter in
+        let query = sprintf "SELECT som_config_id FROM %s " som_config_tbl ^
+          (if filter = "" then "" else sprintf "WHERE %s" filter) in
         let som_config_ids_str =
           Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
         let som_config_ids = List.map ~f:int_of_string som_config_ids_str in
@@ -418,6 +421,12 @@ let reports_handler ~conn =
   insert_footer ()
 
 let report_async_handler ~conn report_id =
+  let std_x_axes = get_std_x_choices conn in
+  let std_y_axes = get_std_y_choices conn in
+  let string_of_axes choices =
+    let quoted = List.map ~f:(fun c -> "\"" ^ c ^ "\"") choices in
+    sprintf "[%s]" (String.concat ~sep:"," quoted)
+  in
   let query = "SELECT report_desc, xaxis, yaxis " ^
     sprintf "FROM reports WHERE report_id=%d" report_id in
   let report = (Sql.exec_exn ~conn ~query)#get_all.(0) in
@@ -506,6 +515,8 @@ let report_async_handler ~conn report_id =
     concat (Array.to_list arr) in
   printf "Content-type: application/json\n\n";
   printf "{";
+  printf "\"std_x_axes\": %s," (string_of_axes std_x_axes);
+  printf "\"std_y_axes\": %s," (string_of_axes std_y_axes);
   printf "\"id\": %d," report_id;
   printf "\"desc\": \"%s\"," desc;
   printf "\"xaxis\": \"%s\"," xaxis;

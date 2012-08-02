@@ -92,6 +92,7 @@ function get_options_for(name) {
 }
 
 function on_report_generator_checkbox_change() {
+  determine_report_axes_possibilities();
   var som_id = parseInt($(this).attr("name").substring(12));
   $("#view_container_" + som_id).toggle(false);
   $("#configs_" + som_id).toggle(false);
@@ -146,6 +147,49 @@ function on_report_generator_checkbox_change() {
   });
 }
 
+function determine_report_axes_possibilities() {
+  var processed = 0;
+  var common_configs = {};
+  // go through all selected checkboxes
+  $("input[name^='include_som_']").each(function() {
+    if (!$(this).is(":checked")) return;
+    var som_id = parseInt($(this).attr("name").substring(12));
+    var tc_fqn = $("#tc_of_" + som_id).html();
+    // get union of tc and som configs
+    var tc_som_configs = {};
+    $("select[name^='tc-" + tc_fqn + "']").each(function() {
+      var name = $(this).attr("name");
+      var config = name.substring(name.indexOf("_") + 1);
+      tc_som_configs[config] = true;
+    });
+    $("select[name^='som-" + som_id + "']").each(function() {
+      var name = $(this).attr("name");
+      var config = name.substring(name.indexOf("_") + 1);
+      tc_som_configs[config] = true;
+    });
+    // intersect union with result (if none unioned, adopt set)
+    if (processed++ > 0)
+      for (var c in tc_som_configs)
+        if (!(c in common_configs))
+          delete tc_som_configs[c];
+    common_configs = tc_som_configs;
+  });
+  var configs = Object.keys(common_configs);
+  // set values in xaxis and yaxis
+  update_axes("x", configs);
+  update_axes("y", configs);
+}
+
+function update_axes(axis, extra_axes) {
+  var axis_sel = $("select[name='" + axis + "axis']");
+  var axis_val = axis_sel.val();
+  axis_sel.empty();
+  var std_axes = last_report_received["std_" + axis + "_axes"];
+  var axes = std_axes.concat(extra_axes);
+  set_select_options(axis_sel, axes);
+  if ($.inArray(axis_val, axes)) axis_sel.val(axis_val);
+}
+
 function on_report_generator_checkbox_received(o) {
   console.log(o);
   if (o == null) result = "error"
@@ -174,14 +218,39 @@ function report_generator_page_init() {
   });
 }
 
+var last_report_received;
+
+function set_select_options(sel_obj, options) {
+  $.each(options, function(i, e) {
+     sel_obj.append($("<option></option>").attr("value", e).text(e));
+  });
+}
+
+// the specified option is added if not present
+function select_option(sel_obj, option) {
+  var present = false;
+  sel_obj.children("option").each(function() {
+    if ($(this).val() == option) {
+      present = true;
+      return false;
+    }
+  });
+  if (!present)
+     sel_obj.append($("<option></option>").attr("value", option).text(option));
+  sel_obj.val(option);
+}
+
 function on_report_received_edit(o) {
   console.log(o);
+  last_report_received = o;
   var report_id = url_params.id;
   var id_input = "<input type='hidden' name='id' value='" + report_id + "' />";
   $('input[name="report_create"]').after(id_input)
   $('input[name="desc"]').val(decode(o.desc));
-  $('select[name="xaxis"]').val(decode(o.xaxis));
-  $('select[name="yaxis"]').val(decode(o.yaxis));
+  set_select_options($('select[name="xaxis"]'), o.std_x_axes);
+  set_select_options($('select[name="yaxis"]'), o.std_y_axes);
+  select_option($('select[name="xaxis"]'), decode(o.xaxis));
+  select_option($('select[name="yaxis"]'), decode(o.yaxis));
   var primary_bns = Object.keys(extract_build_numbers(o.builds.primary));
   var secondary_bns = Object.keys(extract_build_numbers(o.builds.secondary));
   $('[name="primary_standard_builds"]').val(primary_bns);
@@ -218,7 +287,8 @@ function on_report_received_edit(o) {
   for (var sc in somcs)
     $('[name="som-' + sc + '"]').val(Object.keys(somcs[sc]));
   for (var som_id in soms)
-    $("input[name='include_som_" + som_id + "']").prop("checked", true).change();
+    $("input[name='include_som_" + som_id + "']")
+      .prop("checked", true).change();
   enable_report_generator_triggers();
 }
 
@@ -303,6 +373,7 @@ var report_primary_builds = {}
 
 function on_report_received(r) {
   console.log(r);
+  last_report_received = r;
   // store primary builds globally
   report_primary_builds = extract_build_numbers(r.builds.primary);
   // basic metadata
