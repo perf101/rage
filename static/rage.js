@@ -3,7 +3,7 @@ Invariants (also reflected on server side):
 - Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
 - Show averages ("show_avgs") is selected by default.
-- Y minimum set to zero ("y_from_zero") is selected by default.
+- Y minimum set to zero ("y_fromto_zero") is selected by default.
 - All other checkboxees are not selected by default.
 - "SHOW FOR" is the first (default) option for filters ("f_").
 - "ALL" is the first (default) option for filter values ("v_").
@@ -11,9 +11,9 @@ Invariants (also reflected on server side):
 
 // === GLOBAL VARIABLES --- start ===
 var autofetch = true; // if false, the following triggers have no effect
-var checkboxes_on_by_default = ["show_avgs", "y_from_zero"];
+var checkboxes_on_by_default = ["show_avgs", "y_fromto_zero"];
 var graph_only_fields = [
-  "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_from_zero",
+  "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_fromto_zero",
   "#x_as_seq", "#y_as_seq", "#show_all_meta", "#xaxis_log", "#yaxis_log",
   "#legend_position", "#get_img"
 ]
@@ -54,7 +54,7 @@ function som_page_init() {
   $("select[name='yaxis']").change(fetch_data_and_process);
   $("input[name='show_avgs']").change(fetch_data_and_process);
   $("input[name='x_from_zero']").change(fetch_data_and_process);
-  $("input[name='y_from_zero']").change(fetch_data_and_process);
+  $("input[name='y_fromto_zero']").change(fetch_data_and_process);
   $("input[name='x_as_seq']").change(fetch_data_and_process);
   $("input[name='y_as_seq']").change(fetch_data_and_process);
   $("input[name='show_all_meta']").change(fetch_data_and_process);
@@ -388,7 +388,7 @@ function on_report_received(r) {
   s += get_table_for(r.builds.primary);
   s += "<h2>Secondary builds</h2>";
   s += get_table_for(r.builds.secondary);
-  s += "<input type='checkbox' name='y_from_zero' ";
+  s += "<input type='checkbox' name='y_fromto_zero' ";
   s += "checked='checked' style='display: none' />";
   $('body').append(s);
   // configs
@@ -812,11 +812,12 @@ function GraphObject() {
       },
       points: {show: true}
     };
-    // force X or Y from 0
+    // force X from 0
     if ($("input[name='x_from_zero']").is(":checked"))
       options.xaxis.min = 0;
-    if ($("input[name='y_from_zero']").is(":checked"))
-      options.yaxis.min = 0;
+    // force Y from/to 0
+    if ($("input[name='y_fromto_zero']").is(":checked"))
+      options.yaxis[o.positive ? "min" : "max"] = 0;
     // labels
     configure_labels(o, "x", options);
     configure_labels(o, "y", options);

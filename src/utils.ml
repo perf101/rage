@@ -161,7 +161,7 @@ let get_options_for_field db_result col =
       if ftype = Postgresql.INT4
       then compare (int_of_string x) (int_of_string y)
       else compare x y
-    with _ -> output_string stderr (x ^ ", " ^ y ^ "\n"); 0
+    with _ -> 0
   in
   List.sort ~cmp (List.dedup (aux [] nRows))
 

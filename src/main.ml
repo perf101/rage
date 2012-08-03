@@ -599,7 +599,8 @@ let values_prefix = "v_"
 let show_for_value = "0"
 let filter_by_value = "1"
 
-let print_filter_table job_ids builds job_attributes configs som_configs_opt machines =
+let print_filter_table job_ids builds job_attributes configs som_configs_opt
+    machines =
   (* LABELS *)
   let som_config_labels =
     match som_configs_opt with None -> [] | Some som_configs ->
@@ -687,7 +688,7 @@ let show_configurations ~conn som_id tc_config_tbl =
     printf "</div>\n" in
   checkbox "show_avgs" "Show averages";
   checkbox "x_from_zero" "Force X from 0";
-  checkbox "y_from_zero" "Force Y from 0";
+  checkbox "y_fromto_zero" "Force Y from/to 0";
   checkbox "x_as_seq" "Force X data as sequence";
   checkbox "y_as_seq" "Force Y data as sequence";
   checkbox "show_all_meta" "Show all meta-data";
@@ -779,6 +780,10 @@ let som_async_handler ~conn som_id params =
   in
   let fqns = List.map keys ~f:(String.Table.find_exn col_fqns) in
   let filter = extract_filter col_fqns col_types params values_prefix in
+  (* obtain SOM meta-data *)
+  let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
+  let metadata = Sql.exec_exn ~conn ~query in
+  let positive = (Sql.get_first_entry_exn ~result:metadata) = "t" in
   (* obtain data from database *)
   let query =
     (sprintf "SELECT %s " (String.concat ~sep:", " fqns)) ^
@@ -819,6 +824,7 @@ let som_async_handler ~conn som_id params =
   let target = get_first_val params "target" "graph" in
   (* output axis labels and a "series" for each data group *)
   printf "{";
+  printf "\"positive\":%B," positive;
   printf "\"target\":\"%s\"," target;
   printf "\"xaxis\":\"%s\"," xaxis;
   printf "\"yaxis\":\"%s\"," yaxis;
