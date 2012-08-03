@@ -24,6 +24,8 @@ var url_params = get_url_params();
 decode_all();
 if ("som" in url_params)
   som_page_init();
+else if ("somsbytc" in url_params)
+  soms_by_tc_page_init();
 else if ("report" in url_params)
   report_page_init();
 else if ("report_generator" in url_params)
@@ -70,6 +72,38 @@ function som_page_init() {
   load_get_image_if_not_ie();
   // tiny url
   $("#get_tinyurl").click(get_tinyurl);
+}
+
+function soms_by_tc_page_init() {
+  $.ajax({
+    url: get_base_url() + "/?somsasync",
+    method: 'GET',
+    dataType: 'json',
+    success: on_soms_by_tc_received,
+    error: on_async_fail
+  });
+}
+
+function on_soms_by_tc_received(o) {
+  console.log(o);
+  var tc_to_soms = {};
+  $.each(o.soms, function(som_id, som) {
+    if (!(som.tc in tc_to_soms)) tc_to_soms[som.tc] = [];
+    tc_to_soms[som.tc].push(som_id);
+  });
+  var base_url = get_base_url();
+  var s = "";
+  $.each(o.tcs, function(tc_fqn, tc) {
+    s += "<h2>" + tc_fqn + " (" + tc.desc + ")</h2>";
+    s += "<ul>";
+    $.each(tc_to_soms[tc_fqn], function(i, som_id) {
+      var som_url = base_url + "/?som=" + som_id;
+      var som_caption = som_id + " (" + o.soms[som_id].name + ")";
+      s += "<li><a href='" + som_url + "'>" + som_caption + "</a></li>";
+    });
+    s += "</ul>";
+  });
+  $("body").append(s);
 }
 
 function report_page_init() {
@@ -423,6 +457,7 @@ function on_report_received(r) {
     if (c.som_config_id != -1)
       request += "&v_som_config_id=" + c.som_config_id;
     request += builds;
+    request += "&f_machine_type=1";
     request += "&target=" + graph_id;
     request += "&show_all_meta=on";
     request += "&async=true";

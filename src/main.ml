@@ -25,6 +25,8 @@ type place =
   | Som of int * int list
   | SomAsync of int * (string * string) list
   | Soms
+  | SomsAsync
+  | SomsByTc
   | CreateTiny of string
   | RedirectTiny of int
 
@@ -45,7 +47,9 @@ let string_of_place = function
   | ReportClone id -> sprintf "ReportClone %d" id
   | ReportDelete id -> sprintf "ReportDelete %d" id
   | Som (id, cids) -> string_of_som_place "Som" id cids
-  | Soms -> "Soms"
+  | Soms -> "SOMs"
+  | SomsAsync -> "SOMs Async"
+  | SomsByTc -> "SOMs by Test Case"
   | SomAsync (id, _) -> string_of_som_place "SomAsync" id []
   | CreateTiny url -> sprintf "CreateTiny %s" url
   | RedirectTiny id -> sprintf "RedirectTiny %d" id
@@ -89,6 +93,8 @@ let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
   match find pairs "soms" with Some _ -> Soms | None ->
+  match find pairs "somsasync" with Some _ -> SomsAsync | None ->
+  match find pairs "somsbytc" with Some _ -> SomsByTc | None ->
   match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
   match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
   match find pairs "report_clone" with
@@ -528,7 +534,7 @@ let report_async_handler ~conn report_id =
   printf "\"configs\": [%s]" report_configs_str;
   printf "}"
 
-let report_handler ~conn:_ _ =
+let js_only_handler () =
   insert_header ();
   printf "<script src='rage.js'></script>";
   insert_footer ()
@@ -538,6 +544,7 @@ let default_handler ~conn =
   printf "<ul>\n";
   printf "<li><a href='?reports'>Reports</a></li>\n";
   printf "<li><a href='?soms'>Scales of Measure</a></li>\n";
+  printf "<li><a href='?somsbytc'>Scales of Measure by Test Case</a></li>\n";
   printf "</ul>\n";
   insert_footer ()
 
@@ -556,6 +563,20 @@ let soms_handler ~conn =
     print_string "   </tr>" in
   print_table_custom_row print_row result;
   insert_footer ()
+
+let soms_async_handler ~conn =
+  let query = "SELECT tc_fqn,description FROM test_cases" in
+  let tcs = Sql.exec_exn ~conn ~query in
+  let json_of_tc tc =
+    sprintf "\"%s\":{\"desc\":\"%s\"}" tc.(0) tc.(1) in
+  let tcs_json = concat_array (Array.map ~f:json_of_tc tcs#get_all) in
+  let query = "SELECT som_id,som_name,tc_fqn FROM soms" in
+  let soms = Sql.exec_exn ~conn ~query in
+  let json_of_som som =
+    sprintf "\"%s\":{\"name\":\"%s\",\"tc\":\"%s\"}" som.(0) som.(1) som.(2) in
+  let soms_json = concat_array (Array.map ~f:json_of_som soms#get_all) in
+  printf "Content-type: application/json\n\n";
+  printf "{\"tcs\":{%s},\"soms\":{%s}}" tcs_json soms_json
 
 let get_tc_config_tbl_name conn som_id =
   let query = "SELECT tc_fqn FROM soms " ^
@@ -885,11 +906,13 @@ let handle_request () =
     | ReportCreate params -> report_create_handler ~conn params
     | ReportGenerator -> report_generator_handler ~conn
     | Reports -> reports_handler ~conn
-    | Report id -> report_handler ~conn id
+    | Report _ -> js_only_handler ()
     | ReportAsync id -> report_async_handler ~conn id
     | Som (id, cids) -> som_handler ~place ~conn id cids
     | SomAsync (id, params) -> som_async_handler ~conn id params
     | Soms -> soms_handler ~conn
+    | SomsAsync -> soms_async_handler ~conn
+    | SomsByTc -> js_only_handler ()
   end;
   conn#finish
 
