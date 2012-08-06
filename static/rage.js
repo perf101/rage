@@ -32,6 +32,10 @@ else if ("report_generator" in url_params)
   report_generator_page_init();
 // ========= MAIN --- end ============
 
+function endsWith(str, suffix) {
+  return str.indexOf(suffix, str.length - suffix.length) !== -1;
+}
+
 function decode(encoded) {
   return decodeURIComponent(encoded).replace(/\+/g, " ");
 }
@@ -148,6 +152,7 @@ function on_report_generator_checkbox_change() {
   var num_configs = 1;
   $("select[name^='tc-" + tc_fqn + "']").each(function() {
     var name = $(this).attr("name");
+    if (endsWith(name, "_split")) return;
     var config = name.substring(name.indexOf("_") + 1);
     var vals = $(this).val();
     if ($.inArray("ALL", vals) != -1)
@@ -157,6 +162,7 @@ function on_report_generator_checkbox_change() {
   });
   $("select[name^='som-" + som_id + "']").each(function() {
     var name = $(this).attr("name");
+    if (endsWith(name, "_split")) return;
     var config = name.substring(name.indexOf("_") + 1);
     var vals = $(this).val();
     if ($.inArray("ALL", vals) != -1)
