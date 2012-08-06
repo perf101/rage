@@ -175,6 +175,11 @@ let print_options_for_field namespace db_result col =
     ~attrs:[("name", form_name); ("multiple", "multiple"); ("size", "3");
             ("class", "multiselect")]
     ("ALL"::opts);
+  printf "</tr><tr>";
+  print_select ~td:true ~selected:["SPLIT_BY_GRAPH"]
+    ~attrs:[("name", form_name ^ "_split")]
+    [("SPLIT BY GRAPH", "split_by_graph"); ("SPLIT BY LINE", "split_by_line");
+     ("DON'T SPLIT", "dont_split")];
   printf "</tr></table>"
 
 let print_options_for_fields conn tbl namespace =

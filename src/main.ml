@@ -312,7 +312,19 @@ let report_delete_handler ~conn id =
   Sql.exec_ign_exn ~conn ~query;
   javascript_redirect "/?reports"
 
+let generate_permutations lists =
+  let permutations = ref [] in
+  let rec choose combination = function
+    | [] -> permutations := (List.rev combination) :: !permutations
+    | l::ls ->
+      List.iter ~f:(fun e -> choose (e::combination) ls) l
+  in choose [] lists;
+  !permutations
+
 let report_create_handler ~conn params =
+
+  
+
   (* If "id" is specified, then modify report <id>. *)
   let id_opt = List.hd (values_for_key params "id") in
   ignore (Option.map id_opt ~f:(fun id ->
@@ -355,53 +367,91 @@ let report_create_handler ~conn params =
   let som_ids_str =
     List.filter_map ~f:(String.chop_prefix ~prefix:"include_som_") param_keys in
   let som_ids = List.map ~f:int_of_string som_ids_str in
+  (* Process SOMs. *)
+  let graph_number = ref 0 in
   let process_som som_id =
     let tc_fqn =
       let query = sprintf "SELECT tc_fqn FROM soms WHERE som_id=%d" som_id in
       Sql.get_first_entry_exn ~result:(Sql.exec_exn ~conn ~query)
     in
-    let prefix = "tc-" ^ tc_fqn ^ "_" in
+    let tc_prefix = "tc-" ^ tc_fqn ^ "_" in
+    let som_prefix = sprintf "som-%d_" som_id in
     let tc_config_tbl = "tc_config_" ^ tc_fqn in
     let col_fqns = get_column_fqns conn tc_config_tbl in
     let col_types = get_column_types conn tc_config_tbl in
-    let filter = extract_filter col_fqns col_types params prefix in
-    let query =
-      (sprintf "SELECT tc_config_id FROM %s" tc_config_tbl) ^
-      (if filter = "" then "" else sprintf " WHERE %s" filter) in
-    let tc_config_ids_str =
-      Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
-    let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
-    let base_tuple tc_config_id = [
-      ("report_id", string_of_int report_id);
-      ("som_id", string_of_int som_id);
-      ("tc_config_id", string_of_int tc_config_id);
-    ] in
-    match som_config_tbl_exists conn som_id with
-    | som_config_tbl, true ->
-        let prefix = sprintf "som-%d_" som_id in
-        let col_fqns = get_column_fqns conn som_config_tbl in
-        let col_types = get_column_types conn som_config_tbl in
-        let filter = extract_filter col_fqns col_types params prefix in
-        let query = sprintf "SELECT som_config_id FROM %s " som_config_tbl ^
-          (if filter = "" then "" else sprintf "WHERE %s" filter) in
-        let som_config_ids_str =
-          Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
-        let som_config_ids = List.map ~f:int_of_string som_config_ids_str in
-        let insert_report_config tc_config_id som_config_id =
-          let som_tuple = ("som_config_id", string_of_int som_config_id) in
-          let tuples = som_tuple :: (base_tuple tc_config_id) in
-          Sql.ensure_inserted ~conn ~tbl:"report_configs" ~tuples
-        in
-        List.iter tc_config_ids
-          ~f:(fun tci -> List.iter som_config_ids ~f:(insert_report_config tci))
-    | _ ->
-        let insert_report_config tc_config_id =
-          let tuples = base_tuple tc_config_id in
-          Sql.ensure_inserted ~conn ~tbl:"report_configs" ~tuples
-        in
-        List.iter ~f:insert_report_config tc_config_ids
+    (* Find all permutations for tc/som configs with "split_by_graph". *)
+    let extract_split_by_graph (k, v) =
+      let is_related =
+        String.is_prefix k ~prefix:tc_prefix ||
+        String.is_prefix k ~prefix:som_prefix
+      in
+      match is_related with false -> None | true ->
+      match String.is_suffix k ~suffix:"_split" with false -> None | true ->
+      match v = "split_by_graph" with false -> None | true ->
+      Some (String.chop_suffix_exn k ~suffix:"_split")
+    in
+    let split_by_graphs_keys =
+      List.dedup (List.filter_map ~f:extract_split_by_graph params) in
+    let select_split_by_graphs (k, v) = List.mem k ~set:split_by_graphs_keys in
+    let split_by_graph_pairs = List.filter ~f:select_split_by_graphs params in
+    let split_by_graphs_values =
+      List.map ~f:(values_for_key split_by_graph_pairs) split_by_graphs_keys in
+    let split_by_graphs_perms = generate_permutations split_by_graphs_values in
+    (* Remove "split_by_graph" params. *)
+    let params = List.filter ~f:(non select_split_by_graphs) params in
+    (* For each such permutation.. *)
+    let process_permutation permutation =
+      let extra_params = List.combine_exn split_by_graphs_keys permutation in
+      let params = params @ extra_params in
+      let filter = extract_filter col_fqns col_types params tc_prefix in
+      let query =
+        (sprintf "SELECT tc_config_id FROM %s" tc_config_tbl) ^
+        (if filter = "" then "" else sprintf " WHERE %s" filter) in
+      let tc_config_ids_str =
+        Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
+      let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
+      (* Get a new plot ID. *)
+      let tuples = [
+        ("report_id", string_of_int report_id);
+        ("graph_number", string_of_int !graph_number);
+        ("som_id", string_of_int som_id);
+      ] in
+      incr graph_number;
+      let plot_id =
+        Sql.ensure_inserted_get_id ~conn ~tbl:"report_plots" ~tuples in
+      (* Insert TC configs for the plot ID. *)
+      let insert_tc_config_id tc_config_id =
+        let tuples = [
+          ("plot_id", string_of_int plot_id);
+          ("tc_config_id", string_of_int tc_config_id)
+        ] in
+        Sql.ensure_inserted ~conn ~tbl:"report_plot_tc_configs" ~tuples
+      in List.iter ~f:insert_tc_config_id tc_config_ids;
+      (* Insert SOM configs for the plot ID (if required). *)
+      match som_config_tbl_exists conn som_id with
+      | som_config_tbl, true ->
+          let col_fqns = get_column_fqns conn som_config_tbl in
+          let col_types = get_column_types conn som_config_tbl in
+          let filter = extract_filter col_fqns col_types params som_prefix in
+          let query = sprintf "SELECT som_config_id FROM %s " som_config_tbl ^
+            (if filter = "" then "" else sprintf "WHERE %s" filter) in
+          let som_config_ids_str =
+            Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
+          let som_config_ids = List.map ~f:int_of_string som_config_ids_str in
+          let insert_som_config_id som_config_id =
+            let tuples = [
+              ("plot_id", string_of_int plot_id);
+              ("som_config_id", string_of_int som_config_id)
+            ] in
+            Sql.ensure_inserted ~conn ~tbl:"report_plot_som_configs" ~tuples
+          in List.iter ~f:insert_som_config_id som_config_ids
+      | _ -> ()
+    in
+    List.iter ~f:process_permutation split_by_graphs_perms;
   in
   List.iter ~f:process_som som_ids;
+
+
   (* Print all GET parameters. *)
   (* List.iter ~f:(fun (k, v) -> printf "%s ===> %s<br />\n" k v) params; *)
   (* insert_footer () *)
