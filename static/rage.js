@@ -218,7 +218,7 @@ function update_axes(axis, extra_axes) {
   var axis_sel = $("select[name='" + axis + "axis']");
   var axis_val = axis_sel.val();
   axis_sel.empty();
-  var std_axes = last_report_received["std_" + axis + "_axes"];
+  var std_axes = last_axes_received["std_" + axis + "_axes"];
   var axes = std_axes.concat(extra_axes);
   set_select_options(axis_sel, axes);
   if ($.inArray(axis_val, axes)) axis_sel.val(axis_val);
@@ -234,8 +234,25 @@ function on_report_generator_checkbox_received(o) {
   field.toggle(true);
 }
 
+var last_axes_received;
+
 function report_generator_page_init() {
   $("input[type='checkbox']").change(on_report_generator_checkbox_change);
+  $.ajax({
+    url: "/?axesasync",
+    method: 'GET',
+    dataType: 'json',
+    success: function(axes) {
+      last_axes_received = axes;
+      set_select_options($('select[name="xaxis"]'), axes.std_x_axes);
+      set_select_options($('select[name="yaxis"]'), axes.std_y_axes);
+      report_generator_page_init_stage_two();
+    },
+    error: on_async_fail
+  });
+}
+
+function report_generator_page_init_stage_two() {
   if (!("id" in url_params)) {
     enable_report_generator_triggers();
     return;
@@ -250,6 +267,7 @@ function report_generator_page_init() {
     success: on_report_received_edit,
     error: on_async_fail
   });
+  $("input[type='submit']").val("Update Report");
 }
 
 var last_report_received;
@@ -281,8 +299,6 @@ function on_report_received_edit(o) {
   var id_input = "<input type='hidden' name='id' value='" + report_id + "' />";
   $('input[name="report_create"]').after(id_input)
   $('input[name="desc"]').val(decode(o.desc));
-  set_select_options($('select[name="xaxis"]'), o.std_x_axes);
-  set_select_options($('select[name="yaxis"]'), o.std_y_axes);
   select_option($('select[name="xaxis"]'), decode(o.xaxis));
   select_option($('select[name="yaxis"]'), decode(o.yaxis));
   var primary_bns = Object.keys(extract_build_numbers(o.builds.primary));

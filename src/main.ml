@@ -14,6 +14,7 @@ let string_of_build {branch; build_no; tag} =
   sprintf "BUILD (%s, %d, %s)" branch build_no tag
 
 type place =
+  | AxesAsync
   | Default
   | ReportCreate of (string * string) list
   | ReportGenerator
@@ -38,6 +39,7 @@ let string_of_som_place name id cids =
    sprintf " (Config IDs: %s)" (string_of_int_list cids))
 
 let string_of_place = function
+  | AxesAsync -> "AxesAsync"
   | Default -> "Default"
   | ReportCreate _ -> "ReportCreate"
   | ReportGenerator -> "ReportGenerator"
@@ -92,6 +94,7 @@ let get_first_val params k d =
 let place_of_request req =
   let open List.Assoc in
   let pairs = pairs_of_request req in
+  match find pairs "axesasync" with Some _ -> AxesAsync | None ->
   match find pairs "soms" with Some _ -> Soms | None ->
   match find pairs "somsasync" with Some _ -> SomsAsync | None ->
   match find pairs "somsbytc" with Some _ -> SomsByTc | None ->
@@ -426,13 +429,20 @@ let reports_handler ~conn =
   printf "<script src='rage.js'></script>";
   insert_footer ()
 
-let report_async_handler ~conn report_id =
+let axes_async_handler ~conn =
   let std_x_axes = get_std_x_choices conn in
   let std_y_axes = get_std_y_choices conn in
   let string_of_axes choices =
     let quoted = List.map ~f:(fun c -> "\"" ^ c ^ "\"") choices in
     sprintf "[%s]" (String.concat ~sep:"," quoted)
   in
+  printf "Content-type: application/json\n\n";
+  printf "{";
+  printf "\"std_x_axes\": %s," (string_of_axes std_x_axes);
+  printf "\"std_y_axes\": %s" (string_of_axes std_y_axes);
+  printf "}"
+
+let report_async_handler ~conn report_id =
   let query = "SELECT report_desc, xaxis, yaxis " ^
     sprintf "FROM reports WHERE report_id=%d" report_id in
   let report = (Sql.exec_exn ~conn ~query)#get_all.(0) in
@@ -521,8 +531,6 @@ let report_async_handler ~conn report_id =
     concat (Array.to_list arr) in
   printf "Content-type: application/json\n\n";
   printf "{";
-  printf "\"std_x_axes\": %s," (string_of_axes std_x_axes);
-  printf "\"std_y_axes\": %s," (string_of_axes std_y_axes);
   printf "\"id\": %d," report_id;
   printf "\"desc\": \"%s\"," desc;
   printf "\"xaxis\": \"%s\"," xaxis;
@@ -898,6 +906,7 @@ let handle_request () =
   let place = get_place () in
   let conn = new connection ~conninfo:Sys.argv.(1) () in
   begin match place with
+    | AxesAsync -> axes_async_handler ~conn
     | Default -> default_handler ~conn
     | CreateTiny url -> createtiny_handler ~conn url
     | RedirectTiny id -> redirecttiny_handler ~conn id
