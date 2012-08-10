@@ -75,17 +75,19 @@ let failwith msg =
   if not !header_inserted then insert_header ();
   failwith msg
 
-let pairs_of_request req =
+let params_of_request get_req =
+  let post_req = In_channel.input_all In_channel.stdin in
+  let req = get_req ^ (if post_req = "" then "" else "&" ^ post_req) in
   let parts = String.split req ~on:'&' in
   let opt_split part =
     Option.value ~default:(part, "") (String.lsplit2 part ~on:'=') in
   List.map ~f:opt_split parts
 
-let string_of_pairs pairs =
-  concat ~sep:"\n" (List.map ~f:(fun (k, v) -> k ^ " => " ^ v) pairs)
+let string_of_params params =
+  concat ~sep:"\n" (List.map ~f:(fun (k, v) -> k ^ " => " ^ v) params)
 
-let values_for_key pairs key =
-  List.fold pairs ~init:[]
+let values_for_key params key =
+  List.fold params ~init:[]
     ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
 
 let get_first_val params k d =
@@ -93,44 +95,44 @@ let get_first_val params k d =
 
 let place_of_request req =
   let open List.Assoc in
-  let pairs = pairs_of_request req in
-  match find pairs "axesasync" with Some _ -> AxesAsync | None ->
-  match find pairs "soms" with Some _ -> Soms | None ->
-  match find pairs "somsasync" with Some _ -> SomsAsync | None ->
-  match find pairs "somsbytc" with Some _ -> SomsByTc | None ->
-  match find pairs "report_generator" with Some _ -> ReportGenerator | None ->
-  match find pairs "report_create" with Some _ -> ReportCreate pairs | None ->
-  match find pairs "report_clone" with
+  let params = params_of_request req in
+  match find params "axesasync" with Some _ -> AxesAsync | None ->
+  match find params "soms" with Some _ -> Soms | None ->
+  match find params "somsasync" with Some _ -> SomsAsync | None ->
+  match find params "somsbytc" with Some _ -> SomsByTc | None ->
+  match find params "report_generator" with Some _ -> ReportGenerator | None ->
+  match find params "report_create" with Some _ -> ReportCreate params | None ->
+  match find params "report_clone" with
   | Some _ ->
-    ReportClone (int_of_string (List.hd_exn (values_for_key pairs "id")))
+    ReportClone (int_of_string (List.hd_exn (values_for_key params "id")))
   | None ->
-  match find pairs "report_delete" with
+  match find params "report_delete" with
   | Some _ ->
-    ReportDelete (int_of_string (List.hd_exn (values_for_key pairs "id")))
+    ReportDelete (int_of_string (List.hd_exn (values_for_key params "id")))
   | None ->
-  match find pairs "reports" with Some _ -> Reports | None ->
-  match find pairs "report" with
+  match find params "reports" with Some _ -> Reports | None ->
+  match find params "report" with
   | Some id_str ->
       let id = int_of_string id_str in
-      if Option.is_some (find pairs "async") then ReportAsync id else Report id
+      if Option.is_some (find params "async") then ReportAsync id else Report id
   | None ->
-  match find pairs "som" with
+  match find params "som" with
   | None ->
-    begin match find pairs "t" with
+    begin match find params "t" with
     | Some id -> RedirectTiny (int_of_string id)
     | None ->
-      begin match find pairs "action" with
-      | Some "CreateTiny" -> CreateTiny (find_exn pairs "url")
+      begin match find params "action" with
+      | Some "CreateTiny" -> CreateTiny (find_exn params "url")
       | _ -> Default
       end
     end
   | Some id_s ->
       let id = int_of_string id_s in
-      let cids_s = values_for_key pairs "config_id" in
+      let cids_s = values_for_key params "config_id" in
       let cids = List.map ~f:int_of_string cids_s in
       let cids_sorted = List.sort ~cmp:compare cids in
-      match find pairs "async" with
-      | Some "true" -> SomAsync (id, pairs)
+      match find params "async" with
+      | Some "true" -> SomAsync (id, params)
       | _ -> Som (id, cids_sorted)
 
 let get_place () = place_of_request (get_request ())
@@ -142,7 +144,7 @@ let som_config_tbl_exists conn som_id =
 let get_std_xy_choices conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  "branch" :: "build_number" :: "build_tag" :: 
+  "branch" :: "build_number" :: "build_tag" ::
   "dom0_memory_static_max" :: "dom0_memory_target" ::
   "cc_restrictions" ::
   machine_field_lst
