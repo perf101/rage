@@ -180,7 +180,7 @@ let print_y_axis_choice conn configs som_configs_opt =
 let report_generator_handler ~conn =
   insert_header ();
   printf "<h2>Report Generator</h2>\n";
-  printf "<form action='/' method='get'>\n";
+  printf "<form action='/' method='post'>\n";
   printf "<input type='hidden' name='report_create' />\n";
   (* Show input boxes for entering basic information. *)
   printf "<hr /><h3>Basic information</h3>\n";
@@ -322,9 +322,6 @@ let generate_permutations lists =
   !permutations
 
 let report_create_handler ~conn params =
-
-  
-
   (* If "id" is specified, then modify report <id>. *)
   let id_opt = List.hd (values_for_key params "id") in
   ignore (Option.map id_opt ~f:(fun id ->
@@ -380,28 +377,50 @@ let report_create_handler ~conn params =
     let col_fqns = get_column_fqns conn tc_config_tbl in
     let col_types = get_column_types conn tc_config_tbl in
     (* Find all permutations for tc/som configs with "split_by_graph". *)
-    let extract_split_by_graph (k, v) =
+    let extract_split_bys (k, v) =
       let is_related =
         String.is_prefix k ~prefix:tc_prefix ||
         String.is_prefix k ~prefix:som_prefix
       in
       match is_related with false -> None | true ->
       match String.is_suffix k ~suffix:"_split" with false -> None | true ->
-      match v = "split_by_graph" with false -> None | true ->
+      Some (k, v)
+    in
+    let extract_split_by_graph_keys (k, v) =
+      match extract_split_bys (k, v) with None -> None | Some (k, v) ->
+      if v <> "split_by_graph" then None else
       Some (String.chop_suffix_exn k ~suffix:"_split")
     in
-    let split_by_graphs_keys =
-      List.dedup (List.filter_map ~f:extract_split_by_graph params) in
-    let select_split_by_graphs (k, v) = List.mem k ~set:split_by_graphs_keys in
-    let split_by_graph_pairs = List.filter ~f:select_split_by_graphs params in
+    (* let split_by_params = List.filter_map ~f:extract_split_bys params in *)
+    let split_by_graph_keys =
+      List.dedup (List.filter_map ~f:extract_split_by_graph_keys params) in
+    let select_split_by_graphs (k, v) = List.mem k ~set:split_by_graph_keys in
+    let split_by_graph_params = List.filter ~f:select_split_by_graphs params in
     let split_by_graphs_values =
-      List.map ~f:(values_for_key split_by_graph_pairs) split_by_graphs_keys in
+      List.map ~f:(values_for_key split_by_graph_params) split_by_graph_keys in
     let split_by_graphs_perms = generate_permutations split_by_graphs_values in
-    (* Remove "split_by_graph" params. *)
-    let params = List.filter ~f:(non select_split_by_graphs) params in
+    (* *)
+    let extract_split_by_line_keys (k, v) =
+      match extract_split_bys (k, v) with None -> None | Some (k, v) ->
+      if v <> "split_by_line" then None else
+      let no_suffix = String.chop_suffix_exn k ~suffix:"_split" in
+      Some (String.drop_prefix no_suffix (String.index_exn no_suffix '_' + 1))
+    in
+    let split_by_line_keys =
+      List.dedup (List.filter_map ~f:extract_split_by_line_keys params) in
+    let insert_split plot_id property =
+      let tuples = [
+        ("plot_id", string_of_int plot_id);
+        ("property", property);
+      ] in
+      Sql.ensure_inserted ~conn ~tbl:"report_plot_split_bys" ~tuples
+    in
+    (* Remove all "_split" params. *)
+    let params =
+      List.filter ~f:(fun kv -> Option.is_none (extract_split_bys kv)) params in
     (* For each such permutation.. *)
     let process_permutation permutation =
-      let extra_params = List.combine_exn split_by_graphs_keys permutation in
+      let extra_params = List.combine_exn split_by_graph_keys permutation in
       let params = params @ extra_params in
       let filter = extract_filter col_fqns col_types params tc_prefix in
       let query =
@@ -427,6 +446,8 @@ let report_create_handler ~conn params =
         ] in
         Sql.ensure_inserted ~conn ~tbl:"report_plot_tc_configs" ~tuples
       in List.iter ~f:insert_tc_config_id tc_config_ids;
+      (* Insert split-bys for the plot ID. *)
+      List.iter ~f:(insert_split plot_id) split_by_line_keys;
       (* Insert SOM configs for the plot ID (if required). *)
       match som_config_tbl_exists conn som_id with
       | som_config_tbl, true ->
@@ -519,14 +540,14 @@ let report_async_handler ~conn report_id =
     concat (Array.to_list (Array.map ~f:string_of_build builds#get_all))
   in
   let query =
-    "SELECT som_id, tc_config_id, som_config_id FROM report_configs " ^
+    "SELECT plot_id, graph_number, som_id FROM report_plots " ^
     (sprintf "WHERE report_id = %d" report_id) in
-  let report_configs = Sql.exec_exn ~conn ~query in
-  let string_of_report_config config =
-    let som_id : int = int_of_string config.(0) in
-    let tc_config_id : int = int_of_string config.(1) in
-    let som_config_id : int =
-      if config.(2) = "" then -1 else int_of_string config.(2) in
+  let report_plots = Sql.exec_exn ~conn ~query in
+  let string_of_report_plot plot =
+    let plot_id : int = int_of_string plot.(0) in
+    (* let graph_number : int = int_of_string plot.(1) in *)
+    let som_id : int = int_of_string plot.(2) in
+    (* Obtain TC and SOM metadata. *)
     let query = "SELECT som_name, tc_fqn, more_is_better, units FROM soms " ^
       (sprintf "WHERE som_id = %d" som_id) in
     let som_info = Sql.exec_exn ~conn ~query in
@@ -538,48 +559,65 @@ let report_async_handler ~conn report_id =
       (sprintf "WHERE tc_fqn = '%s'" tc_fqn) in
     let tc_desc =
       Sql.get_first_entry_exn ~result:(Sql.exec_exn ~conn ~query) in
-    let query =
-      (sprintf "SELECT * FROM tc_config_%s " tc_fqn) ^
-      (sprintf "WHERE tc_config_id = %d" tc_config_id) in
-    let tc_config_info = Sql.exec_exn ~conn ~query in
-    let som_config_info_opt =
-      if som_config_id = -1 then None else
-      let query =
-        (sprintf "SELECT * FROM som_config_%d " som_id) ^
-        (sprintf "WHERE som_config_id = %d" som_config_id) in
-      Some (Sql.exec_exn ~conn ~query)
-    in
+    (* Obtain TC/SOM config IDs and split-by-lines for this plot. *)
+    let query = "SELECT tc_config_id FROM report_plot_tc_configs " ^
+      sprintf "WHERE plot_id = %d" plot_id in
+    let result = Sql.exec_exn ~conn ~query in
+    let tc_config_ids =
+      List.map ~f:int_of_string (Sql.get_col ~result ~col:0) in
+    let query = "SELECT som_config_id FROM report_plot_som_configs " ^
+      sprintf "WHERE plot_id = %d" plot_id in
+    let result = Sql.exec_exn ~conn ~query in
+    let som_config_ids =
+      List.map ~f:int_of_string (Sql.get_col ~result ~col:0) in
+    let query = "SELECT property FROM report_plot_split_bys " ^
+      sprintf "WHERE plot_id = %d" plot_id in
+    let result = Sql.exec_exn ~conn ~query in
+    let split_bys = Sql.get_col ~result ~col:0 in
+    (* Obtain config pairs for config IDs. *)
     let string_of_config_info_part config_info col =
       let fname = config_info#fname col in
       let value = config_info#getvalue 0 col in
       sprintf "\"%s\": \"%s\"" fname value
     in
-    let tc_config =
+    let string_of_tc_config tc_config_id =
+      let query =
+        (sprintf "SELECT * FROM tc_config_%s " tc_fqn) ^
+        (sprintf "WHERE tc_config_id = %d" tc_config_id) in
+      let tc_config_info = Sql.exec_exn ~conn ~query in
       let parts = List.map ~f:(string_of_config_info_part tc_config_info)
         (List.range 1 tc_config_info#nfields) in
-      concat parts
+      sprintf "\"%d\":{%s}" tc_config_id (concat parts)
     in
-    let som_config =
-      match som_config_info_opt with None -> "" | Some som_config_info ->
+    let string_of_som_config som_config_id =
+      let query =
+        (sprintf "SELECT * FROM som_config_%d " som_id) ^
+        (sprintf "WHERE som_config_id = %d" som_config_id) in
+      let som_config_info = Sql.exec_exn ~conn ~query in
       let parts = List.map ~f:(string_of_config_info_part som_config_info)
         (List.range 1 som_config_info#nfields) in
-      concat parts
+      sprintf "\"%d\":{%s}" som_config_id (concat parts)
     in
+    let tc_configs = concat (List.map ~f:string_of_tc_config tc_config_ids) in
+    let som_configs =
+      concat (List.map ~f:string_of_som_config som_config_ids) in
+    let split_bys_str =
+      concat (List.map ~f:(fun s -> "\"" ^ s ^ "\"") split_bys) in
+    (* Convert everything into a JSON string. *)
     "{" ^
     (sprintf "\"tc_fqn\": \"%s\"," tc_fqn) ^
     (sprintf "\"tc_desc\": \"%s\"," tc_desc) ^
-    (sprintf "\"tc_config_id\": %d," tc_config_id) ^
-    (sprintf "\"tc_config\": {%s}," tc_config) ^
+    (sprintf "\"tc_configs\": {%s}," tc_configs) ^
     (sprintf "\"som_id\": %d," som_id) ^
     (sprintf "\"som_name\": \"%s\"," som_name) ^
     (sprintf "\"som_polarity\": \"%s\"," more_is_better) ^
     (sprintf "\"som_units\": \"%s\"," units) ^
-    (sprintf "\"som_config_id\": %d," som_config_id) ^
-    (sprintf "\"som_config\": {%s}" som_config) ^
+    (sprintf "\"som_configs\": {%s}," som_configs) ^
+    (sprintf "\"split_bys\": [%s]" split_bys_str) ^
     "}"
   in
-  let report_configs_str =
-    let arr = Array.map ~f:string_of_report_config report_configs#get_all in
+  let report_plots_str =
+    let arr = Array.map ~f:string_of_report_plot report_plots#get_all in
     concat (Array.to_list arr) in
   printf "Content-type: application/json\n\n";
   printf "{";
@@ -591,7 +629,7 @@ let report_async_handler ~conn report_id =
   printf "\"primary\": [%s]," (string_of_builds primary_builds);
   printf "\"secondary\": [%s]" (string_of_builds secondary_builds);
   printf "},";
-  printf "\"configs\": [%s]" report_configs_str;
+  printf "\"plots\": [%s]" report_plots_str;
   printf "}"
 
 let js_only_handler () =

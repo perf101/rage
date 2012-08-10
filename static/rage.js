@@ -316,28 +316,26 @@ function on_report_received_edit(o) {
   var tccs = {};  // <tc_fqn>_<tc_config_name> ==> <tc_config_value> ==> true
   var soms = {};  // <som_id> ==> true
   var somcs = {}; // <som_id>_<som_config_name> ==> <som_config_value> ==> true
-  for (var i in o.configs) {
-    var c = o.configs[i];
-    var som_id = c.som_id;
+  $.each(o.plots, function(i, p) {
+    var p = o.plots[i];
+    var som_id = p.som_id;
     soms[som_id] = true;
-    var tc_fqn = c.tc_fqn;
-    var tc_config = c.tc_config;
-    for (var tcc_k in tc_config) {
-      var tcc_v = tc_config[tcc_k];
-      var tcc_fqn = tc_fqn + "_" + tcc_k;
-      if (!(tcc_fqn in tccs)) tccs[tcc_fqn] = {};
-      tccs[tcc_fqn][tcc_v] = true;
-    }
-    if ("som_config" in c) {
-      var som_config = c.som_config;
-      for (var sc_k in som_config) {
-        var sc_v = som_config[sc_k];
+    var tc_fqn = p.tc_fqn;
+    $.each(p.tc_configs, function(tc_config_id, tc_config) {
+      $.each(tc_config, function(tcc_k, tcc_v) {
+        var tcc_fqn = tc_fqn + "_" + tcc_k;
+        if (!(tcc_fqn in tccs)) tccs[tcc_fqn] = {};
+        tccs[tcc_fqn][tcc_v] = true;
+      });
+    });
+    $.each(p.som_configs, function(som_config_id, som_config) {
+      $.each(som_config, function(sc_k, sc_v) {
         var sc_fqn = som_id + "_" + sc_k;
         if (!(sc_fqn in somcs)) somcs[sc_fqn] = {};
         somcs[sc_fqn][sc_v] = true;
-      }
-    }
-  }
+      });
+    });
+  });
   for (var tcc in tccs)
     $('[name="tc-' + tcc + '"]').val(Object.keys(tccs[tcc]));
   for (var sc in somcs)
@@ -449,35 +447,38 @@ function on_report_received(r) {
   $('body').append(s);
   // configs
   var builds = builds_for(r.builds.primary) + builds_for(r.builds.secondary);
-  for (var i in r.configs) {
-    var c = r.configs[i];
+  for (var i in r.plots) {
+    var p = r.plots[i];
     var part = 1 + parseInt(i);
-    var som_config_id_str = c.som_config_id == -1 ? "N/A" : c.som_config_id;
     // print info
     s = "";
     s += "<h3>Part " + part + "</h3>";
-    s += "TC fqn: " + c.tc_fqn + "<br />";
-    s += "TC description: " + c.tc_desc + "<br />";
-    s += "TC configuration ID: " + c.tc_config_id + "<br />";
-    s += get_config_list("TC", c.tc_config);
-    s += "SOM ID: " + c.som_id + "<br />";
-    s += "SOM name: " + c.som_name + "<br />";
-    s += "SOM configuration ID: " + som_config_id_str + "<br />";
-    s += get_config_list("SOM", c.som_config);
-    s += "SOM polarity: " + string_to_polarity(c.som_polarity) + "<br />";
-    s += "SOM units: " + string_to_units(c.som_units) + "<br />";
+    s += "TC fqn: " + p.tc_fqn + "<br />";
+    s += "TC description: " + p.tc_desc + "<br />";
+    s += "TC configuration IDs: " + Object.keys(p.tc_configs) + "<br />";
+    s += "SOM ID: " + p.som_id + "<br />";
+    s += "SOM name: " + p.som_name + "<br />";
+    s += "SOM configuration IDs: " + Object.keys(p.som_configs) + "<br />";
+    s += "SOM polarity: " + string_to_polarity(p.som_polarity) + "<br />";
+    s += "SOM units: " + string_to_units(p.som_units) + "<br />";
+    s += "Split by property/ies: " + p.split_bys + "<br />";
+    // s += get_config_list("TC", p.tc_config);
+    // s += get_config_list("SOM", p.som_config);
     var graph_id = "graph_" + part;
     var graph_style = "width: 1000px; height: 600px";
     s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
     $('body').append(s);
     // fetch data
     var request = "/";
-    request += "?som=" + c.som_id;
+    request += "?som=" + p.som_id;
     request += "&xaxis=" + r.xaxis;
     request += "&yaxis=" + r.yaxis;
-    request += "&v_tc_config_id=" + c.tc_config_id;
-    if (c.som_config_id != -1)
-      request += "&v_som_config_id=" + c.som_config_id;
+    for (var tc_config_id in p.tc_configs)
+      request += "&v_tc_config_id=" + tc_config_id;
+    for (var som_config_id in p.som_configs)
+      request += "&v_som_config_id=" + som_config_id;
+    for (var i in p.split_bys)
+      request += "&f_" + p.split_bys[i] + "=1";
     request += builds;
     request += "&f_machine_type=1";
     request += "&target=" + graph_id;
