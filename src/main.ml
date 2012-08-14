@@ -278,33 +278,56 @@ let javascript_redirect url =
   printf "</script>\n</head><body></body></html>\n"
 
 let report_clone_handler ~conn id =
-  let query = sprintf "SELECT * FROM reports WHERE report_id = %d" id in
-  let result = Sql.exec_exn ~conn ~query in
-  let source = result#get_tuple_lst 0 in
-  let field_to_tuple ?id' ~result ~reports_tbl row col v =
-    let name = result#fname col in
-    let v = match name with
-    | "report_id" -> Option.value_map id' ~f:string_of_int ~default:v
+  (* Define a couple of helper functions for cloning rows. *)
+  let field_to_tuple ?(origin = false) ~result ~key ?next ~row col v =
+    let k = result#fname col in
+    let v = match k with
+    | k when k = key -> Option.value_map next ~f:string_of_int ~default:v
     | "report_desc" -> v ^ " COPY"
     | _ -> match v with "t" -> "true" | "f" -> "false" | _ -> v
     in
-    if name = "report_id" && reports_tbl || result#getisnull row col then None
-    else Some (name, v)
+    if k = key && origin || result#getisnull row col then None else Some (k, v)
   in
-  let tuples =
-    List.filter_mapi ~f:(field_to_tuple ~result ~reports_tbl:true 0) source in
-  let id' = Sql.ensure_inserted_get_id ~conn ~tbl:"reports" ~tuples in
-  let clone_tbl tbl =
-    let query = sprintf "SELECT * FROM %s WHERE report_id = %d" tbl id in
+  let clone_rows ~tbl ~key ~prev ~next =
+    let query = sprintf "SELECT * FROM %s WHERE %s = %d" tbl key prev in
     let result = Sql.exec_exn ~conn ~query in
     List.iteri ~f:(fun i row ->
-      let tuples = List.filter_mapi
-        ~f:(field_to_tuple ~id' ~result ~reports_tbl:false i) row in
+      let tuples = List.filter_mapi row
+        ~f:(field_to_tuple ~result ~key ~next ~row:i) in
       Sql.ensure_inserted ~conn ~tbl ~tuples
     ) result#get_all_lst;
   in
-  clone_tbl "report_builds";
-  clone_tbl "report_configs";
+  (* Get definition of report to clone. *)
+  let query = sprintf "SELECT * FROM reports WHERE report_id = %d" id in
+  let result = Sql.exec_exn ~conn ~query in
+  let source = result#get_tuple_lst 0 in
+  (* Duplicate its entry in "reports" table. *)
+  let tuples = List.filter_mapi source
+    ~f:(field_to_tuple ~origin:true ~result ~key:"report_id" ~row:0) in
+  let id' = Sql.ensure_inserted_get_id ~conn ~tbl:"reports" ~tuples in
+  (* Clone corresponding rows in "report_builds". *)
+  clone_rows ~tbl:"report_builds" ~key:"report_id" ~prev:id ~next:id';
+  (* Find all corresponding plots. *)
+  let query = "SELECT plot_id, report_id, graph_number, som_id " ^
+    sprintf "FROM report_plots WHERE report_id = %d" id in
+  let result = Sql.exec_exn ~conn ~query in
+  (* For each plot.. *)
+  let process_plot plot =
+    (* Get its current ID. *)
+    let plot_id = int_of_string (List.hd_exn plot) in
+    (* Create a copy of its definition, and get the copy's ID. *)
+    let tuples = List.filter_mapi plot
+      ~f:(field_to_tuple ~result ~key:"report_id" ~next:id' ~row:0) in
+    let tuples = List.filter ~f:(fun (k, _) -> k <> "plot_id") tuples in
+    let plot_id' = Sql.ensure_inserted_get_id ~conn ~tbl:"report_plots" ~tuples in
+    (* Clone corresponding rows for this plot, using the copy's ID. *)
+    let tbls = List.map ~f:((^) "report_plot_")
+      ["tc_configs"; "som_configs"; "split_bys"] in
+    List.iter tbls ~f:(fun tbl ->
+      clone_rows ~tbl ~key:"plot_id" ~prev:plot_id ~next:plot_id')
+  in
+  List.iter ~f:process_plot result#get_all_lst;
+  (* Redirect back to reports' page. *)
   javascript_redirect "/?reports"
 
 let report_delete_handler ~conn id =
