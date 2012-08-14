@@ -1,5 +1,8 @@
+drop table report_plot_split_bys;
+drop table report_plot_som_configs;
+drop table report_plot_tc_configs;
+drop table report_plots;
 drop table report_builds;
-drop table report_configs;
 drop table reports;
 drop table measurements;
 drop table tc_config;
@@ -147,19 +150,6 @@ create table reports (
 );
 grant select on reports to "www-data";
 
-create table report_configs (
-  report_id integer not null,
-  som_id integer not null,
-  tc_config integer not null,
-  som_config_id integer null,
-
-  constraint report_configs_unique_keys unique
-    (report_id, som_id, tc_config, som_config_id),
-  foreign key (report_id) references reports(report_id),
-  foreign key (som_id) references soms(som_id)
-);
-grant select on report_configs to "www-data";
-
 create table report_builds (
   report_id integer not null,
   build_id integer not null,
@@ -170,3 +160,39 @@ create table report_builds (
   foreign key (build_id) references builds(build_id)
 );
 grant select on report_builds to "www-data";
+
+create table report_plots (
+  plot_id serial,
+  report_id integer not null,
+  graph_number integer not null,
+  som_id integer not null,
+
+  primary key (plot_id),
+  foreign key (report_id) references reports(report_id),
+  foreign key (som_id) references soms(som_id)
+);
+grant select on report_plots to "www-data";
+
+create table report_plot_tc_configs (
+  plot_id integer not null,
+  tc_config_id integer not null,
+
+  foreign key (plot_id) references report_plots(plot_id)
+);
+grant select on report_plot_tc_configs to "www-data";
+
+create table report_plot_som_configs (
+  plot_id integer not null,
+  som_config_id integer not null,
+
+  foreign key (plot_id) references report_plots(plot_id)
+);
+grant select on report_plot_som_configs to "www-data";
+
+create table report_plot_split_bys (
+  plot_id integer not null,
+  property varchar(128) not null,
+
+  foreign key (plot_id) references report_plots(plot_id)
+);
+grant select on report_plot_split_bys to "www-data";
