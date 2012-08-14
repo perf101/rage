@@ -994,7 +994,7 @@ let som_async_handler ~conn som_id params =
   in
   let json_list =
     List.mapi (ListKey.Table.to_alist all_series) ~f:process_series in
-  print_string (concat json_list);
+  print_concat json_list;
   printf "]}"
 
 let createtiny_handler ~conn url =
