@@ -985,8 +985,15 @@ let som_async_handler ~conn som_id params =
     "[" ^ row.(0) ^ "," ^ row.(1) ^ ",{" ^ props ^ "}]"
   in
   printf "\"series\":[";
+  let max_val_length = 40 in
   let process_series i (row_key, rows) =
-    let pairs = List.map2_exn split_bys row_key ~f:(fun k v -> k ^ "=" ^ v) in
+    let pairs = List.map2_exn split_bys row_key ~f:(fun k v ->
+      (* Truncate the value if it's too long *)
+      let v = if String.length v > max_val_length
+        then (Str.string_before v max_val_length) ^ "..."
+        else v
+      in
+      k ^ "=" ^ v) in
     let label = concat pairs in
     let data_lst = List.map rows ~f:convert_row in
     let data_str = concat data_lst in
