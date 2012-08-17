@@ -423,13 +423,14 @@ function extract_build_numbers(builds) {
   return build_numbers;
 }
 
-var report_primary_builds = {}
+var report_primary_build_numbers = {}
 
 function on_report_received(r) {
   console.log(r);
   last_report_received = r;
   // store primary builds globally
-  report_primary_builds = extract_build_numbers(r.builds.primary);
+  report_primary_build_numbers = extract_build_numbers(r.builds.primary);
+  console.log("primary", report_primary_build_numbers);
   // basic metadata
   var s = "";
   s += "<h2>Basic information</h2>"
@@ -498,15 +499,20 @@ function on_report_received(r) {
 
 function on_report_part_received(o) {
   console.log(o);
-  var primary_builds = $.extend({}, report_primary_builds);
+  // check if payload includes data for primary builds
+  // (currently, we only check against the first series)
+  var primary_build_numbers = $.extend({}, report_primary_build_numbers);
+  var selector = function(p) {return p[2].build_number;};
+  if (o.xaxis == "build_number") selector = function(p) {return p[0];};
+  if (o.yaxis == "build_number") selector = function(p) {return p[1];};
   if (o.series.length > 0) {
     var points = o.series[0].data;
     for (var i in points) {
-      if (Object.keys(primary_builds).length == 0) break;
-      delete primary_builds[points[i][0]];
+      if (Object.keys(primary_build_numbers).length == 0) break;
+      delete primary_build_numbers[selector(points[i])];
     }
   }
-  if (Object.keys(primary_builds).length == 0) {
+  if (Object.keys(primary_build_numbers).length == 0) {
     var graph = new GraphObject();
     graph.draw_graph(o, null);
   } else {
@@ -514,7 +520,7 @@ function on_report_part_received(o) {
     target.toggle(false);
     var s = "<p class='error'>";
     s += "NO DATA FOR PRIMARY BUILDS: ";
-    s += Object.keys(primary_builds).join(", ");
+    s += Object.keys(primary_build_numbers).join(", ");
     s += ".</p>";
     $(s).insertAfter(target);
   }
