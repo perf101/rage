@@ -996,12 +996,12 @@ let som_async_handler ~conn som_id params =
       k ^ "=" ^ v) in
     let label = concat pairs in
     let data_lst = List.map rows ~f:convert_row in
-    let data_str = concat data_lst in
-    sprintf "{\"label\":\"%s\",\"color\":%d,\"data\":[%s]}" label i data_str
+    if i <> 0 then printf ",";
+    printf "{\"label\":\"%s\",\"color\":%d,\"data\":[" label i;
+    print_concat data_lst;
+    printf "]}"
   in
-  let json_list =
-    List.mapi (ListKey.Table.to_alist all_series) ~f:process_series in
-  print_concat json_list;
+  List.iteri (ListKey.Table.to_alist all_series) ~f:process_series;
   printf "]}"
 
 let createtiny_handler ~conn url =
