@@ -112,9 +112,8 @@ function on_soms_by_tc_received(o) {
 
 function report_page_init() {
   var report_id = parseInt(url_params.report[0]);
-  console.log("report page", report_id);
   var request = window.location.href + "&async=true";
-  console.log(request);
+  console.log("Request:", request);
   $.ajax({
     url: request,
     type: 'GET',
@@ -426,11 +425,10 @@ function extract_build_numbers(builds) {
 var report_primary_build_numbers = {}
 
 function on_report_received(r) {
-  console.log(r);
+  console.log("Response:", r);
   last_report_received = r;
   // store primary builds globally
   report_primary_build_numbers = extract_build_numbers(r.builds.primary);
-  console.log("primary", report_primary_build_numbers);
   // basic metadata
   var s = "";
   s += "<h2>Basic information</h2>"
@@ -446,59 +444,63 @@ function on_report_received(r) {
   s += "<input type='checkbox' name='y_fromto_zero' ";
   s += "checked='checked' style='display: none' />";
   $('body').append(s);
-  // configs
-  var builds = builds_for(r.builds.primary) + builds_for(r.builds.secondary);
-  for (var i in r.plots) {
-    var p = r.plots[i];
-    var part = 1 + parseInt(i);
-    // print info
-    s = "";
-    s += "<h3>Part " + part + "</h3>";
-    s += "TC fqn: " + p.tc_fqn + "<br />";
-    s += "TC description: " + p.tc_desc + "<br />";
-    s += "TC configuration IDs: " + Object.keys(p.tc_configs) + "<br />";
-    s += "SOM ID: " + p.som_id + "<br />";
-    s += "SOM name: " + p.som_name + "<br />";
-    s += "SOM configuration IDs: " + Object.keys(p.som_configs) + "<br />";
-    s += "SOM polarity: " + string_to_polarity(p.som_polarity) + "<br />";
-    s += "SOM units: " + string_to_units(p.som_units) + "<br />";
-    s += "Split by property/ies: " + p.split_bys + "<br />";
-    // s += get_config_list("TC", p.tc_config);
-    // s += get_config_list("SOM", p.som_config);
-    var graph_id = "graph_" + part;
-    var graph_style = "width: 1000px; height: 600px";
-    s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
-    $('body').append(s);
-    // fetch data
-    var request = "/";
-    request += "?som=" + p.som_id;
-    request += "&xaxis=" + r.xaxis;
-    request += "&yaxis=" + r.yaxis;
-    for (var tc_config_id in p.tc_configs)
-      request += "&v_tc_config_id=" + tc_config_id;
-    for (var som_config_id in p.som_configs)
-      request += "&v_som_config_id=" + som_config_id;
-    for (var i in p.split_bys)
-      request += "&f_" + p.split_bys[i] + "=1";
-    request += builds;
-    request += "&f_machine_type=1";
-    request += "&target=" + graph_id;
-    request += "&show_all_meta=on";
-    request += "&async=true";
-    console.log(request);
-    $.ajax({
-      url: request,
-      type: 'GET',
-      dataType: 'json',
-      success: on_report_part_received,
-      error: on_async_fail
-    });
-  }
-  // DOM generation
+  // process report parts iteratively
+  process_report_part(0);
+}
+
+function process_report_part(i) {
+  var r = last_report_received;
+  if (r.plots.length <= i) return;
+  var p = r.plots[i];
+  var part = 1 + parseInt(i);
+  // print info
+  s = "";
+  s += "<h3>Part " + part + "</h3>";
+  s += "TC fqn: " + p.tc_fqn + "<br />";
+  s += "TC description: " + p.tc_desc + "<br />";
+  s += "TC configuration IDs: " + Object.keys(p.tc_configs) + "<br />";
+  s += "SOM ID: " + p.som_id + "<br />";
+  s += "SOM name: " + p.som_name + "<br />";
+  s += "SOM configuration IDs: " + Object.keys(p.som_configs) + "<br />";
+  s += "SOM polarity: " + string_to_polarity(p.som_polarity) + "<br />";
+  s += "SOM units: " + string_to_units(p.som_units) + "<br />";
+  s += "Split by property/ies: " + p.split_bys + "<br />";
+  // s += get_config_list("TC", p.tc_config);
+  // s += get_config_list("SOM", p.som_config);
+  var graph_id = "graph_" + part;
+  var graph_style = "width: 1000px; height: 600px";
+  s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
+  $('body').append(s);
+  // build request and fetch data
+  var get_build_numbers = function(builds) {
+    return $.map(r.builds.primary, function(b) {return b.build_number;});
+  };
+  var request = "/?som=" + p.som_id + "&async=true";
+  var params = {
+    f_machine_type: 1,
+    part: i,
+    show_all_meta: "on",
+    target: graph_id,
+    v_build_number: get_build_numbers(r.builds.primary + r.builds.secondary),
+    v_som_config_id: Object.keys(p.som_configs),
+    v_tc_config_id: Object.keys(p.tc_configs),
+    xaxis: r.xaxis,
+    yaxis: r.yaxis,
+  };
+  for (var i in p.split_bys) params["f_" + p.split_bys[i]] = 1;
+  console.log("Request:", request, params);
+  $.ajax({
+    url: request,
+    type: 'POST',
+    data: params,
+    dataType: 'json',
+    success: on_report_part_received,
+    error: on_async_fail
+  });
 }
 
 function on_report_part_received(o) {
-  console.log(o);
+  console.log("Response:", o);
   // check if payload includes data for primary builds
   // (currently, we only check against the first series)
   var primary_build_numbers = $.extend({}, report_primary_build_numbers);
@@ -524,6 +526,7 @@ function on_report_part_received(o) {
     s += ".</p>";
     $(s).insertAfter(target);
   }
+  process_report_part(o.part + 1);
 }
 
 function view_change() {

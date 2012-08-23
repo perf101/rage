@@ -964,12 +964,11 @@ let som_async_handler ~conn som_id params =
     ListKey.Table.change all_series row_key (add_to_series row)
   in
   Array.iter rows ~f:update_all_series;
-  (* forward target div back to client *)
-  let target = get_first_val params "target" "graph" in
   (* output axis labels and a "series" for each data group *)
   printf "{";
   printf "\"positive\":%B," positive;
-  printf "\"target\":\"%s\"," target;
+  printf "\"target\":\"%s\"," (get_first_val params "target" "graph");
+  printf "\"part\":%s," (get_first_val params "part" "1");
   printf "\"xaxis\":\"%s\"," xaxis;
   printf "\"yaxis\":\"%s\"," yaxis;
   let x_as_seq = ("on" = get_first_val params "x_as_seq" "off") in
