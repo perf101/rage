@@ -81,7 +81,9 @@ let params_of_request get_req =
   let parts = String.split req ~on:'&' in
   let opt_split part =
     Option.value ~default:(part, "") (String.lsplit2 part ~on:'=') in
-  List.map ~f:opt_split parts
+  let remove_brackets (n, v) =
+    Option.value ~default:n (String.chop_suffix n ~suffix:"%5B%5D"), v in
+  List.stable_dedup (List.map ~f:(Fn.compose remove_brackets opt_split) parts)
 
 let string_of_params params =
   concat ~sep:"\n" (List.map ~f:(fun (k, v) -> k ^ " => " ^ v) params)

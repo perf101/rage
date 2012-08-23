@@ -81,7 +81,7 @@ function som_page_init() {
 function soms_by_tc_page_init() {
   $.ajax({
     url: get_base_url() + "/?somsasync",
-    method: 'GET',
+    type: 'GET',
     dataType: 'json',
     success: on_soms_by_tc_received,
     error: on_async_fail
@@ -117,7 +117,7 @@ function report_page_init() {
   console.log(request);
   $.ajax({
     url: request,
-    method: 'GET',
+    type: 'GET',
     dataType: 'json',
     success: on_report_received,
     error: on_async_fail
@@ -180,7 +180,7 @@ function on_report_generator_checkbox_change() {
   console.log(request);
   $.ajax({
     url: request,
-    method: 'GET',
+    type: 'GET',
     dataType: 'json',
     success: on_report_generator_checkbox_received,
     error: on_async_fail
@@ -246,7 +246,7 @@ function report_generator_page_init() {
   $("input[type='checkbox']").change(on_report_generator_checkbox_change);
   $.ajax({
     url: "/?axesasync",
-    method: 'GET',
+    type: 'GET',
     dataType: 'json',
     success: function(axes) {
       last_axes_received = axes;
@@ -268,7 +268,7 @@ function report_generator_page_init_stage_two() {
   console.log(request);
   $.ajax({
     url: request,
-    method: 'GET',
+    type: 'GET',
     dataType: 'json',
     success: on_report_received_edit,
     error: on_async_fail
@@ -488,7 +488,7 @@ function on_report_received(r) {
     console.log(request);
     $.ajax({
       url: request,
-      method: 'GET',
+      type: 'GET',
       dataType: 'json',
       success: on_report_part_received,
       error: on_async_fail
@@ -600,7 +600,7 @@ function get_tinyurl() {
   $.ajax({
     url: get_base_url(),
     data: {action: "CreateTiny", url: get_permalink()},
-    method: 'POST',
+    type: 'POST',
     dataType: 'json',
     success: function(data) {
       console.log(data);
@@ -632,7 +632,7 @@ function serialise_params(params) {
   return keyvals.join("&");
 }
 
-function get_permalink() {
+function get_minimised_params() {
   var form_data = $('form[name=optionsForm]').serialize();
   var params = extract_params(form_data);
   $.each($('form[name=optionsForm] input[type=checkbox]'), function(i, cb) {
@@ -654,6 +654,11 @@ function get_permalink() {
         || is_legend_position_ne))
       minimised[p] = params[p];
   }
+  return minimised;
+}
+
+function get_permalink() {
+  var minimised = get_minimised_params();
   var serialised = serialise_params(minimised);
   console.log(serialised);
   if (serialised != "") serialised = "&" + serialised;
@@ -664,11 +669,14 @@ function fetch_data_and_process() {
   if (!autofetch) return;
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
-  var request = get_permalink() + "&async=true";
-  console.log(request);
+  var som_id = url_params.som[0];
+  var request = "/?som=" + som_id + "&async=true";
+  var params = get_minimised_params();
+  console.log("Request:", request, params);
   $.ajax({
     url: request,
-    method: 'GET',
+    type: 'POST',
+    data: params,
     dataType: 'json',
     success: on_received,
     error: on_async_fail
@@ -689,7 +697,7 @@ function has_labels(o, axis) {
 var graph_object = new GraphObject();
 
 function on_received(o) {
-  console.log("Received: ", o);
+  console.log("Received:", o);
   var view = $('#view').val();
   if (view == "Graph") {
     $('#table').hide();
