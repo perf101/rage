@@ -401,7 +401,11 @@ let report_create_handler ~conn params =
     let tc_config_tbl = "tc_config_" ^ tc_fqn in
     let col_fqns = get_column_fqns conn tc_config_tbl in
     let col_types = get_column_types conn tc_config_tbl in
-    (* Find all permutations for tc/som configs with "split_by_graph". *)
+    (* Find all permutations for tc/som configs with "split_by_graph". First,
+       we find all related tc/som configuration names marked with
+       "split_by_graph": split_by_graph_params. Then, we obtain a list of lists
+       representing selected values for each configuration. Finally, we invoke
+       generate_permutations on the list of lists. *)
     let extract_split_bys (k, v) =
       let is_related =
         String.is_prefix k ~prefix:tc_prefix ||
@@ -416,7 +420,6 @@ let report_create_handler ~conn params =
       if v <> "split_by_graph" then None else
       Some (String.chop_suffix_exn k ~suffix:"_split")
     in
-    (* let split_by_params = List.filter_map ~f:extract_split_bys params in *)
     let split_by_graph_keys =
       List.dedup (List.filter_map ~f:extract_split_by_graph_keys params) in
     let select_split_by_graphs (k, v) = List.mem k ~set:split_by_graph_keys in
@@ -424,7 +427,7 @@ let report_create_handler ~conn params =
     let split_by_graphs_values =
       List.map ~f:(values_for_key split_by_graph_params) split_by_graph_keys in
     let split_by_graphs_perms = generate_permutations split_by_graphs_values in
-    (* *)
+    (* Insert "split_by_line"s. *)
     let extract_split_by_line_keys (k, v) =
       match extract_split_bys (k, v) with None -> None | Some (k, v) ->
       if v <> "split_by_line" then None else
@@ -443,6 +446,10 @@ let report_create_handler ~conn params =
     (* Remove all "_split" params. *)
     let params =
       List.filter ~f:(fun kv -> Option.is_none (extract_split_bys kv)) params in
+    (* Remove all keys found in permutations. *)
+    let is_not_permutation_pair (k, _) =
+      not (List.mem k ~set:split_by_graph_keys) in
+    let params = List.filter ~f:is_not_permutation_pair params in
     (* For each such permutation.. *)
     let process_permutation permutation =
       let extra_params = List.combine_exn split_by_graph_keys permutation in
