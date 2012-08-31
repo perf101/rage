@@ -862,6 +862,8 @@ function GraphObject() {
     num_series = point_series.length;
     if ($("input[name='show_points']").is(":checked"))
       series = point_series;
+    else
+      series = [];
     // averages
     if ($("input[name='show_avgs']").is(":checked")) {
       var i = 0;
