@@ -861,6 +861,7 @@ function GraphObject() {
       for (i = 0; i < num_series; i++) {
         var avgs = get_averages_for(point_series[i].data);
         series.push({color: point_series[i].color, data: avgs,
+                     label: (point_series[i].label || "") + " (average)",
                      points: {show: false}, lines: {show: true}});
       }
     }
@@ -886,7 +887,16 @@ function GraphObject() {
       legend: {
         type: "canvas",
         backgroundColor: "white",
-        position: $("select[name='legend_position']").val()
+        position: $("select[name='legend_position']").val(),
+        labelFormatter: function (label, series) {
+          if (/ \(average\)$/.test(label) &&
+              $("input[name='show_points']").is(":checked")) {
+            // the points series will show in the legend anyway
+            // so don't show the average series
+            return null;
+          }
+          return label;
+        }
       },
       points: {show: true}
     };
