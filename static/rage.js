@@ -312,9 +312,10 @@ function on_report_received_edit(o) {
   $('[name="primary_all_builds"]').val(primary_bns);
   $('[name="secondary_standard_builds"]').val(secondary_bns);
   $('[name="secondary_all_builds"]').val(secondary_bns);
-  var tccs = {};  // <tc_fqn>_<tc_config_name> ==> <tc_config_value> ==> true
-  var soms = {};  // <som_id> ==> true
-  var somcs = {}; // <som_id>_<som_config_name> ==> <som_config_value> ==> true
+  var tccs = {};   // <tc_fqn>_<tc_config_name> ==> <tc_config_value> ==> true
+  var soms = {};   // <som_id> ==> true
+  var somcs = {};  // <som_id>_<som_config_name> ==> <som_config_value> ==> true
+  var splits = {}; // <split_id> ==> <type>
   $.each(o.plots, function(i, p) {
     var p = o.plots[i];
     var som_id = p.som_id;
@@ -333,6 +334,10 @@ function on_report_received_edit(o) {
         if (!(sc_fqn in somcs)) somcs[sc_fqn] = {};
         somcs[sc_fqn][sc_v] = true;
       });
+    });
+    $.each(p.split_bys, function(property, ty) {
+      if (property.indexOf("tc-") == 0) return;
+      $('[name="' + property + '_split"]').val("split_by_" + ty);
     });
   });
   for (var tcc in tccs)
@@ -487,7 +492,9 @@ function process_report_part(i) {
     xaxis: r.xaxis,
     yaxis: r.yaxis,
   };
-  for (var i in p.split_bys) params["f_" + p.split_bys[i]] = 1;
+  for (var property in p.split_bys)
+    if (p.split_bys[property] == "line")
+      params["f_" + property] = 1;
   console.log("Request:", request, params);
   $.ajax({
     url: request,

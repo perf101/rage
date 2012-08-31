@@ -337,14 +337,14 @@ let report_delete_handler ~conn id =
   Sql.exec_ign_exn ~conn ~query;
   javascript_redirect "/?reports"
 
-let generate_permutations lists =
-  let permutations = ref [] in
-  let rec choose combination = function
-    | [] -> permutations := (List.rev combination) :: !permutations
-    | l::ls ->
-      List.iter ~f:(fun e -> choose (e::combination) ls) l
-  in choose [] lists;
-  !permutations
+(** Given [["a"; "b"]; ["1"; "2"]; ["x"; "y"]], this function outputs
+ * [ ["a"; "1"; "x"]; ["a"; "1"; "y"]; ["a"; "2"; "x"]; ["a"; "2"; "y"];
+ *   ["b"; "1"; "x"]; ["b"; "1"; "y"]; ["b"; "2"; "x"]; ["b"; "2"; "y"] ]. *)
+let generate_permutations dimensions =
+  let rec explode base = function
+    | [] -> [List.rev base]
+    | d::ds -> List.concat (List.map ~f:(fun v -> explode (v::base) ds) d)
+  in explode [] dimensions
 
 let report_create_handler ~conn params =
   (* If "id" is specified, then modify report <id>. *)
@@ -436,10 +436,11 @@ let report_create_handler ~conn params =
     in
     let split_by_line_keys =
       List.dedup (List.filter_map ~f:extract_split_by_line_keys params) in
-    let insert_split plot_id property =
+    let insert_split plot_id ty property =
       let tuples = [
         ("plot_id", string_of_int plot_id);
         ("property", property);
+        ("type", ty);
       ] in
       Sql.ensure_inserted ~conn ~tbl:"report_plot_split_bys" ~tuples
     in
@@ -461,6 +462,7 @@ let report_create_handler ~conn params =
       let tc_config_ids_str =
         Sql.get_col ~result:(Sql.exec_exn ~conn ~query) ~col:0 in
       let tc_config_ids = List.map ~f:int_of_string tc_config_ids_str in
+      match tc_config_ids with [] -> () | _ ->
       (* Get a new plot ID. *)
       let tuples = [
         ("report_id", string_of_int report_id);
@@ -479,7 +481,8 @@ let report_create_handler ~conn params =
         Sql.ensure_inserted ~conn ~tbl:"report_plot_tc_configs" ~tuples
       in List.iter ~f:insert_tc_config_id tc_config_ids;
       (* Insert split-bys for the plot ID. *)
-      List.iter ~f:(insert_split plot_id) split_by_line_keys;
+      List.iter ~f:(insert_split plot_id "graph") split_by_graph_keys;
+      List.iter ~f:(insert_split plot_id "line") split_by_line_keys;
       (* Insert SOM configs for the plot ID (if required). *)
       match som_config_tbl_exists conn som_id with
       | som_config_tbl, true ->
@@ -602,10 +605,9 @@ let report_async_handler ~conn report_id =
     let result = Sql.exec_exn ~conn ~query in
     let som_config_ids =
       List.map ~f:int_of_string (Sql.get_col ~result ~col:0) in
-    let query = "SELECT property FROM report_plot_split_bys " ^
+    let query = "SELECT property, type FROM report_plot_split_bys " ^
       sprintf "WHERE plot_id = %d" plot_id in
-    let result = Sql.exec_exn ~conn ~query in
-    let split_bys = Sql.get_col ~result ~col:0 in
+    let split_bys = Sql.exec_exn ~conn ~query in
     (* Obtain config pairs for config IDs. *)
     let string_of_config_info_part config_info col =
       let fname = config_info#fname col in
@@ -633,8 +635,10 @@ let report_async_handler ~conn report_id =
     let tc_configs = concat (List.map ~f:string_of_tc_config tc_config_ids) in
     let som_configs =
       concat (List.map ~f:string_of_som_config som_config_ids) in
+    let string_of_split_by split_by =
+      sprintf "\"%s\":\"%s\"" split_by.(0) split_by.(1) in
     let split_bys_str =
-      concat (List.map ~f:(fun s -> "\"" ^ s ^ "\"") split_bys) in
+      concat_array (Array.map ~f:string_of_split_by split_bys#get_all) in
     (* Convert everything into a JSON string. *)
     "{" ^
     (sprintf "\"tc_fqn\": \"%s\"," tc_fqn) ^
@@ -645,7 +649,7 @@ let report_async_handler ~conn report_id =
     (sprintf "\"som_polarity\": \"%s\"," more_is_better) ^
     (sprintf "\"som_units\": \"%s\"," units) ^
     (sprintf "\"som_configs\": {%s}," som_configs) ^
-    (sprintf "\"split_bys\": [%s]" split_bys_str) ^
+    (sprintf "\"split_bys\": {%s}" split_bys_str) ^
     "}"
   in
   let report_plots_str =
