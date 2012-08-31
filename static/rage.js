@@ -2,6 +2,7 @@
 Invariants (also reflected on server side):
 - Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
+- Show points ("show_points") is selected by default.
 - Show averages ("show_avgs") is selected by default.
 - Y minimum set to zero ("y_fromto_zero") is selected by default.
 - All other checkboxees are not selected by default.
@@ -11,9 +12,9 @@ Invariants (also reflected on server side):
 
 // === GLOBAL VARIABLES --- start ===
 var autofetch = true; // if false, the following triggers have no effect
-var checkboxes_on_by_default = ["show_avgs", "y_fromto_zero"];
+var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
 var graph_only_fields = [
-  "#xaxis", "#yaxis", "#show_avgs", "#x_from_zero", "#y_fromto_zero",
+  "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#x_from_zero", "#y_fromto_zero",
   "#x_as_seq", "#y_as_seq", "#show_all_meta", "#xaxis_log", "#yaxis_log",
   "#legend_position", "#get_img"
 ]
@@ -58,6 +59,7 @@ function som_page_init() {
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
   $("select[name='yaxis']").change(fetch_data_and_process);
+  $("input[name='show_points']").change(fetch_data_and_process);
   $("input[name='show_avgs']").change(fetch_data_and_process);
   $("input[name='x_from_zero']").change(fetch_data_and_process);
   $("input[name='y_fromto_zero']").change(fetch_data_and_process);
@@ -542,6 +544,7 @@ function view_change() {
   var is_graph = (view == "Graph");
   for (var i in graph_only_fields)
     $(graph_only_fields[i]).toggle(is_graph);
+  $("input[name='show_points']").prop("checked", is_graph);
   $("input[name='show_avgs']").prop("checked", is_graph);
   $("input[name='show_all_meta']").prop("checked", !is_graph);
   autofetch = true;
@@ -852,14 +855,19 @@ function GraphObject() {
     graph_data = o;
     var graph = $("#" + o.target);
     // default options
-    series = o.series;
-    num_series = series.length;
+    point_series = o.series;
+    num_series = point_series.length;
+    if ($("input[name='show_points']").is(":checked")) {
+      series = point_series;
+    } else {
+      series = [];
+    }
     // averages
     if ($("input[name='show_avgs']").is(":checked")) {
       var i = 0;
       for (i = 0; i < num_series; i++) {
-        var avgs = get_averages_for(series[i].data);
-        series.push({color: series[i].color, data: avgs,
+        var avgs = get_averages_for(point_series[i].data);
+        series.push({color: point_series[i].color, data: avgs,
                      points: {show: false}, lines: {show: true}});
       }
     }

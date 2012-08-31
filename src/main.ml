@@ -841,6 +841,7 @@ let show_configurations ~conn som_id tc_config_tbl =
     printf "<div id='%s' style='display: inline'>\n" name;
     printf "<input type='checkbox' name='%s' />%s\n" name caption;
     printf "</div>\n" in
+  checkbox "show_points" "Show points";
   checkbox "show_avgs" "Show averages";
   checkbox "x_from_zero" "Force X from 0";
   checkbox "y_fromto_zero" "Force Y from/to 0";
