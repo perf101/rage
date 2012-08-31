@@ -871,7 +871,8 @@ function GraphObject() {
         var avgs = get_averages_for(point_series[i].data);
         series.push({color: point_series[i].color, data: avgs,
                      label: (point_series[i].label || "") + " (average)",
-                     points: {show: false}, lines: {show: true}});
+                     points: {show: ! $("input[name='show_points']").is(":checked")},
+                     lines: {show: true}});
       }
     }
     // options
