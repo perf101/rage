@@ -183,8 +183,8 @@ let print_options_for_field namespace db_result col =
   printf "</tr><tr>";
   print_select ~td:true ~selected:["SPLIT_BY_GRAPH"]
     ~attrs:[("name", form_name ^ "_split")]
-    [("SPLIT BY GRAPH", "split_by_graph"); ("SPLIT BY LINE", "split_by_line");
-     ("DON'T SPLIT", "dont_split")];
+    [("DON'T SPLIT", "dont_split"); ("SPLIT BY GRAPH", "split_by_graph");
+     ("SPLIT BY LINE", "split_by_line")];
   printf "</tr></table>"
 
 let print_options_for_fields conn tbl namespace =

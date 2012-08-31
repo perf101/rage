@@ -314,9 +314,10 @@ function on_report_received_edit(o) {
   $('[name="primary_all_builds"]').val(primary_bns);
   $('[name="secondary_standard_builds"]').val(secondary_bns);
   $('[name="secondary_all_builds"]').val(secondary_bns);
-  var tccs = {};  // <tc_fqn>_<tc_config_name> ==> <tc_config_value> ==> true
-  var soms = {};  // <som_id> ==> true
-  var somcs = {}; // <som_id>_<som_config_name> ==> <som_config_value> ==> true
+  var tccs = {};   // <tc_fqn>_<tc_config_name> ==> <tc_config_value> ==> true
+  var soms = {};   // <som_id> ==> true
+  var somcs = {};  // <som_id>_<som_config_name> ==> <som_config_value> ==> true
+  var splits = {}; // <split_id> ==> <type>
   $.each(o.plots, function(i, p) {
     var p = o.plots[i];
     var som_id = p.som_id;
@@ -335,6 +336,10 @@ function on_report_received_edit(o) {
         if (!(sc_fqn in somcs)) somcs[sc_fqn] = {};
         somcs[sc_fqn][sc_v] = true;
       });
+    });
+    $.each(p.split_bys, function(property, ty) {
+      if (property.indexOf("tc-") == 0) return;
+      $('[name="' + property + '_split"]').val("split_by_" + ty);
     });
   });
   for (var tcc in tccs)
@@ -445,6 +450,8 @@ function on_report_received(r) {
   s += get_table_for(r.builds.secondary);
   s += "<input type='checkbox' name='y_fromto_zero' ";
   s += "checked='checked' style='display: none' />";
+  s += "<input type='checkbox' name='show_points' ";
+  s += "checked='checked' style='display: none' />";
   $('body').append(s);
   // process report parts iteratively
   process_report_part(0);
@@ -455,6 +462,11 @@ function process_report_part(i) {
   if (r.plots.length <= i) return;
   var p = r.plots[i];
   var part = 1 + parseInt(i);
+  // collect split_by_line-s
+  var split_by_lines = ["machine_type"]
+  for (var property in p.split_bys)
+    if (p.split_bys[property] == "line")
+      split_by_lines.push(property)
   // print info
   s = "";
   s += "<h3>Part " + part + "</h3>";
@@ -466,7 +478,7 @@ function process_report_part(i) {
   s += "SOM configuration IDs: " + Object.keys(p.som_configs) + "<br />";
   s += "SOM polarity: " + string_to_polarity(p.som_polarity) + "<br />";
   s += "SOM units: " + string_to_units(p.som_units) + "<br />";
-  s += "Split by property/ies: " + p.split_bys + "<br />";
+  s += "Split by property/ies: " + split_by_lines.join(", ") + "<br />";
   // s += get_config_list("TC", p.tc_config);
   // s += get_config_list("SOM", p.som_config);
   var graph_id = "graph_" + part;
@@ -479,7 +491,6 @@ function process_report_part(i) {
   };
   var request = "/?som=" + p.som_id + "&async=true";
   var params = {
-    f_machine_type: 1,
     part: i,
     show_all_meta: "on",
     target: graph_id,
@@ -489,7 +500,7 @@ function process_report_part(i) {
     xaxis: r.xaxis,
     yaxis: r.yaxis,
   };
-  for (var i in p.split_bys) params["f_" + p.split_bys[i]] = 1;
+  for (var i in split_by_lines) params["f_" + split_by_lines[i]] = 1;
   console.log("Request:", request, params);
   $.ajax({
     url: request,
@@ -516,10 +527,9 @@ function on_report_part_received(o) {
       delete primary_build_numbers[selector(points[i])];
     }
   }
-  if (Object.keys(primary_build_numbers).length == 0) {
-    var graph = new GraphObject();
-    graph.draw_graph(o, null);
-  } else {
+  if (Object.keys(primary_build_numbers).length == 0)
+    new GraphObject().draw_graph(o, null);
+  else {
     var target = $("#" + o.target);
     target.toggle(false);
     var s = "<p class='error'>";
@@ -850,11 +860,8 @@ function GraphObject() {
     // default options
     point_series = o.series;
     num_series = point_series.length;
-    if ($("input[name='show_points']").is(":checked")) {
+    if ($("input[name='show_points']").is(":checked"))
       series = point_series;
-    } else {
-      series = [];
-    }
     // averages
     if ($("input[name='show_avgs']").is(":checked")) {
       var i = 0;
