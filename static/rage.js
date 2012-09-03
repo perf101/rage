@@ -396,11 +396,18 @@ function get_table_for(o) {
   return s;
 }
 
-function get_config_list(desc, o) {
-  var s = "";
-  for (var k in o)
-    s += desc + " config '" + k + "': " + o[k] + "<br />";
-  return s;
+function string_of_config(config) {
+  var s = "<ul>";
+  for (var k in config)
+    s += "<li>" + k + ": " + config[k] + "</li>";
+  return s + "</ul>";
+}
+
+function string_of_config_list(configs) {
+  var s = "<ul>";
+  for (var id in configs)
+    s += "<li>" + id + ":" + string_of_config(configs[id]) + "</li>";
+  return s + "</ul>";
 }
 
 function builds_for(builds) {
@@ -448,10 +455,13 @@ function on_report_received(r) {
   s += get_table_for(r.builds.primary);
   s += "<h2>Secondary builds</h2>";
   s += get_table_for(r.builds.secondary);
-  s += "<input type='checkbox' name='y_fromto_zero' ";
-  s += "checked='checked' style='display: none' />";
-  s += "<input type='checkbox' name='show_points' ";
-  s += "checked='checked' style='display: none' />";
+  var string_of_hidden_checkbox = function(name) {
+    return "<input type='checkbox' name='" + name + "' " +
+      "checked='checked' style='display: none' />";
+  };
+  s += string_of_hidden_checkbox("show_avgs");
+  s += string_of_hidden_checkbox("show_points");
+  s += string_of_hidden_checkbox("y_fromto_zero");
   $('body').append(s);
   // process report parts iteratively
   process_report_part(0);
@@ -472,15 +482,13 @@ function process_report_part(i) {
   s += "<h3>Part " + part + "</h3>";
   s += "TC fqn: " + p.tc_fqn + "<br />";
   s += "TC description: " + p.tc_desc + "<br />";
-  s += "TC configuration IDs: " + Object.keys(p.tc_configs) + "<br />";
+  s += "TC configuration IDs:" + string_of_config_list(p.tc_configs);
   s += "SOM ID: " + p.som_id + "<br />";
   s += "SOM name: " + p.som_name + "<br />";
-  s += "SOM configuration IDs: " + Object.keys(p.som_configs) + "<br />";
+  s += "SOM configuration IDs: " + string_of_config_list(p.som_configs) + "<br />";
   s += "SOM polarity: " + string_to_polarity(p.som_polarity) + "<br />";
   s += "SOM units: " + string_to_units(p.som_units) + "<br />";
   s += "Split by property/ies: " + split_by_lines.join(", ") + "<br />";
-  // s += get_config_list("TC", p.tc_config);
-  // s += get_config_list("SOM", p.som_config);
   var graph_id = "graph_" + part;
   var graph_style = "width: 1000px; height: 600px";
   s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
@@ -668,7 +676,7 @@ function get_minimised_params() {
     var is_legend_position_ne = p == "legend_position" && f == "ne";
     if (!(is_xaxis_branch || is_yaxis_result || is_show_for || is_all_only
         || is_legend_position_ne))
-      minimised[p] = params[p];
+      minimised[p] = decode(v);
   }
   return minimised;
 }
