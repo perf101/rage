@@ -68,13 +68,29 @@ let get_column_fqns conn tbl =
 
 let get_column_fqns_many conn tbls = combine_maps conn tbls get_column_fqns
 
-let html_to_text html =
-  let rules =
-    let pairs = [("%20", " "); ("%2C", ","); ("+", " ")] in
-    List.map pairs ~f:(fun (r, t) -> (Str.regexp r, t))
+let hex_of_char c =
+  let i = int_of_char c in
+  if i < int_of_char 'A'
+  then i - (int_of_char '0')
+  else i - (int_of_char 'A') + 10
+
+let decode_html s =
+  let s = Str.global_replace (Str.regexp "+") " " s in
+  let re = Str.regexp "%[0-9A-F][0-9A-F]" in
+  let rec aux s start len =
+    try
+      let b = Str.search_forward re s start in
+      let e = Str.match_end () in
+      let x, y = String.get s (b+1), String.get s (b+2) in
+      let x_h, y_h = hex_of_char x, hex_of_char y in
+      let c = char_of_int (x_h * 16 + y_h) in
+      let prefix = String.sub s ~pos:0 ~len:b in
+      let suffix = String.sub s ~pos:e ~len:(len - e) in
+      let s = prefix ^ (String.make 1 c) ^ suffix in
+      aux s (b + 1) (len - 2)
+    with Not_found -> s
   in
-  List.fold_left rules ~init:html
-    ~f:(fun h (r, t) -> Str.global_replace r t h)
+  aux s 0 (String.length s)
 
 let extract_filter col_fqns col_types params key_prefix =
   let m = String.Table.create () in
@@ -90,7 +106,7 @@ let extract_filter col_fqns col_types params key_prefix =
   let l = String.Table.to_alist m in
   let conds = List.map l
     ~f:(fun (k, vs) ->
-      let vs = List.map vs ~f:html_to_text in
+      let vs = List.map vs ~f:decode_html in
       let has_null = List.mem ~set:vs "(NULL)" in
       let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
       let ty = String.Table.find_exn col_types k in
