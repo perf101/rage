@@ -338,8 +338,8 @@ function on_report_received_edit(o) {
       });
     });
     $.each(p.split_bys, function(property, ty) {
-      if (property.indexOf("tc-") == 0) return;
-      $('[name="' + property + '_split"]').val("split_by_" + ty);
+      $('[name="tc-' + tc_fqn + "_" + property + '_split"]').val("split_by_" + ty);
+      $('[name="som-' + som_id + "_" + property + '_split"]').val("split_by_" + ty);
     });
   });
   for (var tcc in tccs)
