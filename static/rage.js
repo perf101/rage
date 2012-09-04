@@ -666,9 +666,9 @@ function get_minimised_params() {
   });
   var minimised = {};
   for (var p in params) {
-    var v = params[p];
-    var l = v.length;
-    var f = v[0];
+    var vs = params[p];
+    var l = vs.length;
+    var f = vs[0]; // first value (the only one for non-multi-selections)
     var is_xaxis_branch = p == "xaxis" && f == "branch";
     var is_yaxis_result = p == "yaxis" && f == "result";
     var is_show_for = p.indexOf("f_") == 0 && f == "0";
@@ -676,7 +676,7 @@ function get_minimised_params() {
     var is_legend_position_ne = p == "legend_position" && f == "ne";
     if (!(is_xaxis_branch || is_yaxis_result || is_show_for || is_all_only
         || is_legend_position_ne))
-      minimised[p] = $.map(v, decode);
+      minimised[p] = $.map(vs, decode);
   }
   return minimised;
 }
