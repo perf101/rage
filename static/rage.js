@@ -676,7 +676,7 @@ function get_minimised_params() {
     var is_legend_position_ne = p == "legend_position" && f == "ne";
     if (!(is_xaxis_branch || is_yaxis_result || is_show_for || is_all_only
         || is_legend_position_ne))
-      minimised[p] = decode(v);
+      minimised[p] = $.map(v, decode);
   }
   return minimised;
 }
