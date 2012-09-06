@@ -706,10 +706,14 @@ function fetch_data_and_process() {
   });
 }
 
+function numerical_sort(array) {
+  array.sort(function(a, b) {return a - b;});
+}
+
 function get_sorted_keys(o) {
   var keys = []
   for (var k in o) keys.push(k);
-  keys.sort(function(a, b) {return a - b;});
+  numerical_sort(keys);
   return keys;
 }
 
@@ -772,12 +776,12 @@ function GraphObject() {
       if (!(x in x_to_ys)) x_to_ys[x] = [];
       x_to_ys[x].push(point[1]);
     }
-    var xs = Object.keys(x_to_ys);
-    xs.sort();
+    var xs = $.map(Object.keys(x_to_ys), function(v) {return parseInt(v);});
+    numerical_sort(xs);
     var x_ys_array = [];
     for (i in xs) {
       var x = xs[i];
-      x_ys_array.push([parseInt(x), x_to_ys[x]]);
+      x_ys_array.push([x, x_to_ys[x]]);
     }
     return x_ys_array;
   }
@@ -801,7 +805,7 @@ function GraphObject() {
     var max = function(acc, x) {return acc < x ? x : acc;};
     $.each(group_by_x(data), function(i, x_ys) {
       var x = x_ys[0], ys = x_ys[1];
-      ys.sort();
+      numerical_sort(ys);
       var n = ys.length;
       var avg = ys.reduce(plus) / n;
       // avgs.push([x, avg]);
