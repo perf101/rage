@@ -2,8 +2,6 @@
 Invariants (also reflected on server side):
 - Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
-- Show points ("show_points") is selected by default.
-- Show averages ("show_avgs") is selected by default.
 - Y minimum set to zero ("y_fromto_zero") is selected by default.
 - All other checkboxees are not selected by default.
 - "SHOW FOR" is the first (default) option for filters ("f_").
@@ -14,9 +12,9 @@ Invariants (also reflected on server side):
 var autofetch = true; // if false, the following triggers have no effect
 var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
 var graph_only_fields = [
-  "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#x_from_zero", "#y_fromto_zero",
-  "#x_as_seq", "#y_as_seq", "#show_all_meta", "#xaxis_log", "#yaxis_log",
-  "#legend_position", "#get_img"
+  "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
+  "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#show_all_meta",
+  "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img"
 ]
 var url_params = get_url_params();
 // ==== GLOBAL VARIABLES --- end ====
@@ -61,6 +59,7 @@ function som_page_init() {
   $("select[name='yaxis']").change(fetch_data_and_process);
   $("input[name='show_points']").change(fetch_data_and_process);
   $("input[name='show_avgs']").change(fetch_data_and_process);
+  $("input[name='show_dist']").change(fetch_data_and_process);
   $("input[name='x_from_zero']").change(fetch_data_and_process);
   $("input[name='y_fromto_zero']").change(fetch_data_and_process);
   $("input[name='x_as_seq']").change(fetch_data_and_process);
@@ -761,23 +760,50 @@ function GraphObject() {
   var series = [];
   var num_series = 0;
 
-  function get_averages_for(series) {
-    var sum_map = {};
-    var count_map = {};
-    for (i in series) {
-      var point = series[i];
+  // converts "x => y" to "x -> [y]"
+  function group_by_x(data) {
+    var x_to_ys = {};
+    for (i in data) {
+      var point = data[i];
       var x = point[0];
-      if (!(x in sum_map)) {sum_map[x] = 0; count_map[x] = 0;}
-      sum_map[x] += point[1];
-      count_map[x] += 1;
+      if (!(x in x_to_ys)) x_to_ys[x] = [];
+      x_to_ys[x].push(point[1]);
     }
-    var result = [];
-    var sorted_keys = get_sorted_keys(sum_map);
-    for (i in sorted_keys) {
-      var key = sorted_keys[i];
-      result.push([key, sum_map[key] / count_map[key]]);
-    }
-    return result;
+    return x_to_ys;
+  }
+
+  function get_averages_for(data) {
+    var avgs = [];
+    var plus = function(a, b) {return a + b;};
+    $.each(group_by_x(data), function(x, ys) {
+      avgs.push([x, ys.reduce(plus, 0) / ys.length]);
+    });
+    return avgs;
+  }
+
+  function get_distribution_lines(data) {
+    // var avgs = [], min_maxs = [], std_devs = [];
+    var medians = [], prc40to60s = [], prc25to75s = [], prc15to85s = [];
+    var plus = function(acc, x) {return acc + x;};
+    var plus_sq = function(acc, x) {return acc + x*x;};
+    var min = function(acc, x) {return acc < x ? acc : x;};
+    var max = function(acc, x) {return acc < x ? x : acc;};
+    $.each(group_by_x(data), function(x, ys) {
+      ys.sort();
+      var n = ys.length;
+      var avg = ys.reduce(plus) / n;
+      // avgs.push([x, avg]);
+      // min_maxs.push([x, ys.reduce(max, -Infinity), ys.reduce(min, Infinity)]);
+      // var std_dev = Math.sqrt(ys.reduce(plus_sq) / n - avg*avg);
+      // std_devs.push([x, avg + std_dev, avg - std_dev]);
+      medians.push([x, ys[n / 2], ys[n / 2]]);
+      prc40to60s.push([x, ys[Math.floor(n * 0.60)], ys[Math.floor(n * 0.40)]]);
+      prc25to75s.push([x, ys[Math.floor(n * 0.75)], ys[Math.floor(n * 0.25)]]);
+      prc15to85s.push([x, ys[Math.floor(n * 0.85)], ys[Math.floor(n * 0.15)]]);
+    });
+    return {//avg: avgs, min_max: min_maxs, std_dev: std_devs,
+      median: medians, prc40to60: prc40to60s, prc25to75: prc25to75s,
+      prc15to85: prc15to85s};
   }
 
   function safe_log(x) {
@@ -872,6 +898,24 @@ function GraphObject() {
       series = point_series;
     else
       series = [];
+    // distributions
+    if ($("input[name='show_dist']").is(":checked")) {
+      for (i = 0; i < num_series; i++) {
+        var dist = get_distribution_lines(point_series[i].data);
+        series.push({color: point_series[i].color, data: dist.prc15to85,
+                     label: null, points: {show: false},
+                     lines: {show: true, lineWidth: 0, fill: 0.2}});
+        series.push({color: point_series[i].color, data: dist.prc25to75,
+                     label: null, points: {show: false},
+                     lines: {show: true, lineWidth: 0, fill: 0.4}});
+        series.push({color: point_series[i].color, data: dist.prc40to60,
+                     label: null, points: {show: false},
+                     lines: {show: true, lineWidth: 0, fill: 0.6}});
+        series.push({color: point_series[i].color, data: dist.median,
+                     label: null, points: {show: false}, shadowSize: 0.7,
+                     lines: {show: true}});
+      }
+    }
     // averages
     if ($("input[name='show_avgs']").is(":checked")) {
       var i = 0;

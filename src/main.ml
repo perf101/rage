@@ -843,6 +843,7 @@ let show_configurations ~conn som_id tc_config_tbl =
     printf "</div>\n" in
   checkbox "show_points" "Show points";
   checkbox "show_avgs" "Show averages";
+  checkbox "show_dist" "Show distributions";
   checkbox "x_from_zero" "Force X from 0";
   checkbox "y_fromto_zero" "Force Y from/to 0";
   checkbox "x_as_seq" "Force X data as sequence";
