@@ -748,6 +748,9 @@ function on_plotting_finished() {
   $("#progress_img").toggle(false);
 }
 
+function is_checked(cb_name) {
+  return $("input[name='" + cb_name + "']").is(":checked");
+}
 
 var tooltip_counter = 0;
 
@@ -772,7 +775,7 @@ function GraphObject() {
     return x_to_ys;
   }
 
-  function get_averages_for(data) {
+  function get_averages(data) {
     var avgs = [];
     var plus = function(a, b) {return a + b;};
     $.each(group_by_x(data), function(x, ys) {
@@ -894,38 +897,31 @@ function GraphObject() {
     // default options
     point_series = o.series;
     num_series = point_series.length;
-    if ($("input[name='show_points']").is(":checked"))
-      series = point_series;
-    else
-      series = [];
-    // distributions
-    if ($("input[name='show_dist']").is(":checked")) {
-      for (i = 0; i < num_series; i++) {
+    series = is_checked("show_points") ? point_series : [];
+    // averages and distributions
+    for (var i = 0; i < num_series; i++) {
+      if (is_checked("show_dist")) {
         var dist = get_distribution_lines(point_series[i].data);
-        series.push({color: point_series[i].color, data: dist.prc15to85,
-                     label: null, points: {show: false},
-                     lines: {show: true, lineWidth: 0, fill: 0.2}});
-        series.push({color: point_series[i].color, data: dist.prc25to75,
-                     label: null, points: {show: false},
-                     lines: {show: true, lineWidth: 0, fill: 0.4}});
-        series.push({color: point_series[i].color, data: dist.prc40to60,
-                     label: null, points: {show: false},
-                     lines: {show: true, lineWidth: 0, fill: 0.6}});
+        var add_percentile = function(i, data, fill) {
+          series.push({color: point_series[i].color, data: data,
+                       label: null, points: {show: false},
+                       lines: {show: true, lineWidth: 0, fill: fill}});
+        };
+        add_percentile(i, dist.prc15to85, 0.2);
+        add_percentile(i, dist.prc25to75, 0.4);
+        add_percentile(i, dist.prc40to60, 0.6);
+        var label_shown = is_checked("show_points") || is_checked("show_avgs");
         series.push({color: point_series[i].color, data: dist.median,
-                     label: null, points: {show: false}, shadowSize: 0.7,
+                     label: label_shown ? null : point_series[i].label,
+                     points: {show: false}, shadowSize: 0.7,
                      lines: {show: true}});
       }
-    }
-    // averages
-    if ($("input[name='show_avgs']").is(":checked")) {
-      var i = 0;
-      for (i = 0; i < num_series; i++) {
-        var avgs = get_averages_for(point_series[i].data);
-        series.push({color: point_series[i].color, data: avgs,
-                     label: (point_series[i].label || "") + " (average)",
-                     points: {show: ! $("input[name='show_points']").is(":checked")},
-                     lines: {show: true}});
-      }
+      if (is_checked("show_avgs"))
+        series.push({
+          color: point_series[i].color, data: get_averages(point_series[i].data),
+          label: is_checked("show_points") ? null : point_series[i].label,
+          points: {show: !is_checked("show_points")}, lines: {show: true}
+        });
     }
     // options
     var tickGenerator = function(axis) {
@@ -950,34 +946,25 @@ function GraphObject() {
         type: "canvas",
         backgroundColor: "white",
         position: $("select[name='legend_position']").val(),
-        labelFormatter: function (label, series) {
-          if (/ \(average\)$/.test(label) &&
-              $("input[name='show_points']").is(":checked")) {
-            // the points series will show in the legend anyway
-            // so don't show the average series
-            return null;
-          }
-          return label;
-        }
       },
       points: {show: true}
     };
     // force X from 0
-    if ($("input[name='x_from_zero']").is(":checked"))
+    if (is_checked("x_from_zero"))
       options.xaxis.min = 0;
     // force Y from/to 0
-    if ($("input[name='y_fromto_zero']").is(":checked"))
+    if (is_checked("y_fromto_zero"))
       options.yaxis[o.positive ? "min" : "max"] = 0;
     // labels
     configure_labels(o, "x", options);
     configure_labels(o, "y", options);
     // log scale
-    if ($("input[name='xaxis_log']").is(":checked")) {
+    if (is_checked("xaxis_log")) {
       options.xaxis.transform = safe_log;
       options.xaxis.inverseTransform = Math.exp;
       options.xaxis.ticks = create_log_ticks;
     }
-    if ($("input[name='yaxis_log']").is(":checked")) {
+    if (is_checked("yaxis_log")) {
       options.yaxis.transform = safe_log;
       options.yaxis.inverseTransform = Math.exp;
       options.yaxis.ticks = create_log_ticks;
