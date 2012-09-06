@@ -935,8 +935,8 @@ function GraphObject() {
       return result;
     };
     var options = {
-      xaxis: {labelAngle: 285},
-      yaxis: {},
+      xaxis: {axisLabel: o.xaxis, labelAngle: 285},
+      yaxis: {axisLabel: o.yaxis},
       grid: {
         clickable: true,
         hoverable: true,
