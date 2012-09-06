@@ -763,7 +763,7 @@ function GraphObject() {
   var series = [];
   var num_series = 0;
 
-  // converts "x => y" to "x -> [y]"
+  // converts "[[x, y]]" to "[[x, [y1,y2,..]]]"
   function group_by_x(data) {
     var x_to_ys = {};
     for (i in data) {
@@ -772,13 +772,21 @@ function GraphObject() {
       if (!(x in x_to_ys)) x_to_ys[x] = [];
       x_to_ys[x].push(point[1]);
     }
-    return x_to_ys;
+    var xs = Object.keys(x_to_ys);
+    xs.sort();
+    var x_ys_array = [];
+    for (i in xs) {
+      var x = xs[i];
+      x_ys_array.push([parseInt(x), x_to_ys[x]]);
+    }
+    return x_ys_array;
   }
 
   function get_averages(data) {
     var avgs = [];
     var plus = function(a, b) {return a + b;};
-    $.each(group_by_x(data), function(x, ys) {
+    $.each(group_by_x(data), function(i, x_ys) {
+      var x = x_ys[0], ys = x_ys[1];
       avgs.push([x, ys.reduce(plus, 0) / ys.length]);
     });
     return avgs;
@@ -791,7 +799,8 @@ function GraphObject() {
     var plus_sq = function(acc, x) {return acc + x*x;};
     var min = function(acc, x) {return acc < x ? acc : x;};
     var max = function(acc, x) {return acc < x ? x : acc;};
-    $.each(group_by_x(data), function(x, ys) {
+    $.each(group_by_x(data), function(i, x_ys) {
+      var x = x_ys[0], ys = x_ys[1];
       ys.sort();
       var n = ys.length;
       var avg = ys.reduce(plus) / n;
@@ -804,7 +813,7 @@ function GraphObject() {
       prc25to75s.push([x, ys[Math.floor(n * 0.75)], ys[Math.floor(n * 0.25)]]);
       prc15to85s.push([x, ys[Math.floor(n * 0.85)], ys[Math.floor(n * 0.15)]]);
     });
-    return {//avg: avgs, min_max: min_maxs, std_dev: std_devs,
+    return { // min_max: min_maxs, std_dev: std_devs,
       median: medians, prc40to60: prc40to60s, prc25to75: prc25to75s,
       prc15to85: prc15to85s};
   }
