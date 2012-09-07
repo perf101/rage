@@ -369,7 +369,6 @@ let report_create_handler ~conn params =
   let insert_build ~primary build_number =
     let query = "SELECT build_id FROM builds " ^
       (sprintf "WHERE build_number=%d AND build_tag=''" build_number) in
-    debug query;
     match Sql.get_first_entry ~result:(Sql.exec_exn ~conn ~query) with
     | None ->
       if primary then
@@ -724,7 +723,6 @@ let get_branch_ordering ~conn branches =
   let query =
     "SELECT branch FROM branch_order WHERE branch IN ('" ^
     (concat ~sep:"','" branches_uniq) ^ "') ORDER BY seq_number" in
-  debug query;
   let data = Sql.exec_exn ~conn ~query in
   let process_row i row = (i+1, List.nth_exn row 0) in
   Some (List.mapi data#get_all_lst ~f:process_row)
@@ -958,7 +956,6 @@ let som_async_handler ~conn som_id params =
      then sprintf " AND measurements.som_config_id=%s.som_config_id"
           som_config_tbl else "") ^
     (if not (String.is_empty filter) then sprintf " AND %s" filter else "") in
-  debug query;
   let data = Sql.exec_exn ~conn ~query in
   let rows = data#get_all in
   (* filter data into groups based on "SPLIT BY"-s *)
@@ -1037,6 +1034,7 @@ let redirecttiny_handler ~conn id =
   | _ -> print_404 ()
 
 let handle_request () =
+  let start_time = Unix.gettimeofday () in
   let place = get_place () in
   let conn = new connection ~conninfo:Sys.argv.(1) () in
   begin match place with
@@ -1057,11 +1055,15 @@ let handle_request () =
     | SomsAsync -> soms_async_handler ~conn
     | SomsByTc -> js_only_handler ()
   end;
-  conn#finish
+  conn#finish;
+  let elapsed_time = Unix.gettimeofday () -. start_time in
+  debug (sprintf "===> '%s': %fs." (string_of_place place) elapsed_time)
 
 let bind_modules () =
   Sql.debug_fn := Some debug;
-  (* Sql.show_sql := true; *)
+  Sql.show_sql := true;
+  Sql.time_queries := true;
+  Sql.ignore_limit_0 := true;
   Sql.mode := Sql.Live
 
 let _ =

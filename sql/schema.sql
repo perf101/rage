@@ -137,6 +137,7 @@ create table measurements (
   foreign key (som_id) references soms(som_id)
   /* (Cannot reference som_config_id, since table is variable.) */
 );
+create index measurements on table using hash (som_id);
 grant select on measurements to "www-data";
 
 create table reports (
