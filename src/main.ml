@@ -1057,7 +1057,7 @@ let handle_request () =
   end;
   conn#finish;
   let elapsed_time = Unix.gettimeofday () -. start_time in
-  debug (sprintf "===> '%s': %fs." (string_of_place place) elapsed_time)
+  debug (sprintf "==========> '%s': %fs." (string_of_place place) elapsed_time)
 
 let bind_modules () =
   Sql.debug_fn := Some debug;
