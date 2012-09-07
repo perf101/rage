@@ -489,8 +489,8 @@ function process_report_part(i) {
   s += "SOM units: " + string_to_units(p.som_units) + "<br />";
   s += "Split by property/ies: " + split_by_lines.join(", ") + "<br />";
   var graph_id = "graph_" + part;
-  var graph_style = "width: 1000px; height: 600px";
-  s += "<div id='" + graph_id + "' style='" + graph_style + "'></div>";
+  s += "<div id='" + graph_id + "' class='graph' ";
+  s += "style='width: 1000px; height: 600px'></div>";
   $('body').append(s);
   // build request and fetch data
   var get_build_numbers = function(builds) {
@@ -1007,6 +1007,9 @@ function GraphObject() {
         }
       });
       if (typeof cb === "function") cb();
+      // HTML graph labels
+      graph.prepend("<div class='yaxis'>" + o.yaxis + "</div>");
+      graph.append("<div class='xaxis'>" + o.xaxis + "</div>");
     });
   }
 

@@ -2,11 +2,17 @@ html {
   font-family: helvetica;
   font-size: 14px;
 }
-#graph, #table > table {
+.graph, #table > table {
   clear: left;
   margin: 20px auto;
   position: relative;
   top: 10px;
+}
+.graph {
+  white-space: nowrap;
+}
+.graph > * {
+  vertical-align: middle;
 }
 .error {
   color: red;
@@ -55,6 +61,17 @@ canvas.flot-base {
 }
 #get_img, #progress_img {
   display: none;
+}
+.xaxis {
+  text-align: center;
+}
+.yaxis {
+  display: inline-block;
+  transform:rotate(-90deg);
+  -ms-transform:rotate(-90deg); /* IE 9 */
+  -moz-transform:rotate(-90deg); /* Firefox */
+  -webkit-transform:rotate(-90deg); /* Safari and Chrome */
+  -o-transform:rotate(-90deg); /* Opera */
 }
 .clear {
   clear: both;

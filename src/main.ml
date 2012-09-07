@@ -860,7 +860,7 @@ let show_configurations ~conn som_id tc_config_tbl =
   printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
   printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
   printf "<br /><img id='progress_img' src='progress.gif' />\n";
-  printf "<div id='graph' style='width: 1000px; height: 600px'></div>";
+  printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";
   printf "<div id='table'></div>";
   printf "<script src='rage.js'></script>"
 
