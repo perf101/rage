@@ -489,8 +489,12 @@ function process_report_part(i) {
   s += "SOM units: " + string_to_units(p.som_units) + "<br />";
   s += "Split by property/ies: " + split_by_lines.join(", ") + "<br />";
   var graph_id = "graph_" + part;
+  s += "<div class='graph_container'>";
+  s += "<div class='yaxis'></div>";
   s += "<div id='" + graph_id + "' class='graph' ";
   s += "style='width: 1000px; height: 600px'></div>";
+  s += "<div class='xaxis'></div>";
+  s += "</div>";
   $('body').append(s);
   // build request and fetch data
   var get_build_numbers = function(builds) {
@@ -907,6 +911,9 @@ function GraphObject() {
     stop_plotting();
     graph_data = o;
     var graph = $("#" + o.target);
+    // HTML graph labels
+    graph.siblings(".xaxis").html(o.xaxis);
+    graph.siblings(".yaxis").html(o.yaxis);
     // default options
     point_series = o.series;
     num_series = point_series.length;
@@ -933,7 +940,7 @@ function GraphObject() {
         series.push({
           color: point_series[i].color, data: get_averages(point_series[i].data),
           label: is_checked("show_points") ? null : point_series[i].label,
-          points: {show: !is_checked("show_points")}, lines: {show: true}
+          points: {show: !is_checked("show_points"), symbol: "cross"}, lines: {show: true}
         });
     }
     // options
@@ -1007,9 +1014,6 @@ function GraphObject() {
         }
       });
       if (typeof cb === "function") cb();
-      // HTML graph labels
-      graph.prepend("<div class='yaxis'>" + o.yaxis + "</div>");
-      graph.append("<div class='xaxis'>" + o.xaxis + "</div>");
     });
   }
 

@@ -2,17 +2,21 @@ html {
   font-family: helvetica;
   font-size: 14px;
 }
-.graph, #table > table {
+.graph_container, #table > table {
   clear: left;
   margin: 20px auto;
   position: relative;
   top: 10px;
 }
-.graph {
+.graph_container {
   white-space: nowrap;
+  text-align: center;
 }
-.graph > * {
+.graph_container > * {
   vertical-align: middle;
+}
+.graph {
+  display: inline-block;
 }
 .error {
   color: red;
