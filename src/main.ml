@@ -738,13 +738,20 @@ let print_legend_position_choice id =
   printf "<div id='%s'>\n" id;
   let label = "Legend Position" in
   let legend_positions = [
-    ("North-East", "ne");
-    ("North-West", "nw");
-    ("South-East", "se");
-    ("South-West", "sw");
-    ("(nowhere)", "__");
+    "North-East", "ne";
+    "North-West", "nw";
+    "South-East", "se";
+    "South-West", "sw";
+    "(nowhere)", "__";
   ] in
   print_select ~label ~attrs:[("name", id)] legend_positions;
+  printf "</div>\n"
+
+let print_symbol_choice id =
+  printf "<div id='%s'>\n" id;
+  let label = "Symbol to use" in
+  let symbols = ["Diamond"; "Circle"; "Cross"; "Square"; "Triangle"] in
+  print_select_list ~label ~attrs:[("name", id)] ~selected:["Circle"] symbols;
   printf "</div>\n"
 
 let filter_prefix = "f_"
@@ -849,7 +856,9 @@ let show_configurations ~conn som_id tc_config_tbl =
   checkbox "show_all_meta" "Show all meta-data";
   checkbox "xaxis_log" "Log scale X";
   checkbox "yaxis_log" "Log scale Y";
+  printf "<br />\n";
   print_legend_position_choice "legend_position";
+  print_symbol_choice "symbol";
   printf "<br />\n";
   print_filter_table job_ids builds job_attributes configs som_configs_opt machines;
   printf "</form>\n";

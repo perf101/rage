@@ -14,7 +14,7 @@ var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
   "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#show_all_meta",
-  "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img"
+  "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img"
 ]
 var url_params = get_url_params();
 // ==== GLOBAL VARIABLES --- end ====
@@ -68,6 +68,7 @@ function som_page_init() {
   $("input[name='xaxis_log']").change(fetch_data_and_process);
   $("input[name='yaxis_log']").change(fetch_data_and_process);
   $("select[name='legend_position']").change(fetch_data_and_process);
+  $("select[name='symbol']").change(fetch_data_and_process);
   $(".filterselect").change(fetch_data_and_process);
   $(".multiselect").change(fetch_data_and_process);
   // fetch and process data immediately
@@ -917,6 +918,7 @@ function GraphObject() {
     // default options
     point_series = o.series;
     num_series = point_series.length;
+    var symbol = $("select[name='symbol']").val().toLowerCase();
     series = is_checked("show_points") ? point_series : [];
     // averages and distributions
     for (var i = 0; i < num_series; i++) {
@@ -940,7 +942,8 @@ function GraphObject() {
         series.push({
           color: point_series[i].color, data: get_averages(point_series[i].data),
           label: is_checked("show_points") ? null : point_series[i].label,
-          points: {show: !is_checked("show_points"), symbol: "cross"}, lines: {show: true}
+          points: {show: !is_checked("show_points"), symbol: symbol},
+          lines: {show: true}
         });
     }
     // options
@@ -967,7 +970,7 @@ function GraphObject() {
         backgroundColor: "white",
         position: $("select[name='legend_position']").val(),
       },
-      points: {show: true}
+      points: {show: true, symbol: symbol}
     };
     // force X from 0
     if (is_checked("x_from_zero"))
