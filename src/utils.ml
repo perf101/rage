@@ -25,6 +25,9 @@ let rec concat ?(sep = ",") l =
   String.concat ~sep
     (List.filter l ~f:(fun s -> not (String.is_empty s)))
 
+let string_of_int_list is =
+  concat (List.map ~f:string_of_int is)
+
 let rec print_concat ?(sep = ",") = function
   | [] -> ()
   | [e] -> print_string e
@@ -209,3 +212,55 @@ let print_options_for_fields conn tbl namespace =
   List.iter ~f:(print_options_for_field namespace result)
     (List.range 1 result#nfields);
   printf "<br style='clear: both' />\n"
+
+(* RAGE-specific helper methods. *)
+
+let filter_prefix = "f_"
+let filter_by_value = "1"
+let values_prefix = "v_"
+
+let som_config_tbl_exists ~conn som_id =
+  let som_config_tbl = sprintf "som_config_%d" som_id in
+  som_config_tbl, Sql.tbl_exists ~conn ~tbl:som_config_tbl
+
+let get_std_xy_choices ~conn =
+  let machine_field_lst =
+    List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
+  "branch" :: "product" :: "build_number" :: "build_tag" ::
+  "dom0_memory_static_max" :: "dom0_memory_target" ::
+  "cc_restrictions" ::
+  machine_field_lst
+
+let get_xy_choices ~conn configs som_configs_opt =
+  let som_configs_lst = match som_configs_opt with
+    | None -> []
+    | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
+  in get_std_xy_choices ~conn @ configs#get_fnames_lst @ som_configs_lst
+
+let print_axis_choice ?(multiselect=false) label id choices =
+  printf "<div id='%s' style='display: inline'>\n" id;
+  let attrs = [("name", id)] in
+  let attrs = (if multiselect then ("multiple", "multiple")::attrs else attrs) in
+  print_select_list ~label ~attrs:attrs choices;
+  printf "</div>\n"
+
+let print_empty_x_axis_choice ~conn =
+  print_axis_choice "X axis" "xaxis" []
+
+let print_empty_y_axis_choice ~conn =
+  print_axis_choice "Y axis" "yaxis" []
+
+let print_x_axis_choice ~conn configs som_configs_opt =
+  print_axis_choice "X axis" "xaxis" ~multiselect:true
+    (get_xy_choices ~conn configs som_configs_opt)
+
+let print_y_axis_choice ~conn configs som_configs_opt =
+  print_axis_choice "Y axis" "yaxis"
+    ("result" :: (get_xy_choices ~conn configs som_configs_opt))
+
+let get_tc_config_tbl_name conn som_id =
+  let query = "SELECT tc_fqn FROM soms " ^
+              "WHERE som_id = " ^ (string_of_int som_id) in
+  let result = Sql.exec_exn ~conn ~query in
+  let tc_fqn = String.lowercase (result#getvalue 0 0) in
+  (tc_fqn, "tc_config_" ^ tc_fqn)
