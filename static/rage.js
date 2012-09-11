@@ -678,7 +678,7 @@ function get_minimised_params() {
     var vs = params[p];
     var l = vs.length;
     var f = vs[0]; // first value (the only one for non-multi-selections)
-    var is_xaxis_branch = p == "xaxis" && f == "branch";
+    var is_xaxis_branch = p == "xaxis" && vs == ["branch"];
     var is_yaxis_result = p == "yaxis" && f == "result";
     var is_show_for = p.indexOf("f_") == 0 && f == "0";
     var is_all_only = p.indexOf("v_") == 0 && l == 1 && f == "ALL";

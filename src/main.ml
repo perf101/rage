@@ -88,9 +88,10 @@ let params_of_request get_req =
 let string_of_params params =
   concat ~sep:"\n" (List.map ~f:(fun (k, v) -> k ^ " => " ^ v) params)
 
-let values_for_key params key =
-  List.fold params ~init:[]
-    ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
+let values_for_key ?(default=[]) params key =
+  let xs = List.fold params ~init:[]
+    ~f:(fun acc (k, v) -> if k = key then v::acc else acc) in
+  if xs = [] then default else xs
 
 let get_first_val params k d =
   Option.value ~default:d (List.hd (values_for_key params k))
@@ -146,7 +147,7 @@ let som_config_tbl_exists conn som_id =
 let get_std_xy_choices conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  "branch" :: "build_number" :: "build_tag" ::
+  "branch" :: "product" :: "build_number" :: "build_tag" ::
   "dom0_memory_static_max" :: "dom0_memory_target" ::
   "cc_restrictions" ::
   machine_field_lst
@@ -160,9 +161,11 @@ let get_xy_choices conn configs som_configs_opt =
     | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
   in get_std_xy_choices conn @ configs#get_fnames_lst @ som_configs_lst
 
-let print_axis_choice label id choices =
+let print_axis_choice ?(multiselect=false) label id choices =
   printf "<div id='%s' style='display: inline'>\n" id;
-  print_select_list ~label ~attrs:[("name", id)] choices;
+  let attrs = [("name", id)] in
+  let attrs = (if multiselect then ("multiple", "multiple")::attrs else attrs) in
+  print_select_list ~label ~attrs:attrs choices;
   printf "</div>\n"
 
 let print_empty_x_axis_choice conn =
@@ -172,7 +175,7 @@ let print_empty_y_axis_choice conn =
   print_axis_choice "Y axis" "yaxis" []
 
 let print_x_axis_choice conn configs som_configs_opt =
-  print_axis_choice "X axis" "xaxis"
+  print_axis_choice "X axis" "xaxis" ~multiselect:true
     (get_xy_choices conn configs som_configs_opt)
 
 let print_y_axis_choice conn configs som_configs_opt =
@@ -887,9 +890,14 @@ let som_handler ~place:_ ~conn som_id _ =
 let quote_re = Str.regexp "\""
 
 let should_sort_alphabetically col_types col_name force_as_seq =
-  match force_as_seq with true -> true | false ->
-  match String.Table.find col_types col_name with None -> false | Some ty ->
-  Sql.Type.is_quoted ty
+  match col_name with
+  | [col_name] ->
+      begin
+        match force_as_seq with true -> true | false ->
+        match String.Table.find col_types col_name with None -> false | Some ty ->
+        Sql.Type.is_quoted ty
+      end
+  | _ -> (* always quote if it's multiple-key value *) true
 
 let get_generic_string_mapping rows col col_name col_types force_as_seq =
   if not (should_sort_alphabetically col_types col_name force_as_seq)
@@ -933,20 +941,26 @@ let som_async_handler ~conn som_id params =
     (if som_tbl_exists then [som_config_tbl] else []) in
   let col_fqns = get_column_fqns_many conn tbls in
   let col_types = get_column_types_many conn tbls in
-  let xaxis = get_first_val params "xaxis" "branch" in
+  (* Get axes selections. xaxis may be multi-valued; yaxis is single value. *)
+  let xaxis = values_for_key params "xaxis" ~default:["branch"] in
   let yaxis = get_first_val params "yaxis" "result" in
   let compose_keys ~xaxis ~yaxis ~rest =
     let deduped = List.stable_dedup rest in
-    let filter_cond = non (List.mem ~set:[xaxis; yaxis]) in
-    xaxis :: yaxis :: (List.filter ~f:filter_cond deduped)
+    let filter_cond = non (List.mem ~set:(yaxis::xaxis)) in
+    List.filter ~f:filter_cond deduped
   in
-  let keys =
+  let restkeys =
     let rest = match get_first_val params "show_all_meta" "off" with
     | "on" -> String.Table.keys col_fqns
     | _ -> get_relevant_params params
     in compose_keys ~xaxis ~yaxis ~rest
   in
-  let fqns = List.map keys ~f:(String.Table.find_exn col_fqns) in
+  let fully_qualify_col = String.Table.find_exn col_fqns in
+  let xaxisfqns = List.map xaxis ~f:fully_qualify_col in
+  let yaxisfqns = fully_qualify_col yaxis in
+  let restfqns = List.map restkeys ~f:fully_qualify_col in
+  let xaxis_str = String.concat ~sep:"," xaxis in
+  let keys = xaxis_str :: [yaxis] @ restkeys in
   let filter = extract_filter col_fqns col_types params values_prefix in
   (* obtain SOM meta-data *)
   let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
@@ -954,7 +968,10 @@ let som_async_handler ~conn som_id params =
   let positive = (Sql.get_first_entry_exn ~result:metadata) = "t" in
   (* obtain data from database *)
   let query =
-    (sprintf "SELECT %s " (String.concat ~sep:", " fqns)) ^
+    "SELECT " ^
+    (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
+    yaxisfqns ^ (* y-axis *)
+    (if restfqns = [] then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
     (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
     (sprintf "WHERE measurements.tc_config_id=%s.tc_config_id "
              tc_config_tbl) ^
@@ -992,12 +1009,12 @@ let som_async_handler ~conn som_id params =
   printf "\"positive\":%B," positive;
   printf "\"target\":\"%s\"," (get_first_val params "target" "graph");
   printf "\"part\":%s," (get_first_val params "part" "1");
-  printf "\"xaxis\":\"%s\"," xaxis;
+  printf "\"xaxis\":\"%s\"," xaxis_str;
   printf "\"yaxis\":\"%s\"," yaxis;
   let x_as_seq = ("on" = get_first_val params "x_as_seq" "off") in
   let y_as_seq = ("on" = get_first_val params "y_as_seq" "off") in
   strings_to_numbers rows 0 xaxis col_types "x_labels" x_as_seq;
-  strings_to_numbers rows 1 yaxis col_types "y_labels" y_as_seq;
+  strings_to_numbers rows 1 [yaxis] col_types "y_labels" y_as_seq;
   let num_other_keys = List.length keys - 2 in
   let convert_row row =
     let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in
