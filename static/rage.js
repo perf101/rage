@@ -459,9 +459,14 @@ function on_report_received(r) {
     return "<input type='checkbox' name='" + name + "' " +
       "checked='checked' style='display: none' />";
   };
+  var string_of_hidden_select = function(name, option) {
+    return "<select name='" + name + "' style='display: none'>" +
+      "<option value='" + option + "' /></select>";
+  };
   s += string_of_hidden_checkbox("show_avgs");
   s += string_of_hidden_checkbox("show_points");
   s += string_of_hidden_checkbox("y_fromto_zero");
+  s += string_of_hidden_select("symbol", "Circle");
   $('body').append(s);
   // process report parts iteratively
   process_report_part(0);
