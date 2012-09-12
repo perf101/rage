@@ -1,6 +1,7 @@
 open Core.Std
 open Utils
 
+(** Combines GET and POST parameters. *)
 let get_params_of_request () =
   let get_req = Sys.getenv_exn "QUERY_STRING" in
   let post_req = In_channel.input_all In_channel.stdin in
