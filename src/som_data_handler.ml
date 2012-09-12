@@ -93,7 +93,7 @@ let t ~args = object (self)
     let yaxisfqns = fully_qualify_col yaxis in
     let restfqns = List.map restkeys ~f:fully_qualify_col in
     let xaxis_str = String.concat ~sep:"," xaxis in
-    let keys = xaxis_str :: [yaxis] @ restkeys in
+    let keys = xaxis_str :: [yaxis] @ xaxis @ restkeys in
     let filter = extract_filter col_fqns col_types params values_prefix in
     (* obtain SOM meta-data *)
     let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
@@ -103,7 +103,8 @@ let t ~args = object (self)
     let query =
       "SELECT " ^
       (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
-      yaxisfqns ^ (* y-axis *)
+      yaxisfqns ^ ", " ^ (* y-axis *)
+      (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
       (if restfqns = [] then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
       (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
       (sprintf "WHERE measurements.tc_config_id=%s.tc_config_id "
