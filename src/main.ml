@@ -169,7 +169,7 @@ let print_axis_choice ?(multiselect=false) label id choices =
   printf "</div>\n"
 
 let print_empty_x_axis_choice conn =
-  print_axis_choice "X axis" "xaxis" []
+  print_axis_choice "X axis" "xaxis" [] ~multiselect:true
 
 let print_empty_y_axis_choice conn =
   print_axis_choice "Y axis" "yaxis" []
@@ -358,7 +358,7 @@ let report_create_handler ~conn params =
   ));
   (* Obtain metadata. *)
   let desc = List.hd_exn (values_for_key params "desc") in
-  let xaxis = List.hd_exn (values_for_key params "xaxis") in
+  let xaxis = String.concat ~sep:"," (values_for_key params "xaxis") in
   let yaxis = List.hd_exn (values_for_key params "yaxis") in
   let tuples =
     (match id_opt with None -> [] | Some id -> [("report_id", id)]) @
@@ -943,6 +943,8 @@ let som_async_handler ~conn som_id params =
   let col_types = get_column_types_many conn tbls in
   (* Get axes selections. xaxis may be multi-valued; yaxis is single value. *)
   let xaxis = values_for_key params "xaxis" ~default:["branch"] in
+  (* xaxis could be ["one"; "two"] or ["one%2Ctwo"] -- both are equivalent *)
+  let xaxis = List.concat (List.map ~f:(Str.split (Str.regexp "%2C")) xaxis) in
   let yaxis = get_first_val params "yaxis" "result" in
   let compose_keys ~xaxis ~yaxis ~rest =
     let deduped = List.stable_dedup rest in
