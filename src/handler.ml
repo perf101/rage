@@ -38,13 +38,13 @@ object (self)
     if not html_header_written then self#write_html_header;
     failwith msg
 
-  method get_param key = List.Assoc.find params key
+  method private get_param key = List.Assoc.find params key
 
-  method get_param_exn key = List.Assoc.find_exn params key
+  method private get_param_exn key = List.Assoc.find_exn params key
 
-  method get_params_gen ~params key =
+  method private get_params_gen ~params key =
     List.fold params ~init:[]
       ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
 
-  method get_params key = self#get_params_gen ~params key
+  method private get_params key = self#get_params_gen ~params key
 end
