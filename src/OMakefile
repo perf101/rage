@@ -2,8 +2,32 @@ NATIVE_ENABLED=true
 USE_OCAMLFIND=true
 OCAMLINCLUDES+=ocaml-sql
 OCAMLPACKS=core,postgresql,str
-OCAMLFLAGS=-g -thread -linkpkg -warn-error +a -w +a-4-27 -principal
-FILES=ocaml-sql/sql main utils
+OCAMLFLAGS=-g -thread -linkpkg -warn-error +a -w +a-4-7-13-27 -principal
+HANDLERS=\
+  create_tiny_url_handler \
+  default_handler \
+  handler \
+  html_handler \
+  javascript_only_handler \
+  json_handler \
+  redirect_tiny_url_handler \
+  reports_handler \
+  report_handler \
+  report_clone_handler \
+  report_create_handler \
+  report_delete_handler \
+  report_generator_page_handler \
+  soms_handler \
+  som_data_handler \
+  som_index_handler \
+  som_page_handler \
+  std_axes_handler
+FILES=\
+  ocaml-sql/sql \
+  $(HANDLERS) \
+  main \
+  place \
+  utils
 
 .SUBDIRS: ocaml-sql
 	UseCamlp4(sexplib.syntax, sql)

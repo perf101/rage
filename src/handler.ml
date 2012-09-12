@@ -1,0 +1,50 @@
+open Core.Std
+open Printf
+open Utils
+
+type args = {
+  conn : Postgresql.connection;
+  params : (string * string) list;
+}
+
+class virtual t = fun ~(args : args) ->
+object (self)
+  val conn = args.conn
+  val params = args.params
+
+  val base_path : string =
+    let exe = Sys.argv.(0) in
+    String.sub exe ~pos:0 ~len:((String.rindex_exn exe '/') + 1)
+
+  val mutable html_header_written : bool = false
+
+  method private write_header = ()
+
+  method private write_body = ()
+
+  method private write_footer = ()
+
+  method handle =
+    self#write_header;
+    self#write_body;
+    self#write_footer
+
+  method private write_html_header =
+    printf "Content-type: text/html\n\n";
+    cat (base_path ^ "header.html");
+    html_header_written <- true
+
+  method private fail (msg : string) : unit =
+    if not html_header_written then self#write_html_header;
+    failwith msg
+
+  method get_param key = List.Assoc.find params key
+
+  method get_param_exn key = List.Assoc.find_exn params key
+
+  method get_params_gen ~params key =
+    List.fold params ~init:[]
+      ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
+
+  method get_params key = self#get_params_gen ~params key
+end

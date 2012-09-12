@@ -23,11 +23,11 @@ var url_params = get_url_params();
 decode_all();
 if ("som" in url_params)
   som_page_init();
-else if ("somsbytc" in url_params)
+else if (url_params.p == "soms_by_tc")
   soms_by_tc_page_init();
-else if ("report" in url_params)
+else if (url_params.p == "report_page")
   report_page_init();
-else if ("report_generator" in url_params)
+else if (url_params.p == "report_generator_page")
   report_generator_page_init();
 // ========= MAIN --- end ============
 
@@ -81,8 +81,10 @@ function som_page_init() {
 }
 
 function soms_by_tc_page_init() {
+  var request = get_base_url() + "/?p=soms";
+  console.log("Request:", request);
   $.ajax({
-    url: get_base_url() + "/?somsasync",
+    url: request,
     type: 'GET',
     dataType: 'json',
     success: on_soms_by_tc_received,
@@ -91,7 +93,7 @@ function soms_by_tc_page_init() {
 }
 
 function on_soms_by_tc_received(o) {
-  console.log(o);
+  console.log("Response:", o);
   var tc_to_soms = {};
   $.each(o.soms, function(som_id, som) {
     if (!(som.tc in tc_to_soms)) tc_to_soms[som.tc] = [];
@@ -113,8 +115,8 @@ function on_soms_by_tc_received(o) {
 }
 
 function report_page_init() {
-  var report_id = parseInt(url_params.report[0]);
-  var request = window.location.href + "&async=true";
+  var report_id = parseInt(url_params.id[0]);
+  var request = get_base_url() + "/?p=report&id=" + report_id;
   console.log("Request:", request);
   $.ajax({
     url: request,
@@ -137,7 +139,7 @@ function on_report_generator_checkbox_change() {
   $("#configs_" + som_id).toggle(false);
   $("#points_" + som_id).toggle(false);
   if (!$(this).is(":checked")) return;
-  var request = "/?som=" + som_id;
+  var request = "/?p=som_data&id=" + som_id;
   var tc_fqn = $("#tc_of_" + som_id).html();
   var builds = [];
   var prim_std_builds = get_options_for("primary_standard_builds");
@@ -177,7 +179,6 @@ function on_report_generator_checkbox_change() {
   field.html("(configs = " + num_configs + ")");
   field.toggle(true);
   request += "&target=" + som_id;
-  request += "&async=true";
   console.log(request);
   $.ajax({
     url: request,
@@ -246,7 +247,7 @@ var last_axes_received;
 function report_generator_page_init() {
   $("input[type='checkbox']").change(on_report_generator_checkbox_change);
   $.ajax({
-    url: "/?axesasync",
+    url: "/?p=std_axes",
     type: 'GET',
     dataType: 'json',
     success: function(axes) {
@@ -265,7 +266,7 @@ function report_generator_page_init_stage_two() {
     return;
   }
   var report_id = parseInt(url_params.id[0]);
-  var request = "/?report=" + report_id + "&async=true";
+  var request = "/?p=report&id=" + report_id;
   console.log(request);
   $.ajax({
     url: request,
@@ -506,7 +507,7 @@ function process_report_part(i) {
   var get_build_numbers = function(builds) {
     return $.map(r.builds.primary, function(b) {return b.build_number;});
   };
-  var request = "/?som=" + p.som_id + "&async=true";
+  var request = "/?p=som_data&id=" + p.som_id;
   var params = {
     part: i,
     show_all_meta: "on",
@@ -632,7 +633,7 @@ function get_image() {
 function get_tinyurl() {
   $.ajax({
     url: get_base_url(),
-    data: {action: "CreateTiny", url: get_permalink()},
+    data: {p: "create_tiny_url", url: get_permalink()},
     type: 'POST',
     dataType: 'json',
     success: function(data) {
@@ -683,8 +684,9 @@ function get_minimised_params() {
     var is_show_for = p.indexOf("f_") == 0 && f == "0";
     var is_all_only = p.indexOf("v_") == 0 && l == 1 && f == "ALL";
     var is_legend_position_ne = p == "legend_position" && f == "ne";
+    var is_symbol_circle = p == "symbol" && f == "Circle";
     if (!(is_xaxis_branch || is_yaxis_result || is_show_for || is_all_only
-        || is_legend_position_ne))
+        || is_legend_position_ne || is_symbol_circle))
       minimised[p] = $.map(vs, decode);
   }
   return minimised;
@@ -703,7 +705,7 @@ function fetch_data_and_process() {
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
   var som_id = url_params.som[0];
-  var request = "/?som=" + som_id + "&async=true";
+  var request = "/?p=som_data&id=" + som_id;
   var params = get_minimised_params();
   console.log("Request:", request, params);
   $.ajax({
