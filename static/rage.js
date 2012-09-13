@@ -286,7 +286,11 @@ function set_select_options(sel_obj, options) {
   });
 }
 
-// the specified option is added if not present
+// the specified options are not added if not present
+function select_option_multiple(sel_obj, options) {
+  sel_obj.val(options);
+}
+
 function select_option(sel_obj, option) {
   var present = false;
   sel_obj.children("option").each(function() {
@@ -307,7 +311,7 @@ function on_report_received_edit(o) {
   var id_input = "<input type='hidden' name='id' value='" + report_id + "' />";
   $('input[name="report_create"]').after(id_input)
   $('input[name="desc"]').val(decode(o.desc));
-  select_option($('select[name="xaxis"]'), decode(o.xaxis));
+  select_option_multiple($('select[name="xaxis"]'), decode(o.xaxis).split(','));
   select_option($('select[name="yaxis"]'), decode(o.yaxis));
   var primary_bns = Object.keys(extract_build_numbers(o.builds.primary));
   var secondary_bns = Object.keys(extract_build_numbers(o.builds.secondary));
