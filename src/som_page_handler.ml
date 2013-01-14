@@ -40,7 +40,7 @@ let t ~args = object (self)
       match som_configs_opt with None -> [] | Some som_configs ->
       List.tl_exn (som_configs#get_fnames_lst) in
     let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag";
-      "dom0_memory_static_max"; "dom0_memory_target"; "cc_restrictions"] @
+      "dom0_memory_static_max"; "dom0_memory_target"; "cc_restrictions"; "redo_log"] @
       machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
     (* OPTIONS *)
     let job_id_lst = get_options_for_field job_ids 0 in
@@ -51,6 +51,7 @@ let t ~args = object (self)
     let dom0_memory_static_max_lst = get_options_for_field job_attributes 0 in
     let dom0_memory_target_lst = get_options_for_field job_attributes 1 in
     let cc_restrictions_lst = get_options_for_field job_attributes 2 in
+    let redo_log_lst = get_options_for_field job_attributes 3 in
     let machine_options_lst = List.map (List.range 0 machines#nfields)
       ~f:(fun col -> get_options_for_field machines col) in
     let config_options_lst = List.map (List.range 0 configs#nfields)
@@ -61,7 +62,7 @@ let t ~args = object (self)
         ~f:(fun col -> get_options_for_field som_configs col) in
     let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst;
       tag_lst; dom0_memory_static_max_lst; dom0_memory_target_lst;
-      cc_restrictions_lst] @ machine_options_lst @ config_options_lst @
+      cc_restrictions_lst; redo_log_lst] @ machine_options_lst @ config_options_lst @
       som_config_options_lst in
     let print_table_for (label, options) =
       printf "<table border='1' class='filter_table'>\n";
@@ -97,7 +98,7 @@ let t ~args = object (self)
       (sprintf "AND m.som_id=%d" som_id) in
     let builds = Sql.exec_exn ~conn ~query in
     let query = "SELECT DISTINCT " ^
-      "dom0_memory_static_max, dom0_memory_target, cc_restrictions " ^
+      "dom0_memory_static_max, dom0_memory_target, cc_restrictions, redo_log " ^
       "FROM tc_config AS c, jobs AS j, measurements AS m " ^
       "WHERE m.job_id=j.job_id AND j.job_id=c.job_id " ^
       (sprintf "AND m.som_id=%d" som_id) in

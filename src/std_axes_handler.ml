@@ -8,7 +8,7 @@ let t ~args = object (self)
       List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
     "branch" :: "build_number" :: "build_tag" ::
     "dom0_memory_static_max" :: "dom0_memory_target" ::
-    "cc_restrictions" ::
+    "cc_restrictions" :: "redo_log" ::
     machine_field_lst
 
   method private get_std_x_choices = self#get_std_xy_choices
