@@ -309,7 +309,7 @@ function on_report_received_edit(o) {
   last_report_received = o;
   var report_id = url_params.id;
   var id_input = "<input type='hidden' name='id' value='" + report_id + "' />";
-  $('input[name="report_create"]').after(id_input)
+  $('input[name="p"]').after(id_input)
   $('input[name="desc"]').val(decode(o.desc));
   select_option_multiple($('select[name="xaxis"]'), decode(o.xaxis).split(','));
   select_option($('select[name="yaxis"]'), decode(o.yaxis));

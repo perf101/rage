@@ -47,4 +47,7 @@ object (self)
       ~f:(fun acc (k, v) -> if k = key then v::acc else acc)
 
   method private get_params key = self#get_params_gen ~params key
+
+  method private debug_params =
+    List.iter ~f:(fun (k, v) -> debug (sprintf "%s ==> %s" k v)) params
 end
