@@ -1,6 +1,8 @@
 open Core.Std
 open Utils
 
+let jira_hostname = "jira.uk.xensource.com"
+
 let t ~args = object (self)
   inherit Html_handler.t ~args
 
@@ -8,10 +10,12 @@ let t ~args = object (self)
 
   method private write_som_info som_info =
     let i = som_info#get_all.(0) in
+    let id = i.(0) in
     let name = sprintf "<span class='som_name'>%s</span>" i.(1) in
-    let prefix = "<div class='som'>SOM:" in
+    let jira_link = sprintf "<a href='http://%s/browse/SOM-%s'>SOM-%s</a>" jira_hostname id id in
+    let prefix = "<div class='som'>" in
     let suffix = "</div><br />\n" in
-    printf "%s %s (id: %s, tc: %s) %s" prefix name i.(0) i.(2) suffix
+    printf "%s%s: %s (tc: %s) %s" prefix jira_link name i.(2) suffix
 
   method private write_legend_position_choice id =
     printf "<div id='%s'>\n" id;
