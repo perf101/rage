@@ -228,7 +228,7 @@ let get_std_xy_choices ~conn =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
   "branch" :: "product" :: "build_number" :: "build_tag" ::
   "dom0_memory_static_max" :: "dom0_memory_target" ::
-  "cc_restrictions" :: "redo_log" :: "network_backend" ::
+  "cc_restrictions" :: "redo_log" :: "option_clone_on_boot" :: "network_backend" ::
   machine_field_lst
 
 let get_xy_choices ~conn configs som_configs_opt =
