@@ -21,7 +21,10 @@ HANDLERS=\
   som_data_handler \
   som_index_handler \
   som_page_handler \
-  std_axes_handler
+  std_axes_handler \
+  briefs_handler \
+  brief_handler \
+  brief_create_handler
 FILES=\
   ocaml-sql/sql \
   $(HANDLERS) \
@@ -34,7 +37,7 @@ FILES=\
 	clean:
 		make -C $(ROOT)/src/ocaml-sql clean
 
-UseCamlp4(sexplib.syntax, main utils)
+UseCamlp4(sexplib.syntax, main utils brief_handler)
 
 OCamlProgram($(PROGRAM), $(FILES))
 

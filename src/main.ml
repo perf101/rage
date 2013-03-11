@@ -45,6 +45,9 @@ let handle_request () =
     | Soms -> Soms_handler.t
     | SomsByTc -> Javascript_only_handler.t
     | StdAxes -> Std_axes_handler.t
+    | Briefs  -> Briefs_handler.t
+    | Brief -> Brief_handler.t
+    | BriefCreate -> Brief_create_handler.t
   end in (handler ~args)#handle;
   conn#finish;
   let elapsed_time = Unix.gettimeofday () -. start_time in

@@ -19,6 +19,9 @@ type t =
   | Soms
   | SomsByTc
   | StdAxes
+  | Briefs
+  | Brief
+  | BriefCreate
 
 let of_string = function
   | "create_tiny_url" -> CreateTinyUrl
@@ -35,6 +38,9 @@ let of_string = function
   | "som_data" -> SomData
   | "som_index" -> SomIndex
   | "std_axes" -> StdAxes
+  | "briefs" -> Briefs
+  | "brief" -> Brief
+  | "brief_create" -> BriefCreate
   | p -> failwith ("place_of_string: " ^ p)
 
 let string_of = function
@@ -54,3 +60,6 @@ let string_of = function
   | Soms -> "Soms"
   | SomsByTc -> "SomsByTc"
   | StdAxes -> "StdAxes"
+  | Briefs -> "briefs"
+  | Brief -> "brief"
+  | BriefCreate -> "brief_create"
