@@ -412,7 +412,7 @@ som_config_${som_id}
     let of_round avg stddev ~f0 ~f1 ~f2 =
       let lower = avg -. 2.0 *. stddev in (* 2-sigma = 95% confidence assuming normal distribution *)
       let upper = avg +. 2.0 *. stddev in
-      if avg < min_float
+      if (abs_float avg) < min_float
       then f0 ()
       else if stddev /. avg < 0.05 (* see if the relative std error is <5% *)
         then f1 (round avg stddev)                                           (* 95% confidence *)
