@@ -9,6 +9,7 @@ type base_t = (string * string list) list with sexp
 type baseline_t = int with sexp
 type ctx_t  = (string * string list) list with sexp
 type str_lst_t = string list with sexp
+type out_t  = [`Html | `Wiki] with sexp
 
 type result_t = Avg of float | Range of float * float * float
 
@@ -30,9 +31,16 @@ let t ~args = object (self)
         let replace kvs overrides =
           List.fold_left kvs ~init:[] ~f:(fun acc (k,v)->match List.find overrides ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
         in
-        (replace 
-          (List.map ~f:(fun p->let ls=String.split ~on:'=' p in (List.nth_exn ls 0),(List.nth_exn ls 1)) (String.split ~on:'&' (brief_params_of_id brief_id) ))
-          params (* if params present, use it preferrably over the args in the db *)
+        let replaced = 
+          (replace 
+            (List.map ~f:(fun p->let ls=String.split ~on:'=' p in (List.nth_exn ls 0),(List.nth_exn ls 1)) (String.split ~on:'&' (brief_params_of_id brief_id) ))
+            params (* if params present, use it preferrably over the args in the db *)
+          )
+        in
+        List.fold_left params ~init:replaced ~f:(fun acc (k,v)->
+          match List.find acc ~f:(fun (ka,_)->k=ka) with
+          |None->(k,v)::acc (* if params contains a k not in the db, add this k to args *)
+          |Some _->acc
         )
     in
     let url_decode url = (* todo: find a more complete version in some lib *)
@@ -47,11 +55,21 @@ let t ~args = object (self)
     let params_rows=(try url_decode (List.Assoc.find_exn args "rows") with |_-> "") in
     let params_base=(try url_decode (List.Assoc.find_exn args "base") with |_-> "") in
     let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
+    let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
+
+    let attempt ~f a =
+      try f()
+      with Of_sexp_error (exn,t)-> (
+          let e = Exn.to_string exn in
+          printf "\n<p>syntax error in %s: %s when parsing the substring \"%s\"</p>\n" a e (Sexp.to_string t);
+          raise exn
+        )
+    in
 
     (* eg.: input_cols_sexp="(((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1)))((machine_name(xrtuk-08-02 xrtuk-08-04)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(2 3)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1 2 3))(soms(288))))" *)
     let input_cols =
       if params_cols <> "" then
-        cols_t_of_sexp (Sexp.of_string params_cols) 
+        attempt ~f:(fun ()->cols_t_of_sexp (Sexp.of_string params_cols) ) "cols"
       else (*default value *) 
         []
     in 
@@ -59,7 +77,7 @@ let t ~args = object (self)
 
     let input_rows = 
       if params_rows <> "" then
-        rows_t_of_sexp (Sexp.of_string params_rows) 
+        attempt ~f:(fun ()->rows_t_of_sexp (Sexp.of_string params_rows)) "rows"
       else (*default value *)
         []
     in
@@ -75,7 +93,7 @@ let t ~args = object (self)
      *)
     let input_base_context = 
       if params_base <> "" then
-        base_t_of_sexp (Sexp.of_string params_base) 
+        attempt ~f:(fun ()->base_t_of_sexp (Sexp.of_string params_base)) "base" 
       else (*default value *)
         []
     in
@@ -83,11 +101,19 @@ let t ~args = object (self)
 
     let baseline_col_idx =
        if params_baseline <> "" then
-         baseline_t_of_sexp (Sexp.of_string params_baseline)
+         attempt ~f:(fun ()->baseline_t_of_sexp (Sexp.of_string params_baseline)) "baseline"
        else (*default value *)
          0
     in
     printf "<input_baseline_col_sexp %s/>\n" (Sexp.to_string (sexp_of_baseline_t baseline_col_idx));
+
+    let out =
+       if params_out <> "" then
+         attempt ~f:(fun ()->out_t_of_sexp (Sexp.of_string (String.capitalize params_out))) "out"
+       else (*default value *)
+         `Html 
+    in
+    printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
 
     (* === process === *)
 
@@ -354,11 +380,13 @@ let t ~args = object (self)
         else f2 (round lower stddev) (round avg stddev) (round upper stddev) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
-    let str_of_round avg stddev =
+    let str_of_round ?f1_fmt ?f2_fmt avg stddev =
+      let _f1_fmt = match f1_fmt with None->"%s"|Some x->x in
+      let _f2_fmt = match f2_fmt with None->"[%s, %s, %s]"|Some x->x in
       of_round avg stddev
         ~f0:(fun ()->"0")
-        ~f1:(fun a->sprintf "%s" (fst a))
-        ~f2:(fun l a u->sprintf "[%s, %s, %s]" (fst l) (fst a) (fst u))
+        ~f1:(fun a->sprintf (Scanf.format_from_string _f1_fmt "%s") (fst a) ) 
+        ~f2:(fun l a u->sprintf (Scanf.format_from_string _f2_fmt "%s %s %s") (fst l) (fst a) (fst u))
     in
     let val_of_round avg stddev =
       of_round avg stddev
@@ -394,11 +422,11 @@ let t ~args = object (self)
       |Range (bl, ba, bu)-> abs_float ba)
     in
     (* pretty print a list of values as average and stddev *) 
-    let str_stddev_of xs =
+    let str_stddev_of ?f1_fmt ?f2_fmt xs =
       try
         if List.length xs < 1 then "-"
-        else str_of_round (avg xs) (stddev xs)
-      with |_-> sprintf "error: %s %f %f " (Sexp.to_string (sexp_of_str_lst_t xs)) (avg xs) (stddev xs)
+        else str_of_round ?f1_fmt ?f2_fmt (avg xs) (stddev xs)
+      with |e-> sprintf "error %s: %s %f %f " (Exn.to_string e) (Sexp.to_string (sexp_of_str_lst_t xs)) (avg xs) (stddev xs)
     in
     let val_stddev_of xs =
       try
@@ -407,7 +435,7 @@ let t ~args = object (self)
       with |_-> Avg (-1000.0)
     in
 
-    let confluence_html_writer table =
+    let html_writer table =
 
       let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if acc="" then "\""^v^"\"" else acc^", \""^v^"\"") in
       let str_of_ctxs ?(txtonly=false) kvs = 
@@ -459,7 +487,8 @@ let t ~args = object (self)
           ) in
           is_mb None _vs
         )
-      in 
+      in
+      let html_table =
       sprintf "<tr> <td style='background-color:papayawhip;'>%s</td></tr>\n%s%s%s"
       (* print the base context *)
       (str_of_ctxs b)
@@ -511,12 +540,136 @@ let t ~args = object (self)
             ))
           )
        ))
-      ) 
+      )
+      in
+      printf "%s" "<p>Rage Report</p>\n";
+      printf "%s" "<p>- Numbers reported at 95% confidence level from the data of existing runs</p>\n";
+      printf "%s" "<p>- (x) indicates number of samples</p>\n";
+      printf "%s" "<p>- [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</p>\n";
+      printf "<table>%s</table>" html_table;
     in
-    printf "%s" "<p>Rage Report</p>\n";
-    printf "%s" "<p>- Numbers reported at 95% confidence level from the data of existing runs</p>\n";
-    printf "%s" "<p>- (x) indicates number of samples</p>\n";
-    printf "%s" "<p>- [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</p>\n";
-    printf "<table>%s</table>" (confluence_html_writer measurements_of_table);
+
+    let wiki_writer table =
+
+      let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if acc="" then "\""^v^"\"" else acc^", \""^v^"\"") in
+      let str_of_ctxs ?(txtonly=false) kvs = 
+        List.fold_left kvs ~init:"" ~f:(fun acc (k,v)->
+          (sprintf "%s %s=(%s)%s " acc k (str_of_values v) (if txtonly then "" else "\\\\") )
+        )
+      in
+      let str_desc_of_ctxs kvs =
+        List.fold_left kvs ~init:"" ~f:(fun acc (k,vs)->
+          if k<>"soms" then acc else
+          (sprintf "%s %s \\\\" acc (List.fold_left vs ~init:"" ~f:(fun acc2 som->
+              let s=sprintf "%s: *%s* (%s, %s)" (tc_of_som som) (name_of_som som) (unit_of_som som) (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
+              if acc="" then s else acc^","^s
+            ))
+          )
+        )
+      in
+          let link ctx =
+          (* link *)
+          (
+          (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
+          let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
+          (sprintf "[graph|http://perf/?som=%s&show_dist=on%s%s]" som_id
+            (* xaxis *)
+            (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
+            (* preset values *)
+            (List.fold_left ctx ~init:"" ~f:(fun acc (k,vs)->sprintf "%s%s" acc 
+             (List.fold_left vs ~init:"" ~f:(fun acc2 v->sprintf "%s&v_%s=%s" acc2 k v)
+             )
+            ))
+          ))
+          in
+      let is_more_is_better ctx =
+        match List.find ctx ~f:(fun (k,_)->k="soms") with
+        |None->None
+        |Some (k,_vs)->(
+          let rec is_mb acc vs = (match vs with
+          |[]->if acc=None then None else acc
+          |v::vs->(let mb = more_is_better_of_som v in
+            if mb="" then is_mb acc vs (* ignore more_is_better if not defined in db *)
+            else
+              let mbtf = match mb with m when m="f"->false|_->true in
+              match acc with
+              |None->is_mb (Some mbtf) vs
+              |Some _mbtf->if _mbtf=mbtf
+              then is_mb (Some mbtf) vs  (* more_is_better values agree between soms *)
+              else None                  (* more_is_better values disagree between soms *)
+            )
+          ) in
+          is_mb None _vs
+        )
+      in
+      let wiki_table =
+      sprintf "| %s|\n%s%s\n%s"
+      (* print the base context *)
+      (str_of_ctxs b)
+      (* print the header *)
+      (sprintf "||id|| Description || View || %s \n"
+        (List.foldi cs ~init:"" ~f:(fun i acc _ ->
+          sprintf "%s %s ||" acc (if i=baseline_col_idx then "Baseline" else (sprintf "Comparison %d" i))
+        ))
+      )
+      (* print the columns *)
+      (sprintf "|| || || || %s"
+        (List.fold_left ~init:""
+          ~f:(fun acc cs->sprintf "%s %s || " acc (str_of_ctxs cs)) cs
+        )
+      )
+      (* print the cells *)
+      (List.fold_left ~init:"" ~f:(fun acc r_ms->acc^r_ms)
+       (List.map3_exn table rs link_ctxs ~f:(fun cs r lnkctx ->
+        sprintf "| %s | %s | %s | %s \n" 
+          (* row id/title *)
+          (str_of_ctxs r)
+          (* row description *)
+          (str_desc_of_ctxs r)
+          (* graph link *)
+          (link lnkctx)
+          (* cells to the right *)
+          (List.fold_left ~init:"" ~f:(fun acc c_ms->(sprintf "%s %s | " acc c_ms))
+            (List.mapi cs ~f:(fun i (r,c,ctx,ms)->
+              let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
+(*
+              sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>"
+              (Sexp.to_string (sexp_of_ctx_t r))
+              (Sexp.to_string (sexp_of_ctx_t c))
+              (str_of_ctxs ctx ~txtonly:true)
+              (Sexp.to_string (sexp_of_str_lst_t ms))
+*)
+              (sprintf "{color:%s} %s %s %s {color}"
+                (if baseline_col_idx = i then "" else
+                 match is_more_is_better ctx with
+                 |None->""
+                 |Some mb->if is_green (val_stddev_of baseline_ms) (val_stddev_of ms) mb then "green" else "red"
+                )
+                (str_stddev_of ms ~f2_fmt:"\\\\[%s, %s, %s\\\\]")
+                (sprintf "~(%d)~" (List.length ms))
+                (if baseline_col_idx = i then "" else
+                 match is_more_is_better ctx with
+                 |None->""
+                 |Some mb->sprintf "~(%+.0f%%)~" (100.0 *. (proportion (val_stddev_of baseline_ms) (val_stddev_of ms) mb))
+                )
+              )
+            ))
+          )
+       ))
+      )
+      in
+      printf "%s" "<pre>";
+      printf "%s" "h1. Rage Report\n\n";
+      printf "- [live html version, with parameters %s |http://perf/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k v))) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k v));
+      printf "%s" "- Numbers reported at 95% confidence level from the data of existing runs\n";
+      printf "%s" "- \\(x) indicates number of samples\n";
+      printf "%s" "- \\[lower, avg, upper] indicates \\[avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.\n\n";
+      printf "%s" wiki_table;
+      printf "%s" "</pre>";
+    in
+
+    match out with
+    |`Html -> html_writer measurements_of_table 
+    |`Wiki -> wiki_writer measurements_of_table
 
 end
