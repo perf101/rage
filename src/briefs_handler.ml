@@ -15,16 +15,20 @@ let t ~args = object (self)
       printf "<td>%s</td>" id;
       printf "<td class='encoded'>%s</td>" desc;
       printf "<td>%s</td>" params;
-      printf "<td><a href='/marcusg/?p=brief&id=%s'>View</a></td>" id;
+      printf "<td><a href='/?p=brief&id=%s'>View</a></td>" id;
+(*
       printf "<td><a href='/?p=brief_generator_page&id=%s'>Edit</a></td>" id;
       printf "<td><a href='/?p=brief_clone&id=%s'>Clone</a></td>" id;
       printf "<td><a href='/?p=brief_delete&id=%s'>Delete</a></td>" id;
+*)
       printf "</tr>";
     in
     printf "<table border='1'>\n";
     printf "<tr><th>ID</th><th>Description</th><th colspan='4'>Parameters</th></tr>";
     Array.iter ~f:print_brief result#get_all;
     printf "</table>\n";
+(*
     printf "<a href='/?p=report_generator_page'>New</a>\n";
+*)
     self#include_javascript
 end
