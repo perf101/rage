@@ -15,46 +15,6 @@ type result_t = Avg of float | Range of float * float * float
 let t ~args = object (self)
   inherit Html_handler.t ~args
 
-(* NOTES:
-
-1) SELECTS:
-
-select measurements.result
-from measurements
-join tc_config_vmsuspendresume on measurements.tc_config_id=tc_config_vmsuspendresume.tc_config_id
-join som_config_122 on measurements.som_config_id=som_config_122.som_config_id
-join tc_config on measurements.job_id=tc_config.job_id
-join machines on tc_config.machine_id=machines.machine_id
-where measurements.som_id=122
-and tc_config_vmsuspendresume.vmtype='demo'
-and tc_config_vmsuspendresume.storage='local-ext'
-and tc_config.redo_log=false
-and som_config_122.memsize=2048
-and machines.machine_type='Dell PowerEdge 2950';
- 
-In order to construct that query, we needed to initially know that som 122 comes from the “vmsuspendresume” TC, which we can initially find out with:
-
-select tc_fqn from soms where som_id=122;
-
-2) measurements table: job_id, tc_config_id, som_id, som_config_id, result_id, -- result
--> so, in order to obtain a set of results, one or more of the following need to be defined in the measurement select:
-- job_id
-- tc_config_id
-- som_id
-- som_config_id
-- result_id      (probably not useful to use in the select for the brief)
-
-2a) tc_config table: job_id, tc_fqn, tc_config_id, machine_id, dom0_memory_static_max, dom0_memory_target, cc_restrictions, redo_log, network_backend
-
-2b) soms table: som_id, som_name, tc_fqn, more_is_better, units, positive
-
-2c) builds table: build_id, product, branch, build_number, build_tag
-
-2d) specialized tables:
-tc_config_${tc_fqn}
-som_config_${som_id}
-
-*)
   method private write_body =
 
     (* === input === *)
@@ -70,7 +30,6 @@ som_config_${som_id}
         let replace kvs overrides =
           List.fold_left kvs ~init:[] ~f:(fun acc (k,v)->match List.find overrides ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
         in
-        (*printf "%s" (List.fold_left ~init:"" ~f:(fun acc s->acc ^ "---" ^ s) (String.split ~on:'&' (brief_params_of_id brief_id) )); ( "","","","")*)
         (replace 
           (List.map ~f:(fun p->let ls=String.split ~on:'=' p in (List.nth_exn ls 0),(List.nth_exn ls 1)) (String.split ~on:'&' (brief_params_of_id brief_id) ))
           params (* if params present, use it preferrably over the args in the db *)
@@ -93,37 +52,17 @@ som_config_${som_id}
     let input_cols =
       if params_cols <> "" then
         cols_t_of_sexp (Sexp.of_string params_cols) 
-      else (*default test value *)
-    [
-      (* column 1 *)
-      [ ("machine_name",["xrtuk-08-02";"xrtuk-08-04 05"]); ("active_session_count",["1"]) ];
-      (* column 2 *)
-      [ ("machine_name",["xrtuk-08-02";"xrtuk-08-04"]); ];
-      (* column 3 *)
-      [ ("machine_name",["xrtuk-08-02";"xrtuk-08-04"]); ("active_session_count",["2"; "3"]) ];
-      (* column 4 *)
-      [ ("machine_name",["xrtuk-08-02";"xrtuk-08-04"]); ("active_session_count",["1";"2";"3"]); ("soms",["288"]); ];
-    ] in 
+      else (*default value *) 
+        []
+    in 
     printf "<input_cols_sexp %s/>\n" (Sexp.to_string (sexp_of_cols_t input_cols));
 
     let input_rows = 
       if params_rows <> "" then
         rows_t_of_sexp (Sexp.of_string params_rows) 
-      else (*default test value *)
-    [ (* output sorted by appeareance order in this list *)
-      (* row 1 *)
-(*    [  ("tcs",["lmbench"]); ]; (* = all soms in lmbench *) *)
-      (* row 2 *)
-      [ ("soms",["293";"288"]); ];
-      (* row 3 *)
-      [ ("tcs",["network"]); ];  (* = all soms in network *)
-      (* row 4 *)
-      [ ("soms",["288"]); ("srtype",["nfs"]); ]; (* more than one argument in a row *) 
-      (* row 5 *)
-      [ ("soms",["288"]); ("srtype",["ext"]); ]; (* more than one argument in a row *) 
-      (* row 6 *)
-      [ ("soms",["288"]); ("machine_name",["xrtuk-08-02"]); ("srtype",["nfs"]); ]; (* more than one argument in a row *) 
-    ] in
+      else (*default value *)
+        []
+    in
     printf "<input_rows_sexp %s/>\n" (Sexp.to_string (sexp_of_rows_t input_rows));
 
 
@@ -134,15 +73,11 @@ som_config_${som_id}
             the cells or does it contribute to them with lower-priority than rows and col contexts?
       TODO: use intersection between base_context and input_cols and input_rows
      *)
-(*
-    let base_context = List.split (Str.regexp ",") (List.assoc.find_exn params "base_context") in
-*)
     let input_base_context = 
       if params_base <> "" then
         base_t_of_sexp (Sexp.of_string params_base) 
-      else (*default test value *)
-    [("build_number",["59235"]); ("active_session_count",["1";"2";"3"]); ]
-    (*("dom0_memory_static_max",["4096"]);("number_of_cpus",["2"])]*)
+      else (*default value *)
+        []
     in
     printf "<input_base_sexp %s/>\n" (Sexp.to_string (sexp_of_base_t input_base_context));
 
@@ -583,32 +518,5 @@ som_config_${som_id}
     printf "%s" "<p>- (x) indicates number of samples</p>\n";
     printf "%s" "<p>- [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</p>\n";
     printf "<table>%s</table>" (confluence_html_writer measurements_of_table);
-
-(*
-
-select measurements.result
-from measurements
-join tc_config_vmsuspendresume on measurements.tc_config_id=tc_config_vmsuspendresume.tc_config_id
-join som_config_122 on measurements.som_config_id=som_config_122.som_config_id
-join tc_config on measurements.job_id=tc_config.job_id
-join machines on tc_config.machine_id=machines.machine_id
-where measurements.som_id=122
-and tc_config_vmsuspendresume.vmtype='demo'
-and tc_config_vmsuspendresume.storage='local-ext'
-and tc_config.redo_log=false
-and som_config_122.memsize=2048
-and machines.machine_type='Dell PowerEdge 2950';
- 
-In order to construct that query, we needed to initially know that som 122 comes from the “vmsuspendresume” TC, which we can initially find out with:
-
-select tc_fqn from soms where som_id=122;
-
-
-
-
-SELECT machines.cpu_model, measurements.result, machines.cpu_model, builds.branch, builds.build_tag, tc_config.dom0_memory_static_max, tc_config.dom0_memory_target, tc_config.cc_restrictions, tc_config_lmbench.memsize, tc_config_lmbench.vmtype FROM measurements, jobs, builds, tc_config, machines, tc_config_lmbench WHERE measurements.tc_config_id=tc_config_lmbench.tc_config_id AND measurements.som_id=41 AND measurements.job_id=jobs.job_id AND jobs.build_id=builds.build_id AND tc_config.job_id=jobs.job_id AND tc_config.tc_fqn='lmbench' AND tc_config.tc_config_id=measurements.tc_config_id AND tc_config.machine_id=machines.machine_id AND tc_config_lmbench.vmtype IN ('dom0') AND tc_config_lmbench.memsize IN (256) AND builds.build_tag IN ('') AND tc_config.dom0_memory_target IS NULL AND tc_config.dom0_memory_static_max IN (752) AND tc_config.cc_restrictions IN ('f'), 
-
-
-*)
 
 end
