@@ -350,16 +350,17 @@ let t ~args = object (self)
             else (int_of_string dig,if newdotpos<0 then newdotpos else newdotpos-1)
         in
         let f_rounded = if rounddigit < 5 then f_abs else f_abs +. 10.0 ** (float_of_int roundpos) in
-        let f_str_rounded = sprintf "%f" f_rounded in
         (* 2. print only significant digits *)
         let f_result = (
+         let f_str_rounded = sprintf "%f" f_rounded in
          let f_abs_str_rounded = (if (f_rounded<1.0) 
           then (* print the rounded value up to its last significant digit *)
             String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)
           else (* print the rounded value up to its last significant digit and fill the rest with 0s *)
+            let dotposr = String.index_exn f_str_rounded '.' in
             sprintf "%s%s" 
               (String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)) 
-              (if dotpos-(cutpos+1)>0 then (String.make (dotpos-(cutpos+1)) '0') else "")
+              (if dotposr-(cutpos+1)>0 then (String.make (dotposr-(cutpos+1)) '0') else "")
           ) in
           (sprintf "%s%s" (if f<0.0 then if f_abs_str_rounded <> "0" then "-" else "" else "") f_abs_str_rounded)
         )
