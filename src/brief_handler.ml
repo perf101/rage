@@ -661,7 +661,7 @@ let t ~args = object (self)
       in
       printf "%s" "<pre>";
       printf "%s" "h1. Rage Report\n\n";
-      printf "- [live html version, with parameters %s |http://perf/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k v))) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k v));
+      printf "- [live html version, with parameters %s |http://perf/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
       printf "%s" "- Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "- \\(x) indicates number of samples\n";
       printf "%s" "- \\[lower, avg, upper] indicates \\[avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.\n\n";
