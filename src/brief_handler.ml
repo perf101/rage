@@ -46,7 +46,7 @@ let t ~args = object (self)
     let url_decode url = (* todo: find a more complete version in some lib *)
       List.fold_left
          [
-           ("%20"," ");("%22","\"");   (* unescape http params *)
+           ("%20"," ");("%22","\""); ("%28","("); ("%29",")");   (* unescape http params *)
          ]
          ~init:url
         ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
