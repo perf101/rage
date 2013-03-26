@@ -448,7 +448,7 @@ let t ~args = object (self)
         List.fold_left kvs ~init:"" ~f:(fun acc (k,vs)->
           if k<>"soms" then acc else
           (sprintf "%s %s<br>\n" acc (List.fold_left vs ~init:"" ~f:(fun acc2 som->
-              let s=sprintf "%s: <b>%s</b> (%s, %s)" (tc_of_som som) (name_of_som som) (unit_of_som som) (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
+              let s=sprintf "%s: <b>%s</b> (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if u="" then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
               if acc="" then s else acc^","^s
             ))
           )
@@ -562,7 +562,7 @@ let t ~args = object (self)
         List.fold_left kvs ~init:"" ~f:(fun acc (k,vs)->
           if k<>"soms" then acc else
           (sprintf "%s %s \\\\" acc (List.fold_left vs ~init:"" ~f:(fun acc2 som->
-              let s=sprintf "%s: *%s* (%s, %s)" (tc_of_som som) (name_of_som som) (unit_of_som som) (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
+              let s=sprintf "%s: *%s* (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if u="" then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
               if acc="" then s else acc^","^s
             ))
           )
