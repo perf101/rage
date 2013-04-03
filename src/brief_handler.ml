@@ -175,7 +175,11 @@ let t ~args = object (self)
     let contexts_of_machine = List.filter (columns_of_table "machines") ~f:(fun e->e<>"machine_id") in
     let contexts_of_build = List.filter (columns_of_table "builds") ~f:(fun e->e<>"build_id") in
     let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem k ~set:cs_f) in
-    
+   
+    let latest_build_of_branch branch =
+      let query = sprintf "select max(build_number) from builds where branch='%s'" branch in
+      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+    in
 
     (*TODO: touch each element of the context when it is used; if an element is not used at the end of this function,
             then raise an error indicating that probably there's a typo in the context element
@@ -242,20 +246,6 @@ let t ~args = object (self)
         List.concat (List.map ~f:measurements_of_som (get "soms" context))
     in
 
-    let b = input_base_context in
-    let cs = input_cols in
-    let rs = List.fold_left ~init:[] input_rows (* expand tcs into soms *) (*todo: this should also apply to columns *)
-      ~f:(fun acc r-> let r_expanded = List.concat (List.map r 
-          ~f:(fun (k,v)->match k with 
-            | _ when k="tcs" -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
-            | _ -> (k,v)::[] 
-          ))
-        in
-        let soms,no_soms = List.partition r_expanded ~f:(fun (k,v)->k="soms") in
-        let soms = List.sort soms ~cmp:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
-        acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
-      )
-    in
     let context_of base row col =
       (* we use intersection to obtain the result when the same context is present in more than one input source *)
       List.fold_left (base @ row @ col) ~init:[] ~f:(fun acc (ck,cv)->
@@ -268,6 +258,33 @@ let t ~args = object (self)
             (ck,cv)::ys
           |x->(* error *)
             failwith (sprintf "More than one element with the same context")
+      )
+    in
+    let parse_build_number cols_ctx base =
+      List.map cols_ctx ~f:(fun c_kvs ->
+        let _,branches=List.find_exn ~f:(fun (k,vs)->k="branch") (context_of c_kvs base []) in
+        List.map c_kvs ~f:(fun (k,vs) ->
+          if k<>"build_number" then (k,vs)
+          else k,(List.map vs ~f:(fun v->
+            if v<>"latest_in_branch" then v
+            else if List.length branches < 1 then v
+              else latest_build_of_branch (List.nth_exn branches 0) (*TODO: handle >1 branch in context *)
+          ))
+        )
+      )
+    in
+    let b = input_base_context in
+    let cs = parse_build_number input_cols b in
+    let rs = List.fold_left ~init:[] input_rows (* expand tcs into soms *) (*todo: this should also apply to columns *)
+      ~f:(fun acc r-> let r_expanded = List.concat (List.map r 
+          ~f:(fun (k,v)->match k with 
+            | _ when k="tcs" -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
+            | _ -> (k,v)::[] 
+          ))
+        in
+        let soms,no_soms = List.partition r_expanded ~f:(fun (k,v)->k="soms") in
+        let soms = List.sort soms ~cmp:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
+        acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
       )
     in
     let measurements_of_table = 
