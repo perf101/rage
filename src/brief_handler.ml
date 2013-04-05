@@ -10,6 +10,7 @@ type baseline_t = int with sexp
 type ctx_t  = (string * string list) list with sexp
 type str_lst_t = string list with sexp
 type out_t  = [`Html | `Wiki] with sexp
+type sort_by_col_t = int with sexp
 
 type result_t = Avg of float | Range of float * float * float
 
@@ -56,6 +57,7 @@ let t ~args = object (self)
     let params_base=(try url_decode (List.Assoc.find_exn args "base") with |_-> "") in
     let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
     let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
+    let params_sort_by_col=(try url_decode (List.Assoc.find_exn args "sort_by_col") with |_-> "") in
 
     let attempt ~f a =
       try f()
@@ -114,6 +116,13 @@ let t ~args = object (self)
          `Html 
     in
     printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
+
+    let sort_by_col =
+       if params_sort_by_col <> "" then
+         Some (attempt ~f:(fun ()->sort_by_col_t_of_sexp (Sexp.of_string (String.capitalize params_sort_by_col))) "sort_by_col")
+       else (*default value *)
+         None
+    in
 
     (* === process === *)
 
@@ -289,36 +298,12 @@ let t ~args = object (self)
     in
     let measurements_of_table = 
       List.map rs ~f:(fun r->
-        List.map cs ~f:(fun c->
+        r, (List.map cs ~f:(fun c->
           let ctx = context_of b r c in
           (r, c, ctx,  measurements_of_cell ctx)
-        )
+        ))
       )
     in
-
-
-    (* compute link to rage graph *)
-    (* 1. show v_* values for the union of base+row+(each column) *)
-    (* 2. ???split by (f_* ) any keys on the columns *)
-    (* eg.: http://perf/?som=41&xaxis=numvms&show_dist=on&f_branch=1&v_build_tag=&v_dom0_memory_static_max=752&v_dom0_memory_target=(NULL)&v_cc_restrictions=f&v_memsize=256&v_vmtype=dom0 *)
-
-    let link_ctx_of_row ctxs =
-      List.fold_left ctxs ~init:[] ~f:(fun acc (ck,cv)->
-        let x,ys = List.partition ~f:(fun (k,v)->k=ck) acc in
-        match x with
-          |(k,v)::[]->(* context already in acc, union the values *)
-            if k<>ck then (failwith (sprintf "link: k=%s <> ck=%s" k ck));
-            (k, List.dedup (cv @ v))::ys
-          |[]->(* context not in acc, just add it *)
-            (ck,cv)::ys
-          |x->(* error *)
-            failwith (sprintf "link: More than one element with the same context")
-      )
-    in
-    let link_ctxs = (List.map measurements_of_table ~f:(fun r->link_ctx_of_row (List.concat (List.map r ~f:(fun (_,_,ctx,_)->ctx))))) in
-    let link_xaxis = List.dedup (List.concat (List.map cs ~f:(fun c-> List.map c ~f:(fun (x,_)->x)))) in
-
-
 
     (* === output === *)
 
@@ -453,6 +438,51 @@ let t ~args = object (self)
       with |_-> Avg (-1000.0)
     in
 
+    let sort_table mt = (* use url option sort_by_col if present *)
+      match sort_by_col with
+      |None->mt
+      |Some compare_col_idx->
+        let mt_xs, mt_0s = List.partition mt
+          ~f:(fun (r,cs)->
+            let _,_,_,cmp_ms=List.nth_exn cs compare_col_idx in
+            let _,_,_,base_ms=List.nth_exn cs baseline_col_idx in
+            (List.length cmp_ms > 0) && (List.length base_ms > 0)
+          )
+        in
+        List.sort (mt_xs)  (* rows with at least one measurement *)
+          ~cmp:(fun (r1,cs1) (r2,cs2) ->
+          let ms cs =
+            let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
+            let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
+            proportion (val_stddev_of base_ms) (val_stddev_of cmp_ms) None
+          in
+          let ms1, ms2 = (abs_float (ms cs1)),(abs_float (ms cs2)) in
+          if ms1 > ms2 then -1 else if ms2 > ms1 then 1 else 0 (* decreasing order *)
+        ) @ mt_0s (* rows with no measurements stay at the end *)
+    in
+
+    (* compute link to rage graph *)
+    (* 1. show v_* values for the union of base+row+(each column) *)
+    (* 2. ???split by (f_* ) any keys on the columns *)
+    (* eg.: http://perf/?som=41&xaxis=numvms&show_dist=on&f_branch=1&v_build_tag=&v_dom0_memory_static_max=752&v_dom0_memory_target=(NULL)&v_cc_restrictions=f&v_memsize=256&v_vmtype=dom0 *)
+    let link_ctx_of_row ctxs =
+      List.fold_left ctxs ~init:[] ~f:(fun acc (ck,cv)->
+        let x,ys = List.partition ~f:(fun (k,v)->k=ck) acc in
+        match x with
+          |(k,v)::[]->(* context already in acc, union the values *)
+            if k<>ck then (failwith (sprintf "link: k=%s <> ck=%s" k ck));
+            (k, List.dedup (cv @ v))::ys
+          |[]->(* context not in acc, just add it *)
+            (ck,cv)::ys
+          |x->(* error *)
+            failwith (sprintf "link: More than one element with the same context")
+      )
+    in
+    let link_ctxs = (List.map (sort_table measurements_of_table) ~f:(fun (r,cs)->link_ctx_of_row (List.concat (List.map cs ~f:(fun (_,_,ctx,_)->ctx))))) in
+    let link_xaxis = List.dedup (List.concat (List.map cs ~f:(fun c-> List.map c ~f:(fun (x,_)->x)))) in
+
+    (* writers *)
+
     let html_writer table =
 
       let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if acc="" then "\""^v^"\"" else acc^", \""^v^"\"") in
@@ -524,7 +554,7 @@ let t ~args = object (self)
       )
       (* print the cells *)
       (List.fold_left ~init:"" ~f:(fun acc r_ms->acc^r_ms)
-       (List.map3_exn table rs link_ctxs ~f:(fun cs r lnkctx ->
+       (List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
         sprintf "<tr> <td style='background-color:skyblue; max-width:200px;'>%s</td> <td style='max-width:200px;'>%s</td> <td>%s</td> %s </tr>\n\n" 
           (* row id/title *)
           (str_of_ctxs r)
@@ -541,7 +571,7 @@ let t ~args = object (self)
               (Sexp.to_string (sexp_of_ctx_t c))
               (str_of_ctxs ctx ~txtonly:true)
               (Sexp.to_string (sexp_of_str_lst_t ms))
-              (sprintf "<span style='color:%s'>%s %s %s</span>"
+              (sprintf "<span style='color:%s'>%s <br> %s %s</span>"
                 (if baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
@@ -560,10 +590,11 @@ let t ~args = object (self)
        ))
       )
       in
-      printf "%s" "<p>Rage Report</p>\n";
-      printf "%s" "<p>- Numbers reported at 95% confidence level from the data of existing runs</p>\n";
-      printf "%s" "<p>- (x) indicates number of samples</p>\n";
-      printf "%s" "<p>- [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</p>\n";
+      printf "%s" "<p>Brief Rage Report</p>\n";
+      printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
+      printf "%s" "<li> (x) indicates number of samples\n";
+      printf "%s" "<li> (x%) indicates difference with baseline column\n";
+      printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul>\n";
       printf "<table>%s</table>" html_table;
     in
 
@@ -638,7 +669,7 @@ let t ~args = object (self)
       )
       (* print the cells *)
       (List.fold_left ~init:"" ~f:(fun acc r_ms->acc^r_ms)
-       (List.map3_exn table rs link_ctxs ~f:(fun cs r lnkctx ->
+       (List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
         sprintf "| %s | %s | %s | %s \n" 
           (* row id/title *)
           (str_of_ctxs r)
@@ -677,17 +708,18 @@ let t ~args = object (self)
       )
       in
       printf "%s" "<pre>";
-      printf "%s" "h1. Rage Report\n\n";
+      printf "%s" "h1. Brief Rage Report\n\n";
       printf "- [live html version, with parameters %s |http://perf/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
       printf "%s" "- Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "- \\(x) indicates number of samples\n";
+      printf "%s" "- \\(x%) indicates difference with baseline column\n";
       printf "%s" "- \\[lower, avg, upper] indicates \\[avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.\n\n";
       printf "%s" wiki_table;
       printf "%s" "</pre>";
     in
 
     match out with
-    |`Html -> html_writer measurements_of_table 
-    |`Wiki -> wiki_writer measurements_of_table
+    |`Html -> html_writer (sort_table measurements_of_table)
+    |`Wiki -> wiki_writer (sort_table measurements_of_table)
 
 end
