@@ -33,6 +33,7 @@ FILES=\
   utils
 
 .SUBDIRS: ocaml-sql
+	OCAMLINCLUDES=.
 	UseCamlp4(sexplib.syntax, sql)
 	clean:
 		make -C $(ROOT)/src/ocaml-sql clean

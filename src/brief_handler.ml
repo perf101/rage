@@ -19,6 +19,14 @@ let t ~args = object (self)
 
   method private write_body =
 
+    let progress str =
+(*
+      printf "%s%!" str;
+      flush stdout;
+*)
+      ()
+    in
+
     (* === input === *)
 
     let brief_id = try List.Assoc.find_exn params "id" with |_->"" in
@@ -125,6 +133,8 @@ let t ~args = object (self)
     in
 
     (* === process === *)
+
+    progress "<p>Progress...:";
 
     let soms_of_tc tc_fqn =
       let query = sprintf "select som_id from soms where tc_fqn='%s'" tc_fqn in
@@ -296,8 +306,10 @@ let t ~args = object (self)
         acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
       )
     in
+    progress (sprintf "table: %d lines: " (List.length rs));
     let measurements_of_table = 
-      List.map rs ~f:(fun r->
+      List.mapi rs ~f:(fun i r->
+        progress (sprintf "%d..." i);
         r, (List.map cs ~f:(fun c->
           let ctx = context_of b r c in
           (r, c, ctx,  measurements_of_cell ctx)
@@ -483,6 +495,15 @@ let t ~args = object (self)
 
     (* writers *)
 
+    let rage_encode url =
+      List.fold_left
+         [
+           (" ","+");   (* escape http params according to what rage expects *)
+         ]
+         ~init:url
+        ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
+    in
+
     let html_writer table =
 
       let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if acc="" then "\""^v^"\"" else acc^", \""^v^"\"") in
@@ -511,7 +532,7 @@ let t ~args = object (self)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
             (* preset values *)
             (List.fold_left ctx ~init:"" ~f:(fun acc (k,vs)->sprintf "%s%s" acc 
-             (List.fold_left vs ~init:"" ~f:(fun acc2 v->sprintf "%s&v_%s=%s" acc2 k v)
+             (List.fold_left vs ~init:"" ~f:(fun acc2 v->sprintf "%s&v_%s=%s" acc2 k (rage_encode v))
              )
             ))
           ))
@@ -626,7 +647,7 @@ let t ~args = object (self)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
             (* preset values *)
             (List.fold_left ctx ~init:"" ~f:(fun acc (k,vs)->sprintf "%s%s" acc 
-             (List.fold_left vs ~init:"" ~f:(fun acc2 v->sprintf "%s&v_%s=%s" acc2 k v)
+             (List.fold_left vs ~init:"" ~f:(fun acc2 v->sprintf "%s&v_%s=%s" acc2 k (rage_encode v))
              )
             ))
           ))
