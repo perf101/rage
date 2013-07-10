@@ -18,7 +18,8 @@ object (self)
     printf "Content-type: text/html\n\n";
     printf "<html><head>\n";
     printf "<script language='javascript' type='text/javascript'>\n";
-    printf "window.location.replace(decodeURIComponent('%s'));\n" url;
+    let url_fqdn = Str.replace_first (Str.regexp "perf") "perf.uk.xensource.com" url in
+    printf "window.location.replace(decodeURIComponent('%s'));\n" url_fqdn;
     printf "</script>\n</head><body></body></html>\n"
 
   method private write_header = self#write_html_header
