@@ -226,7 +226,7 @@ let som_config_tbl_exists ~conn som_id =
 let get_std_xy_choices ~conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  "branch" :: "product" :: "build_number" :: "build_tag" ::
+  "job_id" :: "branch" :: "product" :: "build_number" :: "build_tag" ::
   "dom0_memory_static_max" :: "dom0_memory_target" ::
   "cc_restrictions" :: "redo_log" :: "option_clone_on_boot" :: "network_backend" ::
   machine_field_lst
