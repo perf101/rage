@@ -101,15 +101,15 @@ let t ~args = object (self)
     let job_ids = Sql.exec_exn ~conn ~query in
     let query =
       "SELECT DISTINCT branch, build_number, build_tag, product " ^
-      "FROM builds AS b, jobs AS j, measurements AS m " ^
-      "WHERE m.job_id=j.job_id AND j.build_id=b.build_id " ^
-      (sprintf "AND m.som_id=%d" som_id) in
+      (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from measurements where som_id=%d) AS m " som_id) ^
+      "WHERE m.job_id=j.job_id AND j.build_id=b.build_id "
+    in
     let builds = Sql.exec_exn ~conn ~query in
     let query = "SELECT DISTINCT " ^
       "dom0_memory_static_max, dom0_memory_target, cc_restrictions, redo_log, network_backend, option_clone_on_boot " ^
-      "FROM tc_config AS c, jobs AS j, measurements AS m " ^
-      "WHERE m.job_id=j.job_id AND j.job_id=c.job_id " ^
-      (sprintf "AND m.som_id=%d" som_id) in
+      (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from measurements where som_id=%d) AS m " som_id) ^
+      "WHERE m.job_id=j.job_id AND j.job_id=c.job_id "
+    in
     let job_attributes = Sql.exec_exn ~conn ~query in
     let som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
     let som_configs_opt =
@@ -118,9 +118,9 @@ let t ~args = object (self)
       Some (Sql.exec_exn ~conn ~query) in
     let query =
       "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
-      "FROM machines AS mn, tc_config AS c, measurements AS mr " ^
-      "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id " ^
-      (sprintf "AND som_id=%d" som_id) in
+      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from measurements where som_id=%d) AS mr " som_id) ^
+      "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
+    in
     let machines = Sql.exec_exn ~conn ~query in
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
