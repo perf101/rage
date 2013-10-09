@@ -228,6 +228,10 @@ let tc_config_fields = [
   "network_backend";
   "option_clone_on_boot";
   "force_non_debug_xen";
+  "xenrt_pq_name";
+  "xenrt_version";
+  "xenrt_internal_version";
+  "xenrt_pq_version";
 ]
 
 let som_config_tbl_exists ~conn som_id =
