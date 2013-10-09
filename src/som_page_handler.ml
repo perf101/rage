@@ -43,10 +43,8 @@ let t ~args = object (self)
     let som_config_labels =
       match som_configs_opt with None -> [] | Some som_configs ->
       List.tl_exn (som_configs#get_fnames_lst) in
-    let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag";
-      "dom0_memory_static_max"; "dom0_memory_target"; "cc_restrictions";
-      "redo_log"; "option_clone_on_boot"; "network_backend";
-      "force_non_debug_xen"] @
+    let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag"] @
+      Utils.tc_config_fields @
       machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
     (* OPTIONS *)
     let job_id_lst = get_options_for_field job_ids 0 in
@@ -54,13 +52,7 @@ let t ~args = object (self)
     let build_no_lst = get_options_for_field builds 1 in
     let tag_lst = get_options_for_field builds 2 in
     let product_lst = get_options_for_field builds 3 in
-    let dom0_memory_static_max_lst = get_options_for_field job_attributes 0 in
-    let dom0_memory_target_lst = get_options_for_field job_attributes 1 in
-    let cc_restrictions_lst = get_options_for_field job_attributes 2 in
-    let redo_log_lst = get_options_for_field job_attributes 3 in
-    let network_backend_lst = get_options_for_field job_attributes 4 in
-    let option_clone_on_boot_lst = get_options_for_field job_attributes 5 in
-    let force_non_debug_xen_lst = get_options_for_field job_attributes 6 in
+    let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field job_attributes i) Utils.tc_config_fields in
     let machine_options_lst = List.map (List.range 0 machines#nfields)
       ~f:(fun col -> get_options_for_field machines col) in
     let config_options_lst = List.map (List.range 0 configs#nfields)
@@ -69,10 +61,8 @@ let t ~args = object (self)
       match som_configs_opt with None -> [] | Some som_configs ->
       List.map (List.range 1 som_configs#nfields)
         ~f:(fun col -> get_options_for_field som_configs col) in
-    let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst;
-      tag_lst; dom0_memory_static_max_lst; dom0_memory_target_lst;
-      cc_restrictions_lst; redo_log_lst; option_clone_on_boot_lst;
-      network_backend_lst; force_non_debug_xen_lst] @ machine_options_lst @ config_options_lst @
+    let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst; tag_lst] @
+      job_attrs_lsts @ machine_options_lst @ config_options_lst @
       som_config_options_lst in
     let print_table_for (label, options) =
       printf "<table border='1' class='filter_table'>\n";
@@ -107,8 +97,7 @@ let t ~args = object (self)
       "WHERE m.job_id=j.job_id AND j.build_id=b.build_id "
     in
     let builds = Sql.exec_exn ~conn ~query in
-    let query = "SELECT DISTINCT " ^
-      "dom0_memory_static_max, dom0_memory_target, cc_restrictions, redo_log, network_backend, option_clone_on_boot, force_non_debug_xen " ^
+    let query = "SELECT DISTINCT " ^ (String.concat ~sep:", " Utils.tc_config_fields) ^ " " ^
       (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from measurements where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.job_id=c.job_id "
     in

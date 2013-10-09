@@ -219,6 +219,17 @@ let filter_prefix = "f_"
 let filter_by_value = "1"
 let values_prefix = "v_"
 
+(* Names of fields in the tc_config table *)
+let tc_config_fields = [
+  "dom0_memory_static_max";
+  "dom0_memory_target";
+  "cc_restrictions";
+  "redo_log";
+  "network_backend";
+  "option_clone_on_boot";
+  "force_non_debug_xen";
+]
+
 let som_config_tbl_exists ~conn som_id =
   let som_config_tbl = sprintf "som_config_%d" som_id in
   som_config_tbl, Sql.tbl_exists ~conn ~tbl:som_config_tbl
@@ -226,10 +237,7 @@ let som_config_tbl_exists ~conn som_id =
 let get_std_xy_choices ~conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  "job_id" :: "branch" :: "product" :: "build_number" :: "build_tag" ::
-  "dom0_memory_static_max" :: "dom0_memory_target" ::
-  "cc_restrictions" :: "redo_log" :: "option_clone_on_boot" :: "network_backend" ::
-  machine_field_lst
+  ["job_id"; "branch"; "product"; "build_number"; "build_tag"] @ tc_config_fields @ machine_field_lst
 
 let get_xy_choices ~conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with
