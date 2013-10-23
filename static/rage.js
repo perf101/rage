@@ -54,6 +54,7 @@ function som_page_init() {
   // "stop" button is disabled by default
   $("#stop_plotting").prop("disabled", true);
   $("#stop_plotting").click(on_stop_plotting);
+  $("#redraw").click(fetch_data_and_process);
   // automatic refresh on change
   $("select[name='xaxis']").change(fetch_data_and_process);
   $("select[name='yaxis']").change(fetch_data_and_process);
