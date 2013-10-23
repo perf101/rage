@@ -132,6 +132,7 @@ let t ~args = object (self)
     checkbox "show_all_meta" "Show all meta-data";
     checkbox "xaxis_log" "Log scale X";
     checkbox "yaxis_log" "Log scale Y";
+    checkbox "auto_redraw" "Auto Redraw";
     printf "<br />\n";
     self#write_legend_position_choice "legend_position";
     self#write_symbol_choice "symbol";

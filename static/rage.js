@@ -10,11 +10,11 @@ Invariants (also reflected on server side):
 
 // === GLOBAL VARIABLES --- start ===
 var autofetch = true; // if false, the following triggers have no effect
-var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
+var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero", "auto_redraw"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
   "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#show_all_meta",
-  "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img"
+  "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img", "#auto_redraw"
 ]
 var url_params = get_url_params();
 // ==== GLOBAL VARIABLES --- end ====
@@ -54,24 +54,24 @@ function som_page_init() {
   // "stop" button is disabled by default
   $("#stop_plotting").prop("disabled", true);
   $("#stop_plotting").click(on_stop_plotting);
-  $("#redraw").click(fetch_data_and_process);
+  $("#redraw").click(redraw_graph);
   // automatic refresh on change
-  $("select[name='xaxis']").change(fetch_data_and_process);
-  $("select[name='yaxis']").change(fetch_data_and_process);
-  $("input[name='show_points']").change(fetch_data_and_process);
-  $("input[name='show_avgs']").change(fetch_data_and_process);
-  $("input[name='show_dist']").change(fetch_data_and_process);
-  $("input[name='x_from_zero']").change(fetch_data_and_process);
-  $("input[name='y_fromto_zero']").change(fetch_data_and_process);
-  $("input[name='x_as_seq']").change(fetch_data_and_process);
-  $("input[name='y_as_seq']").change(fetch_data_and_process);
-  $("input[name='show_all_meta']").change(fetch_data_and_process);
-  $("input[name='xaxis_log']").change(fetch_data_and_process);
-  $("input[name='yaxis_log']").change(fetch_data_and_process);
-  $("select[name='legend_position']").change(fetch_data_and_process);
-  $("select[name='symbol']").change(fetch_data_and_process);
-  $(".filterselect").change(fetch_data_and_process);
-  $(".multiselect").change(fetch_data_and_process);
+  $("select[name='xaxis']").change(redraw_trigger);
+  $("select[name='yaxis']").change(redraw_trigger);
+  $("input[name='show_points']").change(redraw_trigger);
+  $("input[name='show_avgs']").change(redraw_trigger);
+  $("input[name='show_dist']").change(redraw_trigger);
+  $("input[name='x_from_zero']").change(redraw_trigger);
+  $("input[name='y_fromto_zero']").change(redraw_trigger);
+  $("input[name='x_as_seq']").change(redraw_trigger);
+  $("input[name='y_as_seq']").change(redraw_trigger);
+  $("input[name='show_all_meta']").change(redraw_trigger);
+  $("input[name='xaxis_log']").change(redraw_trigger);
+  $("input[name='yaxis_log']").change(redraw_trigger);
+  $("select[name='legend_position']").change(redraw_trigger);
+  $("select[name='symbol']").change(redraw_trigger);
+  $(".filterselect").change(redraw_trigger);
+  $(".multiselect").change(redraw_trigger);
   // fetch and process data immediately
   preselect_fields_based_on_params();
   fetch_data_and_process();
@@ -79,6 +79,7 @@ function som_page_init() {
   load_get_image_if_not_ie();
   // tiny url
   $("#get_tinyurl").click(get_tinyurl);
+  $("input[name='auto_redraw']").change(set_auto_redraw);
 }
 
 function soms_by_tc_page_init() {
@@ -573,8 +574,11 @@ function view_change() {
   $("input[name='show_points']").prop("checked", is_graph);
   $("input[name='show_avgs']").prop("checked", is_graph);
   $("input[name='show_all_meta']").prop("checked", !is_graph);
-  autofetch = true;
   fetch_data_and_process();
+  if (is_graph)
+    autofetch = is_checked("auto_redraw");
+  else
+    autofetch = true;
 }
 
 function on_by_default(name) {
@@ -661,6 +665,13 @@ function get_som_url() {
   return get_base_url() + "/?som=" + get_url_params().som;
 }
 
+function set_auto_redraw() {
+  if (is_checked("auto_redraw"))
+    autofetch = true;
+  else
+    autofetch = false;
+}
+
 function serialise_params(params) {
   var keyvals = [];
   for (var p in params) {
@@ -705,8 +716,16 @@ function get_permalink() {
   return get_som_url() + serialised;
 }
 
-function fetch_data_and_process() {
+function redraw_graph() {
+  fetch_data_and_process();
+}
+
+function redraw_trigger() {
   if (!autofetch) return;
+  fetch_data_and_process();
+}
+
+function fetch_data_and_process() {
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
   var som_id = url_params.som[0];
