@@ -66,7 +66,7 @@ let t ~args = object (self)
       som_config_options_lst in
     let print_table_for (label, options) =
       printf "<table border='1' class='filter_table'>\n";
-      printf "<tr><th>%s</th></tr>\n" label;
+      printf "<tr><th name='title_%s%s'>%s</th></tr>\n" values_prefix label label;
       printf "<tr>\n";
       print_select ~td:true
         ~attrs:[("name", filter_prefix ^ label); ("class", "filterselect")]
