@@ -1,7 +1,9 @@
 open Core.Std
 open Postgresql
 
-let debug msg = output_string stderr (msg ^ "\n")
+let debug msg =
+  output_string stderr (msg ^ "\n");
+  flush stderr
 
 module ListKey = struct
   module T = struct
