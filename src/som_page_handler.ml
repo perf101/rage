@@ -48,15 +48,16 @@ let t ~args = object (self)
 
     (* OPTIONS *)
     let options_lst_of_dbresult dbresult =
+      let data = dbresult#get_all in
       List.map (List.range 0 dbresult#nfields)
-        ~f:(fun col -> get_options_for_field dbresult col) in
+        ~f:(fun col -> get_options_for_field dbresult ~data col) in
 
-    let job_id_lst = get_options_for_field job_ids 0 in
-    let branch_lst = get_options_for_field builds 0 in
-    let build_no_lst = get_options_for_field builds 1 in
-    let tag_lst = get_options_for_field builds 2 in
-    let product_lst = get_options_for_field builds 3 in
-    let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field job_attributes i) Utils.tc_config_fields in
+    let job_id_lst = get_options_for_field_once job_ids 0 in
+    let branch_lst = get_options_for_field_once builds 0 in
+    let build_no_lst = get_options_for_field_once builds 1 in
+    let tag_lst = get_options_for_field_once builds 2 in
+    let product_lst = get_options_for_field_once builds 3 in
+    let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field_once job_attributes i) Utils.tc_config_fields in
 
     let machine_options_lst = options_lst_of_dbresult machines in
     let config_options_lst = options_lst_of_dbresult configs in
