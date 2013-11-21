@@ -589,7 +589,7 @@ function preselect_fields_based_on_params() {
   var params = get_url_params();
   delete params.som;
   for (var param in params) {
-    $("[name='" + param + "']").val(decode(params[param]));
+    $("[name='" + param + "']").val(params[param].map(decode));
     $("th[name='title_" + param + "']").css({'color':'red'});
   }
   for (var i in checkboxes_on_by_default) {
