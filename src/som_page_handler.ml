@@ -41,8 +41,7 @@ let t ~args = object (self)
       som_configs_opt machines =
     (* LABELS *)
     let som_config_labels =
-      match som_configs_opt with None -> [] | Some som_configs ->
-      List.tl_exn (som_configs#get_fnames_lst) in
+      match som_configs_opt with None -> [] | Some som_configs -> som_configs#get_fnames_lst in
     let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag"] @
       Utils.tc_config_fields @
       machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
@@ -59,7 +58,7 @@ let t ~args = object (self)
       ~f:(fun col -> get_options_for_field configs col) in
     let som_config_options_lst =
       match som_configs_opt with None -> [] | Some som_configs ->
-      List.map (List.range 1 som_configs#nfields)
+      List.map (List.range 0 som_configs#nfields)
         ~f:(fun col -> get_options_for_field som_configs col) in
     let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst; tag_lst] @
       job_attrs_lsts @ machine_options_lst @ config_options_lst @
