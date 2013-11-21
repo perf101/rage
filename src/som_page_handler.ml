@@ -45,21 +45,25 @@ let t ~args = object (self)
     let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag"] @
       Utils.tc_config_fields @
       machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
+
     (* OPTIONS *)
+    let options_lst_of_dbresult dbresult =
+      List.map (List.range 0 dbresult#nfields)
+        ~f:(fun col -> get_options_for_field dbresult col) in
+
     let job_id_lst = get_options_for_field job_ids 0 in
     let branch_lst = get_options_for_field builds 0 in
     let build_no_lst = get_options_for_field builds 1 in
     let tag_lst = get_options_for_field builds 2 in
     let product_lst = get_options_for_field builds 3 in
     let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field job_attributes i) Utils.tc_config_fields in
-    let machine_options_lst = List.map (List.range 0 machines#nfields)
-      ~f:(fun col -> get_options_for_field machines col) in
-    let config_options_lst = List.map (List.range 0 configs#nfields)
-      ~f:(fun col -> get_options_for_field configs col) in
+
+    let machine_options_lst = options_lst_of_dbresult machines in
+    let config_options_lst = options_lst_of_dbresult configs in
     let som_config_options_lst =
       match som_configs_opt with None -> [] | Some som_configs ->
-      List.map (List.range 0 som_configs#nfields)
-        ~f:(fun col -> get_options_for_field som_configs col) in
+        options_lst_of_dbresult som_configs in
+
     let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst; tag_lst] @
       job_attrs_lsts @ machine_options_lst @ config_options_lst @
       som_config_options_lst in
