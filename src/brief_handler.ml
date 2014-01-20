@@ -194,10 +194,16 @@ let t ~args = object (self)
     let contexts_of_machine = List.filter (columns_of_table "machines") ~f:(fun e->e<>"machine_id") in
     let contexts_of_build = List.filter (columns_of_table "builds") ~f:(fun e->e<>"build_id") in
     let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem k ~set:cs_f) in
-   
+
+(*
     let latest_build_of_branch branch =
       let query = sprintf "select max(build_number) from builds where branch='%s'" branch in
       (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+    in
+*)
+    let builds_of_branch branch =
+      let query = sprintf "select build_number from builds where branch='%s' order by build_number desc" branch in
+      List.map (Array.to_list ((Sql.exec_exn ~conn ~query)#get_all)) ~f:(fun x->x.(0))
     in
 
     (*TODO: touch each element of the context when it is used; if an element is not used at the end of this function,
@@ -260,7 +266,7 @@ let t ~args = object (self)
             ))
           in
           Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
-        in      
+        in
         (* add measurements for each one of the soms in the cell *)
         List.concat (List.map ~f:measurements_of_som (get "soms" context))
     in
@@ -279,21 +285,40 @@ let t ~args = object (self)
             failwith (sprintf "More than one element with the same context")
       )
     in
-    let parse_build_number cols_ctx base =
-      List.map cols_ctx ~f:(fun c_kvs ->
-        let _,branches=List.find_exn ~f:(fun (k,vs)->k="branch") (context_of c_kvs base []) in
+    let expand_latest_build_of_branch c_kvs =
+      let k_branch = "branch" in
+      let k_build_number = "build_number" in
+      let v_latest_in_branch = "latest_in_branch" in
+      let _,branches=List.find_exn ~f:(fun (k,vs)->k=k_branch) c_kvs in
+      (* list of all builds in all branches *)
+      let builds_of_branches =
+        List.slice
+          (builds_of_branch (List.nth_exn branches 0) (*TODO: handle >1 branch in context*))
+          0 5 (* take up to 5 elements in the list *)
+      in
+      debug (sprintf "builds_of_branches=%s" (List.fold_left ~init:"" builds_of_branches ~f:(fun acc b->acc ^","^b)));
+
+      let has_latest_in_branch_value =
+        List.exists c_kvs ~f:(fun (k,vs) -> if k<>k_build_number then false else List.exists vs ~f:(fun v->v=v_latest_in_branch))
+      in
+      (* if 'latest_in_branch' value is present, expand ctx into many ctxs, one for each build; otherwise, return the ctx intact *)
+      if not has_latest_in_branch_value then [c_kvs]
+      else List.map builds_of_branches ~f:(fun builds->
         List.map c_kvs ~f:(fun (k,vs) ->
-          if k<>"build_number" then (k,vs)
+          if k<>k_build_number then (k,vs)
           else k,(List.map vs ~f:(fun v->
-            if v<>"latest_in_branch" then v
-            else if List.length branches < 1 then v
-              else latest_build_of_branch (List.nth_exn branches 0) (*TODO: handle >1 branch in context *)
+            if v<>v_latest_in_branch then v else builds
           ))
         )
       )
     in
+    let expand ctx = (*expand cell context into all possible context after expanding ctx templates into values*)
+      (* 1. value template: latest_in_branch *)
+      expand_latest_build_of_branch ctx
+      (* ... potentially other expansions in the future... *)
+    in
     let b = input_base_context in
-    let cs = parse_build_number input_cols b in
+    let cs = input_cols in
     let rs = List.fold_left ~init:[] input_rows (* expand tcs into soms *) (*todo: this should also apply to columns *)
       ~f:(fun acc r-> let r_expanded = List.concat (List.map r 
           ~f:(fun (k,v)->match k with 
@@ -307,12 +332,18 @@ let t ~args = object (self)
       )
     in
     progress (sprintf "table: %d lines: " (List.length rs));
+    let ctx_and_measurements_of_1st_cell_with_data expand_f ctx =
+      let ctxs = expand_f ctx in
+      let measurements_of_cells = List.map ctxs ~f:(fun c->c, measurements_of_cell c) in
+      let first = List.find measurements_of_cells ~f:(fun (c,ms)->ms<>[]) in
+      match first with None->ctx,[]|Some (c,ms)->c,ms
+    in
     let measurements_of_table = 
       List.mapi rs ~f:(fun i r->
         progress (sprintf "%d..." i);
         r, (List.map cs ~f:(fun c->
-          let ctx = context_of b r c in
-          (r, c, ctx,  measurements_of_cell ctx)
+          let ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
+          (r, c, ctx,  ms)
         ))
       )
     in
