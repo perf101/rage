@@ -1,7 +1,9 @@
 open Core.Std
 open Postgresql
 
-let debug msg = output_string stderr (msg ^ "\n")
+let debug msg =
+  output_string stderr (msg ^ "\n");
+  flush stderr
 
 module ListKey = struct
   module T = struct
@@ -169,10 +171,9 @@ let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
 let print_select_list ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) l =
   print_select ~td ~label ~selected ~attrs (List.map l ~f:(fun x -> (x, x)))
 
-let get_options_for_field db_result col =
+let get_options_for_field db_result ~data col =
   let nRows = db_result#ntuples - 1 in
   let ftype = db_result#ftype col in
-  let data = db_result#get_all in
   let rec aux acc = function
     | -1 -> acc
     | i ->
@@ -189,9 +190,13 @@ let get_options_for_field db_result col =
   in
   List.sort ~cmp (List.dedup (aux [] nRows))
 
+let get_options_for_field_once db_result col =
+  let data = db_result#get_all in
+  get_options_for_field db_result ~data col
+
 let print_options_for_field namespace db_result col =
   let fname = db_result#fname col in
-  let opts = get_options_for_field db_result col in
+  let opts = get_options_for_field_once db_result col in
   let form_name = sprintf "%s_%s" namespace fname in
   printf "<table border='1' class='filter_table'>";
   printf "<tr><th>%s</th></tr><tr>" fname;
