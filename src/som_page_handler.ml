@@ -100,17 +100,17 @@ let t ~args = object (self)
     let som_info = Sql.exec_exn ~conn ~query in
     let query = "SELECT * FROM " ^ tc_config_tbl ^ " LIMIT 0" in
     let config_columns = Sql.exec_exn ~conn ~query in
-    let query = "SELECT DISTINCT job_id FROM measurements WHERE " ^
+    let query = "SELECT DISTINCT job_id FROM measurements_distinct WHERE " ^
       (sprintf "som_id=%d" som_id) in
     let job_ids = Sql.exec_exn ~conn ~query in
     let query =
       "SELECT DISTINCT branch, build_number, build_tag, product " ^
-      (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from measurements where som_id=%d) AS m " som_id) ^
+      (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from measurements_distinct where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.build_id=b.build_id "
     in
     let builds = Sql.exec_exn ~conn ~query in
     let query = "SELECT DISTINCT " ^ (String.concat ~sep:", " Utils.tc_config_fields) ^ " " ^
-      (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from measurements where som_id=%d) AS m " som_id) ^
+      (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from measurements_distinct where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.job_id=c.job_id "
     in
     let job_attributes = Sql.exec_exn ~conn ~query in
@@ -121,7 +121,7 @@ let t ~args = object (self)
       Some (Sql.exec_exn ~conn ~query) in
     let query =
       "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
-      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from measurements where som_id=%d) AS mr " som_id) ^
+      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from measurements_distinct where som_id=%d) AS mr " som_id) ^
       "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
     in
     let machines = Sql.exec_exn ~conn ~query in
