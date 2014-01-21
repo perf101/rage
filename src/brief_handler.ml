@@ -202,10 +202,15 @@ let t ~args = object (self)
     in
 *)
     let builds_of_branch branch =
-      let query = sprintf "select build_number from builds where branch='%s' order by build_number desc" branch in
+      let query = sprintf "select distinct build_number from builds where branch='%s' order by build_number desc" branch in
       List.map (Array.to_list ((Sql.exec_exn ~conn ~query)#get_all)) ~f:(fun x->x.(0))
     in
-
+(*  this query is better than builds_of_branch but it is too slow so cannot be used 
+    let latest_build_in_branch branch =
+      let query = sprintf "select max(build_number) from builds,measurements,jobs where branch='%s' and measurements.job_id = jobs.job_id and jobs.build_id = builds.build_id" branch in
+      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+    in
+*)
     (*TODO: touch each element of the context when it is used; if an element is not used at the end of this function,
             then raise an error indicating that probably there's a typo in the context element
      *) 
@@ -291,23 +296,26 @@ let t ~args = object (self)
       let v_latest_in_branch = "latest_in_branch" in
       let _,branches=List.find_exn ~f:(fun (k,vs)->k=k_branch) c_kvs in
       (* list of all builds in all branches *)
-      let builds_of_branches =
-        List.slice
-          (builds_of_branch (List.nth_exn branches 0) (*TODO: handle >1 branch in context*))
-          0 5 (* take up to 5 elements in the list *)
-      in
+
+      (* this is the most straightforward way of obtaining the max build of a branch but this query is too slow and cannot be used
+      let builds_of_branches = [latest_build_in_branch (List.nth_exn branches 0)] in (*TODO: handle >1 branches in context*)
+      *)
+
+      (* brute-force way to find the max build with measurements, to work around the slowness in the query in latest_build_in_branch *)
+      let builds = builds_of_branch (List.nth_exn branches 0) in (*TODO: handle >1 branch in context*)
+      let builds_of_branches = List.slice builds 0 (min 100 (List.length builds)) in (* take up to 100 elements in the list *)
       debug (sprintf "builds_of_branches=%s" (List.fold_left ~init:"" builds_of_branches ~f:(fun acc b->acc ^","^b)));
 
-      let has_latest_in_branch_value =
+      let has_v_latest_in_branch =
         List.exists c_kvs ~f:(fun (k,vs) -> if k<>k_build_number then false else List.exists vs ~f:(fun v->v=v_latest_in_branch))
       in
       (* if 'latest_in_branch' value is present, expand ctx into many ctxs, one for each build; otherwise, return the ctx intact *)
-      if not has_latest_in_branch_value then [c_kvs]
-      else List.map builds_of_branches ~f:(fun builds->
+      if not has_v_latest_in_branch then [c_kvs]
+      else List.map builds_of_branches ~f:(fun bs->
         List.map c_kvs ~f:(fun (k,vs) ->
           if k<>k_build_number then (k,vs)
           else k,(List.map vs ~f:(fun v->
-            if v<>v_latest_in_branch then v else builds
+            if v<>v_latest_in_branch then v else bs
           ))
         )
       )
@@ -334,9 +342,8 @@ let t ~args = object (self)
     progress (sprintf "table: %d lines: " (List.length rs));
     let ctx_and_measurements_of_1st_cell_with_data expand_f ctx =
       let ctxs = expand_f ctx in
-      let measurements_of_cells = List.map ctxs ~f:(fun c->c, measurements_of_cell c) in
-      let first = List.find measurements_of_cells ~f:(fun (c,ms)->ms<>[]) in
-      match first with None->ctx,[]|Some (c,ms)->c,ms
+      let measurements_of_cells = List.find_map ctxs ~f:(fun c->let ms=measurements_of_cell c in if ms=[] then None else (Some (c,ms))) in
+      match measurements_of_cells with None->ctx,[]|Some (c,ms)->c,ms
     in
     let measurements_of_table = 
       List.mapi rs ~f:(fun i r->
