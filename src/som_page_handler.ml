@@ -37,14 +37,16 @@ let t ~args = object (self)
     print_select_list ~label ~attrs:[("name", id)] ~selected:["Circle"] symbols;
     printf "</div>\n"
 
-  method private write_filter_table job_ids builds job_attributes configs
+  method private write_filter_table job_ids builds job_attributes config_columns tc_config_tbl
       som_configs_opt machines =
+    let config_column_names = config_columns#get_fnames_lst in
+
     (* LABELS *)
     let som_config_labels =
       match som_configs_opt with None -> [] | Some som_configs -> som_configs#get_fnames_lst in
     let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag"] @
       Utils.tc_config_fields @
-      machines#get_fnames_lst @ configs#get_fnames_lst @ som_config_labels in
+      machines#get_fnames_lst @ config_column_names @ som_config_labels in
 
     (* OPTIONS *)
     let options_lst_of_dbresult dbresult =
@@ -60,7 +62,13 @@ let t ~args = object (self)
     let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field_once job_attributes i) Utils.tc_config_fields in
 
     let machine_options_lst = options_lst_of_dbresult machines in
-    let config_options_lst = options_lst_of_dbresult configs in
+
+    let config_options_lst = List.map config_column_names ~f:(fun config_name ->
+      let query = sprintf "SELECT DISTINCT %s FROM %s ORDER BY %s" config_name tc_config_tbl config_name in
+      let configs = Sql.exec_exn ~conn ~query in
+      get_options_for_field_once configs 0
+    ) in
+
     let som_config_options_lst =
       match som_configs_opt with None -> [] | Some som_configs ->
         options_lst_of_dbresult som_configs in
@@ -90,8 +98,8 @@ let t ~args = object (self)
     let query =
       sprintf "SELECT * FROM soms WHERE som_id=%d" som_id in
     let som_info = Sql.exec_exn ~conn ~query in
-    let query = "SELECT * FROM " ^ tc_config_tbl in
-    let configs = Sql.exec_exn ~conn ~query in
+    let query = "SELECT * FROM " ^ tc_config_tbl ^ " LIMIT 0" in
+    let config_columns = Sql.exec_exn ~conn ~query in
     let query = "SELECT DISTINCT job_id FROM measurements WHERE " ^
       (sprintf "som_id=%d" som_id) in
     let job_ids = Sql.exec_exn ~conn ~query in
@@ -120,8 +128,8 @@ let t ~args = object (self)
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
     printf "<form name='optionsForm'>\n";
-    print_x_axis_choice ~conn configs som_configs_opt;
-    print_y_axis_choice ~conn configs som_configs_opt;
+    print_x_axis_choice ~conn config_columns som_configs_opt;
+    print_y_axis_choice ~conn config_columns som_configs_opt;
     let checkbox name caption =
       printf "<div id='%s' style='display: inline'>\n" name;
       printf "<input type='checkbox' name='%s' />%s\n" name caption;
@@ -141,7 +149,7 @@ let t ~args = object (self)
     self#write_legend_position_choice "legend_position";
     self#write_symbol_choice "symbol";
     printf "<br />\n";
-    self#write_filter_table job_ids builds job_attributes configs
+    self#write_filter_table job_ids builds job_attributes config_columns tc_config_tbl
       som_configs_opt machines;
     printf "</form>\n";
     let submit_prefix = "<input type='submit' id=" in
