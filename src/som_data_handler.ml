@@ -2,6 +2,9 @@ open Core.Std
 open Fn
 open Utils
 
+(* The maximum number of database rows we are prepared to allow the database to return *)
+let limit_rows = 10000
+
 let t ~args = object (self)
   inherit Json_handler.t ~args
 
@@ -119,9 +122,12 @@ let t ~args = object (self)
       (if som_tbl_exists
        then sprintf " AND measurements.som_config_id=%s.som_config_id"
             som_config_tbl else "") ^
-      (if not (String.is_empty filter) then sprintf " AND %s" filter else "") in
+      (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
+      (sprintf " LIMIT %d" limit_rows)
+    in
     let data = Sql.exec_exn ~conn ~query in
     let rows = data#get_all in
+    (if Array.length rows = limit_rows then debug (sprintf "WARNING: truncation of data -- we are only returning the first %d rows" limit_rows));
     (* filter data into groups based on "SPLIT BY"-s *)
     let split_bys =
       self#select_params filter_prefix ~value:(Some filter_by_value) in
