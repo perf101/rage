@@ -3,7 +3,7 @@ open Fn
 open Utils
 
 (* The maximum number of database rows we are prepared to allow the database to return *)
-let limit_rows = 10000
+let limit_rows = 100000
 
 let t ~args = object (self)
   inherit Json_handler.t ~args
@@ -127,6 +127,7 @@ let t ~args = object (self)
     in
     let data = Sql.exec_exn ~conn ~query in
     let rows = data#get_all in
+    debug (sprintf "The query returned %d rows" (Array.length rows));
     (if Array.length rows = limit_rows then debug (sprintf "WARNING: truncation of data -- we are only returning the first %d rows" limit_rows));
     (* filter data into groups based on "SPLIT BY"-s *)
     let split_bys =
