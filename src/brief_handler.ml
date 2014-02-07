@@ -60,6 +60,14 @@ let t ~args = object (self)
          ~init:url
         ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
     in
+    let html_encode html = (* todo: find a more complete version in some lib *)
+      List.fold_left
+         [
+           (">","&gt;");("<","&lt;");   (* escape html text *)
+         ]
+         ~init:html
+        ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
+    in
     let params_cols=(try url_decode (List.Assoc.find_exn args "cols") with |_-> "") in
     let params_rows=(try url_decode (List.Assoc.find_exn args "rows") with |_-> "") in
     let params_base=(try url_decode (List.Assoc.find_exn args "base") with |_-> "") in
@@ -91,7 +99,7 @@ let t ~args = object (self)
       else (*default value *)
         []
     in
-    printf "<input_rows_sexp %s/>\n" (Sexp.to_string (sexp_of_rows_t input_rows));
+    printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
 
 
     (* base context is used to fill any context gap not expressed in row and column contexts
