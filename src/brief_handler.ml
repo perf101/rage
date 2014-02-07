@@ -240,7 +240,7 @@ let t ~args = object (self)
            ^"where "
            ^(sprintf "measurements.som_id=%s " som_id)
            ^(List.fold_left (values_of context ~at:contexts_of_machine) ~init:"" ~f:(fun acc (k,vs)->
-              match vs with []->""|_->
+              match vs with []->acc|_->
               sprintf "%s and (%s) " acc
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
                 sprintf "%s%smachines.%s='%s' " acc2 (match acc2 with |""->""|_->"or ") k v
@@ -248,7 +248,7 @@ let t ~args = object (self)
             ))
            ^(if has_table_som_id som_id then
              (List.fold_left (values_of context ~at:(contexts_of_som_id som_id)) ~init:"" ~f:(fun acc (k,vs)->
-              match vs with []->""|_->
+              match vs with []->acc|_->
               sprintf "%s and (%s) " acc 
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
                 sprintf "%s%ssom_config_%s.%s='%s' " acc2 (match acc2 with |""->""|_->"or ") som_id k v
@@ -257,21 +257,21 @@ let t ~args = object (self)
              else ""
             )
            ^(List.fold_left (values_of context ~at:(contexts_of_tc_fqn tc_fqn)) ~init:"" ~f:(fun acc (k,vs)->
-              match vs with []->""|_->
+              match vs with []->acc|_->
               sprintf "%s and (%s) " acc
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
                 sprintf "%s%stc_config_%s.%s='%s' " acc2 (match acc2 with |""->""|_->"or ") tc_fqn k v
               ))
             ))
            ^(List.fold_left (values_of context ~at:(contexts_of_tc)) ~init:"" ~f:(fun acc (k,vs)->
-              match vs with []->""|_->
+              match vs with []->acc|_->
               sprintf "%s and (%s) " acc
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
                 sprintf "%s%stc_config.%s='%s' " acc2 (match acc2 with |""->""|_->"or ") k v
               ))
             ))
            ^(List.fold_left (values_of context ~at:(contexts_of_build)) ~init:"" ~f:(fun acc (k,vs)->
-              match vs with []->""|_->
+              match vs with []->acc|_->
               sprintf "%s and (%s) " acc
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
                 sprintf "%s%sbuilds.%s='%s' " acc2 (match acc2 with |""->""|_->"or ") k v
