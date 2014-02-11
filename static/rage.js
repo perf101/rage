@@ -664,7 +664,7 @@ function get_base_url() {
 }
 
 function get_som_url() {
-  return get_base_url() + "/?som=" + get_url_params().som;
+  return "/?som=" + get_url_params().som;
 }
 
 function set_auto_redraw() {
