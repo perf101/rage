@@ -71,6 +71,7 @@ canvas.flot-base {
 }
 .yaxis {
   display: inline-block;
+  width: 2.0em;
   transform:rotate(-90deg);
   -ms-transform:rotate(-90deg); /* IE 9 */
   -moz-transform:rotate(-90deg); /* Firefox */
