@@ -947,7 +947,7 @@ function GraphObject() {
     var graph = $("#" + o.target);
     // HTML graph labels
     graph.siblings(".xaxis").html(o.xaxis);
-    graph.siblings(".yaxis").html(o.yaxis);
+    graph.siblings(".yaxis").html((o.yaxis == "result") ? yaxis = $("span[class='som_name']").text() : o.yaxis); // use the name of the SOM rather than "result"
     // default options
     point_series = o.series;
     num_series = point_series.length;
