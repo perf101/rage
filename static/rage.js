@@ -814,7 +814,7 @@ function GraphObject() {
       if (!(x in x_to_ys)) x_to_ys[x] = [];
       x_to_ys[x].push(point[1]);
     }
-    var xs = $.map(Object.keys(x_to_ys), function(v) {return parseInt(v);});
+    var xs = Object.keys(x_to_ys);
     numerical_sort(xs);
     var x_ys_array = [];
     for (i in xs) {
