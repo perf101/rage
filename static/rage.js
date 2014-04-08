@@ -105,13 +105,17 @@ function on_soms_by_tc_received(o) {
   var s = "";
   $.each(o.tcs, function(tc_fqn, tc) {
     s += "<h2>" + tc_fqn + " (" + tc.desc + ")</h2>";
-    s += "<ul>";
-    $.each(tc_to_soms[tc_fqn], function(i, som_id) {
-      var som_url = base_url + "/?som=" + som_id;
-      var som_caption = som_id + " (" + o.soms[som_id].name + ")";
-      s += "<li><a href='" + som_url + "'>" + som_caption + "</a></li>";
-    });
-    s += "</ul>";
+    if (tc_fqn in tc_to_soms) {
+      s += "<ul>";
+      $.each(tc_to_soms[tc_fqn], function(i, som_id) {
+        var som_url = base_url + "/?som=" + som_id;
+        var som_caption = som_id + " (" + o.soms[som_id].name + ")";
+        s += "<li><a href='" + som_url + "'>" + som_caption + "</a></li>";
+      });
+      s += "</ul>";
+    } else {
+      s += "<p>none</p>";
+    }
   });
   $("body").append(s);
 }
