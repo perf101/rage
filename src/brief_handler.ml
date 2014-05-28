@@ -26,10 +26,13 @@ let t ~args = object (self)
 *)
       ()
     in
-
     (* === input === *)
 
     let brief_id = try List.Assoc.find_exn params "id" with |_->"" in
+    let parse_url args =
+      let key k = Str.replace_first (Str.regexp "/\\?") "" k in
+      (List.map ~f:(fun p->let ls=String.split ~on:'=' p in (key (List.nth_exn ls 0)),(List.nth_exn ls 1)) (String.split ~on:'&' args ))
+    in
     let args =
       if brief_id = "" then params
       else
@@ -37,16 +40,13 @@ let t ~args = object (self)
           let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
           (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
         in
-        let replace kvs overrides =
-          List.fold_left kvs ~init:[] ~f:(fun acc (k,v)->match List.find overrides ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
+        let replace params default_params=
+          List.fold_left (* if params present, use it preferrably over the default params *)
+            (parse_url default_params)
+            ~init:[]
+            ~f:(fun acc (k,v)->match List.find params ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
         in
-        let replaced = 
-          (replace 
-            (List.map ~f:(fun p->let ls=String.split ~on:'=' p in (List.nth_exn ls 0),(List.nth_exn ls 1)) (String.split ~on:'&' (brief_params_of_id brief_id) ))
-            params (* if params present, use it preferrably over the args in the db *)
-          )
-        in
-        List.fold_left params ~init:replaced ~f:(fun acc (k,v)->
+        List.fold_left params ~init:(replace params (brief_params_of_id brief_id)) ~f:(fun acc (k,v)->
           match List.find acc ~f:(fun (ka,_)->k=ka) with
           |None->(k,v)::acc (* if params contains a k not in the db, add this k to args *)
           |Some _->acc
@@ -56,6 +56,8 @@ let t ~args = object (self)
       List.fold_left
          [
            ("%20"," ");("%22","\""); ("%28","("); ("%29",")");   (* unescape http params *)
+           ("%2F","/");("%3F","?" ); ("%3D","="); ("%26","&");
+           ("+"," "); ("%3E",">"); ("%3C","<");
          ]
          ~init:url
         ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
@@ -182,6 +184,10 @@ let t ~args = object (self)
         ~f:(fun e->not (List.mem e ~set:["tc_fqn";"tc_config_id";"machine_id"]))
       )
     in
+    let url_of_t t =
+      let query = sprintf "select url from tiny_urls where key=%s" t in
+      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+    in
     (*
     let all_contexts_of_tc tc_fqn =
       let tc_contexts = 
@@ -303,7 +309,11 @@ let t ~args = object (self)
       let k_build_number = "build_number" in
       let v_latest_in_branch = "latest_in_branch" in
       let _,branches=List.find_exn ~f:(fun (k,vs)->k=k_branch) c_kvs in
-      (* list of all builds in all branches *)
+      if List.length branches < 1
+      then
+          [] (* no branches provided, no results *)
+      else
+      (* list of all builds in all branches provided *)
 
       (* this is the most straightforward way of obtaining the max build of a branch but this query is too slow and cannot be used
       let builds_of_branches = [latest_build_in_branch (List.nth_exn branches 0)] in (*TODO: handle >1 branches in context*)
@@ -328,23 +338,97 @@ let t ~args = object (self)
         )
       )
     in
+    let c_kvs_of_tiny_url t =
+      let url = url_decode (url_of_t t) in
+      debug (sprintf "expanded tiny url t=%s => %s" t url);
+      (* parse and add "v_"k=value patterns in url *)
+      let items = parse_url url in
+      let kv = List.map
+        (List.filter items  (*filter special keys*)
+          ~f:(fun (k,v)->
+            (* starts with "v_" or "som" *)
+            ( k="som" ||
+            try Str.search_forward (Str.regexp "v_.*") k 0 = 0 with Not_found->false
+            )
+            && (*and doesn't have 'ALL' as a value*)
+            v<>"ALL"
+          )
+        )
+        ~f:(fun (k,v)-> (*apply some mappings to remaining keys and values *)
+          (* remove "v_" from beginning of k *)
+          let new_key = Str.replace_first (Str.regexp "v_") "" k in
+          let new_value = url_decode v in
+          ((if new_key="som" then "soms" else new_key), new_value)
+        )
+      in
+
+      (* map (k_i,v_i) and (k_j,v_j) to (k_i,[v_i,v_j,...]) when k_i=k_j *)
+      let kvs =
+        let ks_tbl = Hashtbl.create 128 in
+        List.iter kv
+          ~f:(fun (k,v)->
+            if Hashtbl.mem ks_tbl k
+              then Hashtbl.replace ks_tbl k (v::(Hashtbl.find ks_tbl k)) (* add new v to existing k *)
+              else Hashtbl.add ks_tbl k [v] (* add initial v to non-existing k *)
+          );
+        Hashtbl.fold (fun k vs acc->(k,vs)::acc) ks_tbl []
+      in
+      kvs
+    in
+    let expand_tiny_urls c_kvs =
+      let k_tiny_url = "t" in
+      let tiny_url = List.find c_kvs ~f:(fun (k,_) -> k=k_tiny_url) in
+      let x = match tiny_url with
+      | None         -> [c_kvs]
+      | Some (_,[t]) ->
+        let x = c_kvs_of_tiny_url t in
+        [List.fold_left
+          ~init:c_kvs           (* c_kvs kvs have priority over the ones in c_kvs_of_tiny_url *)
+          x                     (* obtain url from tiny_url id, parse it and return a c_kvs *)
+          ~f:(fun acc (k,vs)->
+            if List.exists c_kvs ~f:(fun(_k,_)->k=_k)
+            then (*prefer the one already in c_kvs, ie. do not add (k,vs) to acc*)
+              acc
+            else (*(k,vs) not already in c_kvs, add it *)
+              (k,vs)::acc
+          )
+        ]
+      | Some (_,_) ->
+        failwith (sprintf "tiny url: only one tiny url value supported for each t")
+      in
+      x
+    in
     let expand ctx = (*expand cell context into all possible context after expanding ctx templates into values*)
-      (* 1. value template: latest_in_branch *)
-      expand_latest_build_of_branch ctx
-      (* ... potentially other expansions in the future... *)
+      List.fold_left ~init:[ctx]
+        ~f:(fun rets expand_fn->List.fold_left rets ~init:[] ~f:(fun acc ret->acc@(expand_fn ret)))
+        [
+          expand_latest_build_of_branch; (* 1. value template: latest_in_branch *)
+          (* expand_tiny_urls;*)         (* 2. key template: t -- to use a tiny link value -- already expanded in row *)
+          (* ... potentially other expansions in the future... *)
+        ]
     in
     let b = input_base_context in
     let cs = input_cols in
-    let rs = List.fold_left ~init:[] input_rows (* expand tcs into soms *) (*todo: this should also apply to columns *)
-      ~f:(fun acc r-> let r_expanded = List.concat (List.map r 
-          ~f:(fun (k,v)->match k with 
-            | _ when k="tcs" -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
-            | _ -> (k,v)::[] 
-          ))
-        in
-        let soms,no_soms = List.partition r_expanded ~f:(fun (k,v)->k="soms") in
-        let soms = List.sort soms ~cmp:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
-        acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
+    let rs = List.fold_left ~init:[] input_rows (* expand special row keys *) (*todo: this should also apply to columns *)
+      ~f:(fun acc r-> 
+
+        if List.exists r ~f:(fun (k,v)->k="tcs") then (* expand tcs into soms *)
+          let r_expanded = List.concat (List.map r 
+            ~f:(fun (k,v)->match k with 
+              | _ when k="tcs" -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
+              | _ -> (k,v)::[] 
+            )
+          )
+          in
+          let soms,no_soms = List.partition r_expanded ~f:(fun (k,v)->k="soms") in
+          let soms = List.sort soms ~cmp:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
+          acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
+
+        else if List.exists r ~f:(fun (k,v)->k="t") then (* expand tiny links into rows kvs *)
+          List.hd_exn (expand_tiny_urls r) :: acc
+
+        else
+          r::acc
       )
     in
     progress (sprintf "table: %d lines: " (List.length rs));
