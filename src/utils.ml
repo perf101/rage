@@ -233,6 +233,7 @@ let tc_config_fields = [
   "network_backend";
   "option_clone_on_boot";
   "force_non_debug_xen";
+  "cpufreq_governor";
   "xen_cmdline";
   "kernel_cmdline";
   "xenrt_pq_name";
