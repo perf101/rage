@@ -622,9 +622,11 @@ function extract_params(s) {
   var pairs = s.split('&');
   for(var i in pairs) {
     var pair = pairs[i].split('=');
-    if (!result[pair[0]]) result[pair[0]] = [];
-    if (typeof(pair[1]) === 'undefined') pair[1] = "";
-    result[pair[0]].push(pair[1].replace(/\+/g, " "));
+    var key = pair[0];
+    var value = pair.slice(1, pair.length).join("=");
+    if (!result[key]) result[key] = [];
+    if (typeof(pair[1]) === 'undefined') value = "";
+    result[key].push(value.replace(/\+/g, " "));
   }
   return result;
 }
