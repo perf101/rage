@@ -309,7 +309,7 @@ let t ~args = object (self)
       let k_build_number = "build_number" in
       let v_latest_in_branch = "latest_in_branch" in
       match List.find ~f:(fun (k,vs)->k=k_branch) c_kvs with
-      | None -> []
+      | None -> [c_kvs]
       | Some (_,branches) ->
       if List.length branches < 1
       then
