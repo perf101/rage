@@ -308,7 +308,9 @@ let t ~args = object (self)
       let k_branch = "branch" in
       let k_build_number = "build_number" in
       let v_latest_in_branch = "latest_in_branch" in
-      let _,branches=List.find_exn ~f:(fun (k,vs)->k=k_branch) c_kvs in
+      match List.find ~f:(fun (k,vs)->k=k_branch) c_kvs with
+      | None -> []
+      | Some (_,branches) ->
       if List.length branches < 1
       then
           [] (* no branches provided, no results *)
