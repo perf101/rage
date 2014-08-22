@@ -240,6 +240,7 @@ let tc_config_fields = [
   "xenrt_version";
   "xenrt_internal_version";
   "xenrt_pq_version";
+  "dom0_vcpus";
 ]
 
 let som_config_tbl_exists ~conn som_id =
