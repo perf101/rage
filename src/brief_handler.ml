@@ -743,7 +743,11 @@ let t ~args = object (self)
        ))
       )
       in
-      printf "%s" "<p>Brief Rage Report</p>\n";
+      let title_of_id id =
+        let query = sprintf "select brief_desc from briefs where brief_id='%s'" id in
+        (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      in
+      printf "<p>Brief RAGE Report #%s: <b>%s</b></p>\n" brief_id (title_of_id brief_id);
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
