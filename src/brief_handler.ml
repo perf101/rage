@@ -31,7 +31,7 @@ let t ~args = object (self)
     let brief_id = try List.Assoc.find_exn params "id" with |_->"" in
     let parse_url args =
       let key k = Str.replace_first (Str.regexp "/\\?") "" k in
-      (List.map ~f:(fun p->let ls=String.split ~on:'=' p in (key (List.nth_exn ls 0)),(List.nth_exn ls 1)) (String.split ~on:'&' args ))
+      (List.map ~f:(fun p->match String.split ~on:'=' p with k::vs->(key k),(String.concat ~sep:"=" vs)|[]->failwith "k should be present") (String.split ~on:'&' args ))
     in
     let args =
       if brief_id = "" then params
