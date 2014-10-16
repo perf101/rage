@@ -719,25 +719,26 @@ let t ~args = object (self)
           (List.fold_left ~init:"" ~f:(fun acc c_ms->(sprintf "%s <td style='text-align:center;'> %s </td>\n" acc c_ms))
             (List.mapi cs ~f:(fun i (r,c,ctx,ms)->
               let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
-              sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>"
-              (Sexp.to_string (sexp_of_ctx_t r))
-              (Sexp.to_string (sexp_of_ctx_t c))
-              (str_of_ctxs ctx ~txtonly:true)
-              (Sexp.to_string (sexp_of_str_lst_t ms))
-              (sprintf "<span style='color:%s'>%s <br> %s %s</span>"
+              let debug_r = Sexp.to_string (sexp_of_ctx_t r)
+              and debug_c = Sexp.to_string (sexp_of_ctx_t c)
+              and context = str_of_ctxs ctx ~txtonly:true
+              and debug_ms = Sexp.to_string (sexp_of_str_lst_t ms)
+              and colour = 
                 (if baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->if is_green (val_stddev_of baseline_ms) (val_stddev_of ms) mb then "green" else "red"
                 )
-                (str_stddev_of ms)
-                (sprintf "<sub>(%d)</sub>" (List.length ms))
+              and avg = str_stddev_of ms
+              and number = sprintf "<sub>(%d)</sub>" (List.length ms)
+              and diff = 
                 (if baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of baseline_ms) (val_stddev_of ms) mb))
-                )
-              )
+                ) in
+              let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number diff in
+              sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
             ))
           )
        ))
