@@ -689,8 +689,10 @@ let t ~args = object (self)
           is_mb None _vs
         )
       in
+      let num_columns = (List.length cs) + 3 in
       let html_table =
-      sprintf "<tr> <td style='background-color:papayawhip;'>%s</td></tr>\n%s%s%s"
+      sprintf "<tr> <td style='background-color:papayawhip;' colspan='%d'>%s</td></tr>\n%s%s%s"
+      num_columns
       (* print the base context *)
       (str_of_ctxs b)
       (* print the header *)
