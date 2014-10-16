@@ -722,22 +722,23 @@ let t ~args = object (self)
               let debug_r = Sexp.to_string (sexp_of_ctx_t r)
               and debug_c = Sexp.to_string (sexp_of_ctx_t c)
               and context = str_of_ctxs ctx ~txtonly:true
-              and debug_ms = Sexp.to_string (sexp_of_str_lst_t ms)
-              and colour = 
-                (if baseline_col_idx = i then "" else
+              and debug_ms = Sexp.to_string (sexp_of_str_lst_t ms) in
+              let number = List.length ms in
+              let number_str = sprintf "<sub>(%d)</sub>" number in
+              let colour = 
+                (if number = 0 or baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->if is_green (val_stddev_of baseline_ms) (val_stddev_of ms) mb then "green" else "red"
-                )
-              and avg = str_stddev_of ms
-              and number = sprintf "<sub>(%d)</sub>" (List.length ms)
-              and diff = 
-                (if baseline_col_idx = i then "" else
+                ) in
+              let avg = str_stddev_of ms in
+              let diff = 
+                (if number = 0 or baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of baseline_ms) (val_stddev_of ms) mb))
                 ) in
-              let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number diff in
+              let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number_str diff in
               sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
             ))
           )
