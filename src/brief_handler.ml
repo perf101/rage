@@ -14,10 +14,16 @@ type sort_by_col_t = int with sexp
 
 type result_t = Avg of float | Range of float * float * float
 
+type job_and_value = {job: int; value: string}
+let jobs_of_ms = List.map ~f:(fun m -> m.job)
+let vals_of_ms = List.map ~f:(fun m -> m.value)
+
 let t ~args = object (self)
   inherit Html_handler.t ~args
 
   method private write_body =
+
+    let show_jobids = try bool_of_string (List.Assoc.find_exn params "show_jobids") with _ -> false in
 
     let progress str =
 (*
@@ -233,7 +239,7 @@ let t ~args = object (self)
        let measurements_of_som som_id =
          let has_table_som_id som_id = has_table (sprintf "som_config_%s" som_id) in
          let tc_fqn = tc_of_som som_id in 
-         let query = "select measurements.result from measurements "
+         let query = "select measurements.job_id, measurements.result from measurements "
            ^(sprintf "join tc_config_%s on measurements.tc_config_id=tc_config_%s.tc_config_id " tc_fqn tc_fqn)
            ^(if has_table_som_id som_id then
               (sprintf "join som_config_%s on measurements.som_config_id=som_config_%s.som_config_id " som_id som_id)
@@ -284,7 +290,7 @@ let t ~args = object (self)
               ))
             ))
           in
-          Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
+          Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->{job=int_of_string x.(0); value=x.(1)}))
         in
         (* add measurements for each one of the soms in the cell *)
         List.concat (List.map ~f:measurements_of_som (get "soms" context))
@@ -598,7 +604,7 @@ let t ~args = object (self)
           let ms cs =
             let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
             let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
-            proportion (val_stddev_of base_ms) (val_stddev_of cmp_ms) None
+            proportion (val_stddev_of (vals_of_ms base_ms)) (val_stddev_of (vals_of_ms cmp_ms)) None
           in
           let ms1, ms2 = (abs_float (ms cs1)),(abs_float (ms cs2)) in
           if ms1 > ms2 then -1 else if ms2 > ms1 then 1 else 0 (* decreasing order *)
@@ -724,21 +730,26 @@ let t ~args = object (self)
               let debug_r = Sexp.to_string (sexp_of_ctx_t r)
               and debug_c = Sexp.to_string (sexp_of_ctx_t c)
               and context = str_of_ctxs ctx ~txtonly:true
-              and debug_ms = Sexp.to_string (sexp_of_str_lst_t ms) in
+              and debug_ms = Sexp.to_string (sexp_of_str_lst_t (vals_of_ms ms)) in
               let number = List.length ms in
-              let number_str = sprintf "<sub>(%d)</sub>" number in
+              let number_str = if show_jobids
+                then
+                  sprintf "<sub>[%s]</sub>" (String.concat ~sep:"; " (List.map ~f:string_of_int (List.dedup (jobs_of_ms ms))))
+                else
+                  sprintf "<sub>(%d)</sub>" number
+              in
               let colour = 
                 (if number = 0 or baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
-                 |Some mb->if is_green (val_stddev_of baseline_ms) (val_stddev_of ms) mb then "green" else "red"
+                 |Some mb->if is_green (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb then "green" else "red"
                 ) in
-              let avg = str_stddev_of ms in
+              let avg = str_stddev_of (vals_of_ms ms) in
               let diff = 
                 (if number = 0 or baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
-                 |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of baseline_ms) (val_stddev_of ms) mb))
+                 |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
                 ) in
               let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number_str diff in
               sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
@@ -847,20 +858,20 @@ let t ~args = object (self)
               (Sexp.to_string (sexp_of_ctx_t r))
               (Sexp.to_string (sexp_of_ctx_t c))
               (str_of_ctxs ctx ~txtonly:true)
-              (Sexp.to_string (sexp_of_str_lst_t ms))
+              (Sexp.to_string (sexp_of_str_lst_t (vals_of_ms ms)))
 *)
               (sprintf "{color:%s} %s %s %s {color}"
                 (if baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
-                 |Some mb->if is_green (val_stddev_of baseline_ms) (val_stddev_of ms) mb then "green" else "red"
+                 |Some mb->if is_green (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb then "green" else "red"
                 )
-                (str_stddev_of ms ~f2_fmt:"\\\\[%s, %s, %s\\\\]")
+                (str_stddev_of (vals_of_ms ms) ~f2_fmt:"\\\\[%s, %s, %s\\\\]")
                 (sprintf "~(%d)~" (List.length ms))
                 (if baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
-                 |Some mb->sprintf "~(%+.0f%%)~" (100.0 *. (proportion (val_stddev_of baseline_ms) (val_stddev_of ms) mb))
+                 |Some mb->sprintf "~(%+.0f%%)~" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
                 )
               )
             ))
