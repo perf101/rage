@@ -685,8 +685,11 @@ function serialise_params(params) {
   var keyvals = [];
   for (var p in params) {
     var v = params[p];
-    for (var i in v)
-      keyvals.push(p + "=" + v[i]);
+    var encKey = encodeURIComponent(p);
+    for (var i in v) {
+      var encVal = encodeURIComponent(v[i]);
+      keyvals.push(encKey + "=" + encVal);
+    }
   }
   return keyvals.join("&");
 }
