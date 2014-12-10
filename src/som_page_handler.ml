@@ -141,6 +141,7 @@ let t ~args = object (self)
     checkbox "y_fromto_zero" "Force Y from/to 0";
     checkbox "x_as_seq" "Force X data as sequence";
     checkbox "y_as_seq" "Force Y data as sequence";
+    checkbox "x_as_num" "Force X data as numeric";
     checkbox "show_all_meta" "Show all meta-data";
     checkbox "xaxis_log" "Log scale X";
     checkbox "yaxis_log" "Log scale Y";

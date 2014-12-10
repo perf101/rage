@@ -13,7 +13,7 @@ var autofetch = true; // if false, the following triggers have no effect
 var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero", "auto_redraw"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
-  "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#show_all_meta",
+  "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#x_as_num", "#show_all_meta",
   "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img", "#auto_redraw"
 ]
 var url_params = get_url_params();
@@ -65,6 +65,7 @@ function som_page_init() {
   $("input[name='y_fromto_zero']").change(redraw_trigger);
   $("input[name='x_as_seq']").change(redraw_trigger);
   $("input[name='y_as_seq']").change(redraw_trigger);
+  $("input[name='x_as_num']").change(redraw_trigger);
   $("input[name='show_all_meta']").change(redraw_trigger);
   $("input[name='xaxis_log']").change(redraw_trigger);
   $("input[name='yaxis_log']").change(redraw_trigger);
