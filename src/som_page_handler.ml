@@ -125,6 +125,7 @@ let t ~args = object (self)
       "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
     in
     let machines = Sql.exec_exn ~conn ~query in
+    printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
     printf "<form name='optionsForm'>\n";
@@ -134,22 +135,29 @@ let t ~args = object (self)
       printf "<div id='%s' style='display: inline'>\n" name;
       printf "<input type='checkbox' name='%s' />%s\n" name caption;
       printf "</div>\n" in
+    printf "</td><td>\n";
     checkbox "show_points" "Show points";
     checkbox "show_avgs" "Show averages";
     checkbox "show_dist" "Show distributions";
+    printf "<br/>\n";
     checkbox "x_from_zero" "Force X from 0";
     checkbox "y_fromto_zero" "Force Y from/to 0";
+    printf "<br/>\n";
     checkbox "x_as_seq" "Force X data as sequence";
     checkbox "y_as_seq" "Force Y data as sequence";
+    printf "<br/>\n";
     checkbox "x_as_num" "Force X data as numeric";
+    printf "<br/>\n";
     checkbox "show_all_meta" "Show all meta-data";
+    printf "<br/>\n";
     checkbox "xaxis_log" "Log scale X";
     checkbox "yaxis_log" "Log scale Y";
+    printf "<br/>\n";
     checkbox "auto_redraw" "Auto Redraw";
     printf "<br />\n";
     self#write_legend_position_choice "legend_position";
     self#write_symbol_choice "symbol";
-    printf "<br />\n";
+    printf "</td></tr>\n</table>\n";
     self#write_filter_table job_ids builds job_attributes config_columns tc_config_tbl
       som_configs_opt machines;
     printf "</form>\n";
