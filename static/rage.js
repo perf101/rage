@@ -17,6 +17,8 @@ var graph_only_fields = [
   "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img", "#auto_redraw"
 ]
 var url_params = get_url_params();
+var debug = ("debug" in url_params);
+
 // ==== GLOBAL VARIABLES --- end ====
 
 // ======== MAIN --- begin ===========
