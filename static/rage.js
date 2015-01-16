@@ -13,10 +13,12 @@ var autofetch = true; // if false, the following triggers have no effect
 var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero", "auto_redraw"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
-  "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#show_all_meta",
+  "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#x_as_num", "#show_all_meta",
   "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img", "#auto_redraw"
 ]
 var url_params = get_url_params();
+var debug = ("debug" in url_params);
+
 // ==== GLOBAL VARIABLES --- end ====
 
 // ======== MAIN --- begin ===========
@@ -65,6 +67,7 @@ function som_page_init() {
   $("input[name='y_fromto_zero']").change(redraw_trigger);
   $("input[name='x_as_seq']").change(redraw_trigger);
   $("input[name='y_as_seq']").change(redraw_trigger);
+  $("input[name='x_as_num']").change(redraw_trigger);
   $("input[name='show_all_meta']").change(redraw_trigger);
   $("input[name='xaxis_log']").change(redraw_trigger);
   $("input[name='yaxis_log']").change(redraw_trigger);
@@ -593,6 +596,18 @@ function preselect_fields_based_on_params() {
   var params = get_url_params();
   delete params.som;
   for (var param in params) {
+    var elt = $("[name='" + param + "']");
+    if (elt.is("select")) {
+      // If any of the options we're expecting to select don't exist, append them
+      var known_vals = $.map(elt.find('option'), function(elt, i) { return $(elt).val(); });
+      for (var i in params[param]) {
+        var option = params[param][i];
+        if (known_vals.indexOf(option) < 0) {
+	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it.');
+          elt.append("<option value='" + option + "'>" + option + "</option>");
+        }
+      }
+    }
     $("[name='" + param + "']").val(params[param].map(decode));
     $("th[name='title_" + param + "']").css({'color':'red'});
   }
@@ -684,8 +699,11 @@ function serialise_params(params) {
   var keyvals = [];
   for (var p in params) {
     var v = params[p];
-    for (var i in v)
-      keyvals.push(p + "=" + v[i]);
+    var encKey = encodeURIComponent(p);
+    for (var i in v) {
+      var encVal = encodeURIComponent(v[i]);
+      keyvals.push(encKey + "=" + encVal);
+    }
   }
   return keyvals.join("&");
 }

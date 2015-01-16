@@ -31,19 +31,20 @@ let t ~args = object (self)
   method private get_relevant_params =
     self#get_filter_params @ self#get_values_params
 
-  method private should_sort_alphabetically col_types col_name force_as_seq =
+  method private should_sort_alphabetically col_types col_name force_as_seq force_as_num =
     match col_name with
     | [col_name] ->
         begin
           match force_as_seq with true -> true | false ->
+          match force_as_num with true -> false | false ->
           match String.Table.find col_types col_name with None -> false | Some ty ->
           Sql.Type.is_quoted ty
         end
     | _ -> (* always quote if it's multiple-key value *) true
 
   method private get_generic_string_mapping rows col col_name col_types
-      force_as_seq =
-    if not (self#should_sort_alphabetically col_types col_name force_as_seq)
+      force_as_seq force_as_num =
+    if not (self#should_sort_alphabetically col_types col_name force_as_seq force_as_num)
     then None else
     let col_data = Array.to_list (Array.map ~f:(fun row -> row.(col)) rows) in
     let uniques = List.dedup col_data in
@@ -51,9 +52,9 @@ let t ~args = object (self)
     Some (List.mapi sorted ~f:(fun i x -> (i+1, x)))
 
   method private strings_to_numbers rows col col_name col_types label
-      force_as_seq =
+      force_as_seq force_as_num =
     let mapping_opt =
-      self#get_generic_string_mapping rows col col_name col_types force_as_seq in
+      self#get_generic_string_mapping rows col col_name col_types force_as_seq force_as_num in
     match mapping_opt with None -> () | Some mapping ->
     let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i a in
     let mapping_str = concat (List.map mapping ~f:process_entry) in
@@ -154,8 +155,9 @@ let t ~args = object (self)
     printf "\"yaxis\":\"%s\"," yaxis;
     let x_as_seq = ("on" = self#get_first_val "x_as_seq" "off") in
     let y_as_seq = ("on" = self#get_first_val "y_as_seq" "off") in
-    self#strings_to_numbers rows 0 xaxis col_types "x_labels" x_as_seq;
-    self#strings_to_numbers rows 1 [yaxis] col_types "y_labels" y_as_seq;
+    let x_as_num = ("on" = self#get_first_val "x_as_num" "off") in
+    self#strings_to_numbers rows 0 xaxis col_types "x_labels" x_as_seq x_as_num;
+    self#strings_to_numbers rows 1 [yaxis] col_types "y_labels" y_as_seq false;
     let num_other_keys = List.length keys - 2 in
     let convert_row row =
       let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in
