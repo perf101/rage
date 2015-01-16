@@ -596,6 +596,18 @@ function preselect_fields_based_on_params() {
   var params = get_url_params();
   delete params.som;
   for (var param in params) {
+    var elt = $("[name='" + param + "']");
+    if (elt.is("select")) {
+      // If any of the options we're expecting to select don't exist, append them
+      var known_vals = $.map(elt.find('option'), function(elt, i) { return $(elt).val(); });
+      for (var i in params[param]) {
+        var option = params[param][i];
+        if (known_vals.indexOf(option) < 0) {
+	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it.');
+          elt.append("<option value='" + option + "'>" + option + "</option>");
+        }
+      }
+    }
     $("[name='" + param + "']").val(params[param].map(decode));
     $("th[name='title_" + param + "']").css({'color':'red'});
   }
