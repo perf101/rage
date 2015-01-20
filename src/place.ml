@@ -22,6 +22,8 @@ type t =
   | Briefs
   | Brief
   | BriefCreate
+  | ImportPage
+  | ImportJobs
 
 let of_string = function
   | "create_tiny_url" -> CreateTinyUrl
@@ -41,6 +43,8 @@ let of_string = function
   | "briefs" -> Briefs
   | "brief" -> Brief
   | "brief_create" -> BriefCreate
+  | "import_page" -> ImportPage
+  | "import_jobs" -> ImportJobs
   | p -> failwith ("place_of_string: " ^ p)
 
 let string_of = function
@@ -63,3 +67,5 @@ let string_of = function
   | Briefs -> "briefs"
   | Brief -> "brief"
   | BriefCreate -> "brief_create"
+  | ImportPage -> "import_page"
+  | ImportJobs -> "import_jobs"
