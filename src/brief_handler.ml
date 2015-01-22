@@ -58,15 +58,23 @@ let t ~args = object (self)
           |Some _->acc
         )
     in
-    let url_decode url = (* todo: find a more complete version in some lib *)
-      List.fold_left
-         [
+    let url_decode url0 = (* todo: find a more complete version in some lib *)
+      let rec loop url_in =
+        let decode_once_more = Str.string_match (Str.regexp "%25") url_in 0 in
+        let url_out = List.fold_left
+          [
            ("%20"," ");("%22","\""); ("%28","("); ("%29",")");   (* unescape http params *)
            ("%2F","/");("%3F","?" ); ("%3D","="); ("%26","&");
-           ("+"," "); ("%3E",">"); ("%3C","<");
-         ]
-         ~init:url
-        ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
+           ("%25","%");("+"," ");    ("%3E",">"); ("%3C","<");
+           ("%3A",":");
+          ]
+          ~init:url_in
+          ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
+        in
+        (* loop once more if a %25 was found *)
+        if decode_once_more then loop url_out else url_out
+      in
+      loop url0
     in
     let html_encode html = (* todo: find a more complete version in some lib *)
       List.fold_left
