@@ -1,6 +1,7 @@
 open Core.Std
 open Utils
 open Sexplib.Std
+open Curl
 
 (* types of the url input arguments *)
 type cols_t = (string * string list) list list with sexp
@@ -35,29 +36,7 @@ let t ~args = object (self)
     (* === input === *)
 
     let brief_id = try List.Assoc.find_exn params "id" with |_->"" in
-    let parse_url args =
-      let key k = Str.replace_first (Str.regexp "/\\?") "" k in
-      (List.map ~f:(fun p->match String.split ~on:'=' p with k::vs->(key k),(String.concat ~sep:"=" vs)|[]->failwith "k should be present") (String.split ~on:'&' args ))
-    in
-    let args =
-      if brief_id = "" then params
-      else
-        let brief_params_of_id id =
-          let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
-          (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
-        in
-        let replace params default_params=
-          List.fold_left (* if params present, use it preferrably over the default params *)
-            (parse_url default_params)
-            ~init:[]
-            ~f:(fun acc (k,v)->match List.find params ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
-        in
-        List.fold_left params ~init:(replace params (brief_params_of_id brief_id)) ~f:(fun acc (k,v)->
-          match List.find acc ~f:(fun (ka,_)->k=ka) with
-          |None->(k,v)::acc (* if params contains a k not in the db, add this k to args *)
-          |Some _->acc
-        )
-    in
+
     let url_decode url0 = (* todo: find a more complete version in some lib *)
       let rec loop url_in =
         let decode_once_more = Str.string_match (Str.regexp "%25") url_in 0 in
@@ -66,7 +45,7 @@ let t ~args = object (self)
            ("%20"," ");("%22","\""); ("%28","("); ("%29",")");   (* unescape http params *)
            ("%2F","/");("%3F","?" ); ("%3D","="); ("%26","&");
            ("%25","%");("+"," ");    ("%3E",">"); ("%3C","<");
-           ("%3A",":");
+           ("%3A",":");("&amp;","&");("&quot;","\"");
           ]
           ~init:url_in
           ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
@@ -84,79 +63,145 @@ let t ~args = object (self)
          ~init:html
         ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
     in
-    let params_cols=(try url_decode (List.Assoc.find_exn args "cols") with |_-> "") in
-    let params_rows=(try url_decode (List.Assoc.find_exn args "rows") with |_-> "") in
-    let params_base=(try url_decode (List.Assoc.find_exn args "base") with |_-> "") in
-    let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
-    let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
-    let params_sort_by_col=(try url_decode (List.Assoc.find_exn args "sort_by_col") with |_-> "") in
 
-    let attempt ~f a =
-      try f()
-      with Of_sexp_error (exn,t)-> (
-          let e = Exn.to_string exn in
-          printf "\n<p>syntax error in %s: %s when parsing the substring \"%s\"</p>\n" a e (Sexp.to_string t);
-          raise exn
+    let parse_url args =
+      let key k = Str.replace_first (Str.regexp "/\\?") "" k in
+      (List.map ~f:(fun p->match String.split ~on:'=' p with k::vs->(key k),(String.concat ~sep:"=" vs)|[]->failwith "k should be present") (String.split ~on:'&' (url_decode args) ))
+    in
+
+    let get_input_values args =
+
+      let params_cols=(try url_decode (List.Assoc.find_exn args "cols") with |_-> "") in
+      let params_rows=(try url_decode (List.Assoc.find_exn args "rows") with |_-> "") in
+      let params_base=(try url_decode (List.Assoc.find_exn args "base") with |_-> "") in
+      let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
+      let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
+      let params_sort_by_col=(try url_decode (List.Assoc.find_exn args "sort_by_col") with |_-> "") in
+
+      let attempt ~f a =
+        try f()
+        with Of_sexp_error (exn,t)-> (
+            let e = Exn.to_string exn in
+            printf "\n<p>syntax error in %s: %s when parsing the substring \"%s\"</p>\n" a e (Sexp.to_string t);
+            raise exn
+          )
+      in
+
+      (* eg.: input_cols_sexp="(((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1)))((machine_name(xrtuk-08-02 xrtuk-08-04)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(2 3)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1 2 3))(soms(288))))" *)
+      let input_cols =
+        if params_cols <> "" then
+          attempt ~f:(fun ()->cols_t_of_sexp (Sexp.of_string params_cols) ) "cols"
+        else (*default value *) 
+          []
+      in
+      printf "<input_cols_sexp %s/>\n" (Sexp.to_string (sexp_of_cols_t input_cols));
+
+      let input_rows = 
+        if params_rows <> "" then
+          attempt ~f:(fun ()->rows_t_of_sexp (Sexp.of_string params_rows)) "rows"
+        else (*default value *)
+          []
+      in
+      printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
+
+      (* base context is used to fill any context gap not expressed in row and column contexts
+         eg. [("build_number",[44543;55432]);("job_id",[1000;4000]);("number_of_cpus",[1]);...]
+         -- append (OR) the results of each element in the list
+        TODO: is base context restrictive or conjuntive, ie does it restrict possible contexts in 
+              the cells or does it contribute to them with lower-priority than rows and col contexts?
+        TODO: use intersection between base_context and input_cols and input_rows
+       *)
+      let input_base_context = 
+        if params_base <> "" then
+          attempt ~f:(fun ()->base_t_of_sexp (Sexp.of_string params_base)) "base" 
+        else (*default value *)
+          []
+      in
+      printf "<input_base_sexp %s/>\n" (Sexp.to_string (sexp_of_base_t input_base_context));
+
+      let baseline_col_idx =
+         if params_baseline <> "" then
+           attempt ~f:(fun ()->baseline_t_of_sexp (Sexp.of_string params_baseline)) "baseline"
+         else (*default value *)
+           0
+      in
+      printf "<input_baseline_col_sexp %s/>\n" (Sexp.to_string (sexp_of_baseline_t baseline_col_idx));
+
+      let out =
+         if params_out <> "" then
+           attempt ~f:(fun ()->out_t_of_sexp (Sexp.of_string (String.capitalize params_out))) "out"
+         else (*default value *)
+           `Html 
+      in
+      printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
+
+      let sort_by_col =
+         if params_sort_by_col <> "" then
+           Some (attempt ~f:(fun ()->sort_by_col_t_of_sexp (Sexp.of_string (String.capitalize params_sort_by_col))) "sort_by_col")
+         else (*default value *)
+           None
+      in
+      (input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col)
+    in
+
+    (* extra input from urls *)
+    let is_digit id =  Str.string_match (Str.regexp "[0-9]+") id 0 in
+    let fetch_brief_params_from_url url =
+      (* simple fetch using confluence page with brief_params inside the "code block" macro in the page *)
+      let html_of_url url =
+          try
+            let conn = Curl.init() and write_buff = Buffer.create 16384 in
+            Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
+            Curl.set_url conn url;
+            Curl.perform conn;
+            Curl.global_cleanup();
+            Buffer.contents write_buff;
+          with _ -> sprintf "error fetching url %s" url
+      in
+      let html = html_of_url url in
+      let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
+      let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\([^..]+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
+      if not has_match then (sprintf "no match in %s" html) else try Str.matched_group 1 html with Not_found -> "not found"
+    in
+    let fetch_brief_params_from_db id =
+      let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
+      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+    in
+    let fetch_brief_params_from id =
+      let xs = if is_digit id then fetch_brief_params_from_db brief_id
+        else fetch_brief_params_from_url brief_id
+      in
+      (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
+      xs
+    in
+    let title_of_id id =
+      if is_digit id then
+        let query = sprintf "select brief_desc from briefs where brief_id='%s'" id in
+        (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      else
+        ""
+    in
+
+    let args =
+      if brief_id = "" then params
+      else
+        let replace params default_params=
+          List.fold_left (* if params present, use it preferrably over the default params *)
+            (parse_url default_params)
+            ~init:[]
+            ~f:(fun acc (k,v)->match List.find params ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
+        in
+        List.fold_left params ~init:(replace params (fetch_brief_params_from brief_id)) ~f:(fun acc (k,v)->
+          match List.find acc ~f:(fun (ka,_)->k=ka) with
+          |None->(k,v)::acc (* if params contains a k not in the db, add this k to args *)
+          |Some _->acc
         )
     in
 
-    (* eg.: input_cols_sexp="(((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1)))((machine_name(xrtuk-08-02 xrtuk-08-04)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(2 3)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1 2 3))(soms(288))))" *)
-    let input_cols =
-      if params_cols <> "" then
-        attempt ~f:(fun ()->cols_t_of_sexp (Sexp.of_string params_cols) ) "cols"
-      else (*default value *) 
-        []
-    in 
-    printf "<input_cols_sexp %s/>\n" (Sexp.to_string (sexp_of_cols_t input_cols));
-
-    let input_rows = 
-      if params_rows <> "" then
-        attempt ~f:(fun ()->rows_t_of_sexp (Sexp.of_string params_rows)) "rows"
-      else (*default value *)
-        []
-    in
-    printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
-
-
-    (* base context is used to fill any context gap not expressed in row and column contexts
-       eg. [("build_number",[44543;55432]);("job_id",[1000;4000]);("number_of_cpus",[1]);...]
-       -- append (OR) the results of each element in the list
-      TODO: is base context restrictive or conjuntive, ie does it restrict possible contexts in 
-            the cells or does it contribute to them with lower-priority than rows and col contexts?
-      TODO: use intersection between base_context and input_cols and input_rows
-     *)
-    let input_base_context = 
-      if params_base <> "" then
-        attempt ~f:(fun ()->base_t_of_sexp (Sexp.of_string params_base)) "base" 
-      else (*default value *)
-        []
-    in
-    printf "<input_base_sexp %s/>\n" (Sexp.to_string (sexp_of_base_t input_base_context));
-
-    let baseline_col_idx =
-       if params_baseline <> "" then
-         attempt ~f:(fun ()->baseline_t_of_sexp (Sexp.of_string params_baseline)) "baseline"
-       else (*default value *)
-         0
-    in
-    printf "<input_baseline_col_sexp %s/>\n" (Sexp.to_string (sexp_of_baseline_t baseline_col_idx));
-
-    let out =
-       if params_out <> "" then
-         attempt ~f:(fun ()->out_t_of_sexp (Sexp.of_string (String.capitalize params_out))) "out"
-       else (*default value *)
-         `Html 
-    in
-    printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
-
-    let sort_by_col =
-       if params_sort_by_col <> "" then
-         Some (attempt ~f:(fun ()->sort_by_col_t_of_sexp (Sexp.of_string (String.capitalize params_sort_by_col))) "sort_by_col")
-       else (*default value *)
-         None
-    in
-
     (* === process === *)
+    let input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col =
+      get_input_values args
+    in
 
     progress "<p>Progress...:";
 
@@ -765,10 +810,6 @@ let t ~args = object (self)
           )
        ))
       )
-      in
-      let title_of_id id =
-        let query = sprintf "select brief_desc from briefs where brief_id='%s'" id in
-        (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
       in
       printf "<p>Brief RAGE Report #%s: <b>%s</b></p>\n" brief_id (title_of_id brief_id);
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
