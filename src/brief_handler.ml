@@ -94,7 +94,7 @@ let t ~args = object (self)
     in
     let fetch_brief_params_from id =
       let xs = if is_digit id then fetch_brief_params_from_db id
-        else fetch_brief_params_from_url brief_id
+        else fetch_brief_params_from_url id
       in
       (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
       xs
