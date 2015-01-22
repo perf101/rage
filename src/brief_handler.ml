@@ -69,7 +69,45 @@ let t ~args = object (self)
       (List.map ~f:(fun p->match String.split ~on:'=' p with k::vs->(key k),(String.concat ~sep:"=" vs)|[]->failwith "k should be present") (String.split ~on:'&' (url_decode args) ))
     in
 
-    let get_input_values args =
+    (* extra input from urls *)
+    let is_digit id =  Str.string_match (Str.regexp "[0-9]+") id 0 in
+    let fetch_brief_params_from_url url =
+      (* simple fetch using confluence page with brief_params inside the "code block" macro in the page *)
+      let html_of_url url =
+          try
+            let conn = Curl.init() and write_buff = Buffer.create 16384 in
+            Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
+            Curl.set_url conn url;
+            Curl.perform conn;
+            Curl.global_cleanup();
+            Buffer.contents write_buff;
+          with _ -> sprintf "error fetching url %s" url
+      in
+      let html = html_of_url url in
+      let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
+      let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\([^..]+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
+      if not has_match then (sprintf "no match in %s" html) else try Str.matched_group 1 html with Not_found -> "not found"
+    in
+    let fetch_brief_params_from_db id =
+      let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
+      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+    in
+    let fetch_brief_params_from id =
+      let xs = if is_digit id then fetch_brief_params_from_db id
+        else fetch_brief_params_from_url brief_id
+      in
+      (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
+      xs
+    in
+    let title_of_id id =
+      if is_digit id then
+        let query = sprintf "select brief_desc from briefs where brief_id='%s'" id in
+        (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      else
+        ""
+    in
+
+    let rec get_input_values args =
 
       let params_cols=(try url_decode (List.Assoc.find_exn args "cols") with |_-> "") in
       let params_rows=(try url_decode (List.Assoc.find_exn args "rows") with |_-> "") in
@@ -77,6 +115,7 @@ let t ~args = object (self)
       let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
       let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
       let params_sort_by_col=(try url_decode (List.Assoc.find_exn args "sort_by_col") with |_-> "") in
+      let params_add_rows_from=(try url_decode (List.Assoc.find_exn args "add_rows_from") with |_-> "") in
 
       let attempt ~f a =
         try f()
@@ -96,12 +135,26 @@ let t ~args = object (self)
       in
       printf "<input_cols_sexp %s/>\n" (Sexp.to_string (sexp_of_cols_t input_cols));
 
-      let input_rows = 
+      let input_rows =
         if params_rows <> "" then
           attempt ~f:(fun ()->rows_t_of_sexp (Sexp.of_string params_rows)) "rows"
         else (*default value *)
           []
       in
+      printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
+      let extra_input_rows_from = (* list of rows_t *)
+        let ids = Str.split (Str.regexp ",") params_add_rows_from in
+        List.map ids ~f:(fun id->
+          let brief_params_from = fetch_brief_params_from id in
+          let args = parse_url brief_params_from in
+          let _,_input_rows,_,_,_,_ = get_input_values args in
+          _input_rows
+        )
+      in
+(*
+      printf "<input_extra_rows_sexp %s/>\n" (html_encode (List.fold_left extra_input_rows_from ~init:"" ~f:(fun extra_input_row->(Sexp.to_string (sexp_of_rows_t extra_input_row)))));
+*)
+      let input_rows = List.concat (input_rows :: extra_input_rows_from) in
       printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
 
       (* base context is used to fill any context gap not expressed in row and column contexts
@@ -142,44 +195,6 @@ let t ~args = object (self)
            None
       in
       (input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col)
-    in
-
-    (* extra input from urls *)
-    let is_digit id =  Str.string_match (Str.regexp "[0-9]+") id 0 in
-    let fetch_brief_params_from_url url =
-      (* simple fetch using confluence page with brief_params inside the "code block" macro in the page *)
-      let html_of_url url =
-          try
-            let conn = Curl.init() and write_buff = Buffer.create 16384 in
-            Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
-            Curl.set_url conn url;
-            Curl.perform conn;
-            Curl.global_cleanup();
-            Buffer.contents write_buff;
-          with _ -> sprintf "error fetching url %s" url
-      in
-      let html = html_of_url url in
-      let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
-      let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\([^..]+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
-      if not has_match then (sprintf "no match in %s" html) else try Str.matched_group 1 html with Not_found -> "not found"
-    in
-    let fetch_brief_params_from_db id =
-      let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
-      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
-    in
-    let fetch_brief_params_from id =
-      let xs = if is_digit id then fetch_brief_params_from_db brief_id
-        else fetch_brief_params_from_url brief_id
-      in
-      (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
-      xs
-    in
-    let title_of_id id =
-      if is_digit id then
-        let query = sprintf "select brief_desc from briefs where brief_id='%s'" id in
-        (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
-      else
-        ""
     in
 
     let args =
