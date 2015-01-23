@@ -19,6 +19,8 @@ type job_and_value = {job: int; value: string}
 let jobs_of_ms = List.map ~f:(fun m -> m.job)
 let vals_of_ms = List.map ~f:(fun m -> m.value)
 
+let k_add_rows_from = "add_rows_from"
+
 let t ~args = object (self)
   inherit Html_handler.t ~args
 
@@ -85,7 +87,7 @@ let t ~args = object (self)
       in
       let html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
-      let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\([^..]+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
+      let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\(.+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
       if not has_match then (sprintf "no match in %s" html) else try Str.matched_group 1 html with Not_found -> "not found"
     in
     let fetch_brief_params_from_db id =
@@ -107,6 +109,13 @@ let t ~args = object (self)
         ""
     in
 
+    let get_input_rows_from_id id fn =
+      let brief_params_from = fetch_brief_params_from id in
+      let args = parse_url brief_params_from in
+      let _,_input_rows,_,_,_,_ = fn args in
+      _input_rows
+    in
+
     let rec get_input_values args =
 
       let params_cols=(try url_decode (List.Assoc.find_exn args "cols") with |_-> "") in
@@ -115,7 +124,7 @@ let t ~args = object (self)
       let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
       let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
       let params_sort_by_col=(try url_decode (List.Assoc.find_exn args "sort_by_col") with |_-> "") in
-      let params_add_rows_from=(try url_decode (List.Assoc.find_exn args "add_rows_from") with |_-> "") in
+      let params_add_rows_from=(try url_decode (List.Assoc.find_exn args k_add_rows_from) with |_-> "") in
 
       let attempt ~f a =
         try f()
@@ -144,12 +153,7 @@ let t ~args = object (self)
       printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
       let extra_input_rows_from = (* list of rows_t *)
         let ids = Str.split (Str.regexp ",") params_add_rows_from in
-        List.map ids ~f:(fun id->
-          let brief_params_from = fetch_brief_params_from id in
-          let args = parse_url brief_params_from in
-          let _,_input_rows,_,_,_,_ = get_input_values args in
-          _input_rows
-        )
+        List.map ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
       in
 (*
       printf "<input_extra_rows_sexp %s/>\n" (html_encode (List.fold_left extra_input_rows_from ~init:"" ~f:(fun extra_input_row->(Sexp.to_string (sexp_of_rows_t extra_input_row)))));
@@ -485,8 +489,10 @@ let t ~args = object (self)
     in
     let b = input_base_context in
     let cs = input_cols in
-    let rs = List.fold_left ~init:[] input_rows (* expand special row keys *) (*todo: this should also apply to columns *)
+    let rec resolve_keywords rows =
+       List.fold_left ~init:[] rows (* expand special row keys *) (*todo: this should also apply to columns *)
       ~f:(fun acc r-> 
+       let rec resolve_keywords_in_row acc r =
 
         if List.exists r ~f:(fun (k,v)->k="tcs") then (* expand tcs into soms *)
           let r_expanded = List.concat (List.map r 
@@ -503,10 +509,31 @@ let t ~args = object (self)
         else if List.exists r ~f:(fun (k,v)->k="t") then (* expand tiny links into rows kvs *)
           List.hd_exn (expand_tiny_urls r) :: acc
 
-        else
+        else if List.exists r ~f:(fun (k,_)->k=k_add_rows_from) then (* add rows from other brief ids *)
+          let bs = List.filter r ~f:(fun (k,_)->k=k_add_rows_from) in (* use all references. TODO: what to do with non-references in the same row??? *)
+          acc @ List.concat (
+            List.map bs ~f:(fun (k,vs)-> (* map one r into many potential rows *)
+              List.concat (
+                List.map vs ~f:(fun v->  (* map one vs into many potential rows *)
+                  let xs = get_input_rows_from_id v get_input_values in (* resolve each new row recursively if necessary *)
+                  let ys = resolve_keywords xs in
+(*
+                 printf "<br>v=%s <br>xs=%s <br>r=%s <br>acc=%s <br>ys=%s" v  (Sexp.to_string (sexp_of_rows_t xs)) (Sexp.to_string (sexp_of_ctx_t r)) (Sexp.to_string (sexp_of_cols_t acc)) (Sexp.to_string (sexp_of_rows_t ys));
+*)
+                  ys
+                )
+              )
+            )
+          )
+
+        else (* nothing to resolve, carry on *)
           r::acc
+
+       in
+       resolve_keywords_in_row acc r
       )
     in
+    let rs = resolve_keywords input_rows in
     progress (sprintf "table: %d lines: " (List.length rs));
     let ctx_and_measurements_of_1st_cell_with_data expand_f ctx =
       let ctxs = expand_f ctx in
