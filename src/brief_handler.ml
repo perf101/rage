@@ -144,6 +144,7 @@ let t ~args = object (self)
       in
       printf "<input_cols_sexp %s/>\n" (Sexp.to_string (sexp_of_cols_t input_cols));
 
+      printf "<params_rows %s/>\n" (html_encode params_rows);
       let input_rows =
         if params_rows <> "" then
           attempt ~f:(fun ()->rows_t_of_sexp (Sexp.of_string params_rows)) "rows"
