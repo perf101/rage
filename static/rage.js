@@ -975,6 +975,17 @@ function GraphObject() {
     // default options
     point_series = o.series;
     num_series = point_series.length;
+    // Prompt if there are lots of points to plot
+    total_points = 0;
+    for (var i = 0; i< num_series; i++) {
+      total_points += point_series[i].data.length;
+    }
+    if (total_points > 10000) {
+      if (!window.confirm("About to plot " + total_points + " points. This could take a while. Continue?")) {
+	on_plotting_finished();
+	return;
+      }
+    }
     var symbol = $("select[name='symbol']").val().toLowerCase();
     series = is_checked("show_points") ? point_series : [];
     // averages and distributions
