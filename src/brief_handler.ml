@@ -49,6 +49,7 @@ let t ~args = object (self)
            ("%2F","/");("%3F","?" ); ("%3D","="); ("%26","&");
            ("%25","%");("+"," ");    ("%3E",">"); ("%3C","<");
            ("%3A",":");("&amp;","&");("&quot;","\"");
+           ("&gt;",">");("&lt;","<");
           ]
           ~init:url_in
           ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
@@ -69,7 +70,11 @@ let t ~args = object (self)
 
     let parse_url args =
       let key k = Str.replace_first (Str.regexp "/\\?") "" k in
-      (List.map ~f:(fun p->match String.split ~on:'=' p with k::vs->(key k),(String.concat ~sep:"=" vs)|[]->failwith "k should be present") (String.split ~on:'&' (url_decode args) ))
+      List.map ~f:(fun p ->
+        match String.split ~on:'=' p with
+        | k::vs -> (key k), (String.concat ~sep:"=" vs)
+        | [] -> failwith "k should be present")
+      (String.split ~on:'&' (url_decode args))
     in
 
     (* extra input from urls *)
