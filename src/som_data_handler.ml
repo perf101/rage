@@ -44,11 +44,22 @@ let t ~args = object (self)
 
   method private get_generic_string_mapping rows col col_name col_types
       force_as_seq force_as_num =
+    let sort_seq_numeric a b =
+      if force_as_seq then
+        (* sort function that sorts integers as integers, everything else as strings *)
+        try
+          compare (int_of_string a) (int_of_string b)
+        with Failure _ ->
+          compare a b
+      else
+        compare a b
+    in
+
     if not (self#should_sort_alphabetically col_types col_name force_as_seq force_as_num)
     then None else
     let col_data = Array.to_list (Array.map ~f:(fun row -> row.(col)) rows) in
     let uniques = List.dedup col_data in
-    let sorted = List.sort ~cmp:compare uniques in
+    let sorted = List.sort ~cmp:sort_seq_numeric uniques in
     Some (List.mapi sorted ~f:(fun i x -> (i+1, x)))
 
   method private strings_to_numbers rows col col_name col_types label
