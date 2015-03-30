@@ -25,6 +25,7 @@ let t ~args = object (self)
   inherit Html_handler.t ~args
 
   method private write_body =
+    let page_start_time = Unix.gettimeofday () in
 
     let show_jobids = try bool_of_string (List.Assoc.find_exn params "show_jobids") with _ -> false in
 
@@ -861,6 +862,9 @@ let t ~args = object (self)
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
       printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul>\n";
       printf "<table>%s</table>" html_table;
+      let page_finish_time = Unix.gettimeofday () in
+      printf "<hr/>\n";
+      printf "<p>Report took <b>%f seconds</b> to prepare</p>" (page_finish_time -.  page_start_time)
     in
 
     let wiki_writer table =
