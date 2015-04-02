@@ -1,5 +1,4 @@
 open Core.Std
-open Postgresql
 
 let debug msg =
   output_string stderr (msg ^ "\n");
@@ -112,7 +111,7 @@ let extract_filter col_fqns col_types params key_prefix =
   let conds = List.map l
     ~f:(fun (k, vs) ->
       let vs = List.map vs ~f:decode_html in
-      let has_null = List.mem ~set:vs "(NULL)" in
+      let has_null = List.mem vs "(NULL)" in
       let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
       let ty = String.Table.find_exn col_types k in
       let quote = Sql.Type.is_quoted ty in
@@ -162,7 +161,7 @@ let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   printf ">\n";
   let print_option (l, v) =
     printf "<option value='%s'" v;
-    if List.mem ~set:selected l then printf " selected='selected'";
+    if List.mem selected l then printf " selected='selected'";
     printf ">%s</option>\n" l
   in List.iter options ~f:print_option;
   printf "</select>\n";
