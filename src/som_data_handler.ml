@@ -96,7 +96,7 @@ let t ~args = object (self)
     let yaxis = self#get_first_val "yaxis" "result" in
     let compose_keys ~xaxis ~yaxis ~rest =
       let deduped = List.stable_dedup rest in
-      let filter_cond = non (List.mem ~set:(yaxis::xaxis)) in
+      let filter_cond = non (List.mem (yaxis::xaxis)) in
       List.filter ~f:filter_cond deduped
     in
     let restkeys =

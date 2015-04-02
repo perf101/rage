@@ -266,7 +266,7 @@ let t ~args = object (self)
     let contexts_of_tc =
       (List.filter
         (columns_of_table "tc_config")
-        ~f:(fun e->not (List.mem e ~set:["tc_fqn";"tc_config_id";"machine_id"]))
+        ~f:(fun e->not (List.mem ["tc_fqn";"tc_config_id";"machine_id"] e))
       )
     in
     let url_of_t t =
@@ -292,7 +292,7 @@ let t ~args = object (self)
     *)
     let contexts_of_machine = List.filter (columns_of_table "machines") ~f:(fun e->e<>"machine_id") in
     let contexts_of_build = List.filter (columns_of_table "builds") ~f:(fun e->e<>"build_id") in
-    let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem k ~set:cs_f) in
+    let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem cs_f k) in
 
 (*
     let latest_build_of_branch branch =
@@ -378,11 +378,11 @@ let t ~args = object (self)
     let context_of base row col =
       (* we use intersection to obtain the result when the same context is present in more than one input source *)
       List.fold_left (base @ row @ col) ~init:[] ~f:(fun acc (ck,cv)->
-        let x,ys = List.partition ~f:(fun (k,v)->k=ck) acc in
+        let x,ys = List.partition_tf ~f:(fun (k,v)->k=ck) acc in
         match x with
           |(k,v)::[]->(* context already in acc, intersect the values *)
             if k<>ck then (failwith (sprintf "k=%s <> ck=%s" k ck));
-            (k, List.filter cv ~f:(fun x->List.mem x ~set:v))::ys
+            (k, List.filter cv ~f:(fun x->List.mem v x))::ys
           |[]->(* context not in acc, just add it *)
             (ck,cv)::ys
           |x->(* error *)
@@ -509,7 +509,7 @@ let t ~args = object (self)
             )
           )
           in
-          let soms,no_soms = List.partition r_expanded ~f:(fun (k,v)->k="soms") in
+          let soms,no_soms = List.partition_tf r_expanded ~f:(fun (k,v)->k="soms") in
           let soms = List.sort soms ~cmp:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
           acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
 
@@ -559,7 +559,7 @@ let t ~args = object (self)
 
     (* === output === *)
 
-    let n_sum xs = List.fold_left ~init:(0,0.) ~f:(fun (n,sum1) x->succ n, sum1 +. (float_of_string x)) xs in
+    let n_sum xs = List.fold_left ~init:(0,0.) ~f:(fun (n,sum1) x->succ n, sum1 +. (Float.of_string x)) xs in
     let avg xs = let n,sum=n_sum xs in sum /. (float n) in
     let variance xs = (* 2-pass algorithm *)
       let n,sum1 = n_sum xs in
@@ -567,28 +567,28 @@ let t ~args = object (self)
       then 0.0 (* default variance if not enough measurements present to compute it *)
       else
         let mean = sum1 /. (float n) in
-        let sum2 = List.fold_left ~init:0. ~f:(fun sum2 x->sum2 +. ((float_of_string x) -. mean)*.((float_of_string x) -. mean)) xs in
+        let sum2 = List.fold_left ~init:0. ~f:(fun sum2 x->sum2 +. ((Float.of_string x) -. mean)*.((Float.of_string x) -. mean)) xs in
         sum2 /. (float (n-1))
     in
     let stddev xs = sqrt (variance xs) in
-    let is_valid f = match classify_float f with |FP_infinite|FP_nan->false |_->true in
+    let is_valid f = (if Float.is_inf f || Float.is_nan f then false else true) in
     let relative_std_error xs =
       let avg = avg xs in let stddev = stddev xs in
       if (is_valid avg) && (is_valid stddev) then
-        int_of_float (stddev /. avg *. 100.)
+        Float.to_int (stddev /. avg *. 100.)
       else 0
     in
     ignore (relative_std_error []);
 
     (* round value f to the optimal decimal place according to magnitude of its stddev *)
     let round f stddev =
-      if abs_float (stddev /. f) < 0.00000001 (* stddev = 0.0 doesn't work because of rounding errors in the float representation *)
+      if Float.abs (Float.(/) stddev f) < 0.00000001 (* stddev = 0.0 doesn't work because of rounding errors in the float representation *)
       then (sprintf "%f" f), f
       else
       (* 0. compute magnitude of stddev relative to f *)
-      let f_abs = abs_float f in
+      let f_abs = Float.abs f in
       let magnitude = (log stddev) /. (log 10.0) in
-      let newdotpos = (if is_valid magnitude then int_of_float (if magnitude < 0.0 then floor (magnitude) else (floor magnitude) +. 1.0) else 1) in
+      let newdotpos = (if is_valid magnitude then Float.to_int (if magnitude < 0.0 then Float.round_down (magnitude) else (Float.round_down magnitude) +. 1.0) else 1) in
       let f_str = sprintf "%f" f_abs in
       let dotpos = (String.index_exn f_str '.') in
       let cutpos = (dotpos - newdotpos) in
@@ -603,7 +603,7 @@ let t ~args = object (self)
             then (int_of_string (dig_from f_str (cutpos+1)),newdotpos-1)
             else (int_of_string dig,if newdotpos<0 then newdotpos else newdotpos-1)
         in
-        let f_rounded = if rounddigit < 5 then f_abs else f_abs +. 10.0 ** (float_of_int roundpos) in
+        let f_rounded = if rounddigit < 5 then f_abs else f_abs +. 10.0 ** (Float.of_int roundpos) in
         (* 2. print only significant digits *)
         let f_result = (
          let f_str_rounded = sprintf "%f" f_rounded in
@@ -621,14 +621,14 @@ let t ~args = object (self)
         in
         (
          (*sprintf "f_str=%s stddev=%f magnitude=%f cutpos=%d dotpos=%d newdotpos=%d dig=%s rounddigit=%d roundpos=%d f_rounded=%f f=%f %s" f_str stddev magnitude cutpos dotpos newdotpos dig rounddigit roundpos f_rounded f*)
-          f_result, float_of_string f_result
+          f_result, Float.of_string f_result
         )
 
     in
     let of_round avg stddev ~f0 ~f1 ~f2 =
       let lower = avg -. 2.0 *. stddev in (* 2-sigma = 95% confidence assuming normal distribution *)
       let upper = avg +. 2.0 *. stddev in
-      if (abs_float avg) < min_float
+      if (Float.abs avg) < Float.min_value
       then f0 ()
       else if stddev /. avg < 0.05 (* see if the relative std error is <5% *)
         then f1 (round avg stddev)                                           (* 95% confidence *)
@@ -673,8 +673,8 @@ let t ~args = object (self)
     let proportion baseline value more_is_better =
       (delta baseline value more_is_better) /.
       (match baseline with
-      |Avg b-> abs_float b
-      |Range (bl, ba, bu)-> abs_float ba)
+      |Avg b-> Float.abs b
+      |Range (bl, ba, bu)-> Float.abs ba)
     in
     (* pretty print a list of values as average and stddev *) 
     let str_stddev_of ?f1_fmt ?f2_fmt xs =
@@ -694,7 +694,7 @@ let t ~args = object (self)
       match sort_by_col with
       |None->mt
       |Some compare_col_idx->
-        let mt_xs, mt_0s = List.partition mt
+        let mt_xs, mt_0s = List.partition_tf mt
           ~f:(fun (r,cs)->
             let _,_,_,cmp_ms=List.nth_exn cs compare_col_idx in
             let _,_,_,base_ms=List.nth_exn cs baseline_col_idx in
@@ -708,7 +708,7 @@ let t ~args = object (self)
             let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
             proportion (val_stddev_of (vals_of_ms base_ms)) (val_stddev_of (vals_of_ms cmp_ms)) None
           in
-          let ms1, ms2 = (abs_float (ms cs1)),(abs_float (ms cs2)) in
+          let ms1, ms2 = (Float.abs (ms cs1)),(Float.abs (ms cs2)) in
           if ms1 > ms2 then -1 else if ms2 > ms1 then 1 else 0 (* decreasing order *)
         ) @ mt_0s (* rows with no measurements stay at the end *)
     in
@@ -719,7 +719,7 @@ let t ~args = object (self)
     (* eg.: http://perf/?som=41&xaxis=numvms&show_dist=on&f_branch=1&v_build_tag=&v_dom0_memory_static_max=752&v_dom0_memory_target=(NULL)&v_cc_restrictions=f&v_memsize=256&v_vmtype=dom0 *)
     let link_ctx_of_row ctxs =
       List.fold_left ctxs ~init:[] ~f:(fun acc (ck,cv)->
-        let x,ys = List.partition ~f:(fun (k,v)->k=ck) acc in
+        let x,ys = List.partition_tf ~f:(fun (k,v)->k=ck) acc in
         match x with
           |(k,v)::[]->(* context already in acc, union the values *)
             if k<>ck then (failwith (sprintf "link: k=%s <> ck=%s" k ck));
@@ -841,7 +841,7 @@ let t ~args = object (self)
                   sprintf "<sub>(%d)</sub>" number
               in
               let colour = 
-                (if number = 0 or baseline_col_idx = i then "" else
+                (if number = 0 || baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->
@@ -850,7 +850,7 @@ let t ~args = object (self)
                 ) in
               let avg = str_stddev_of (vals_of_ms ms) in
               let diff = 
-                (if number = 0 or baseline_col_idx = i or (List.length baseline_ms < 1) then "" else
+                (if number = 0 || baseline_col_idx = i || (List.length baseline_ms < 1) then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))

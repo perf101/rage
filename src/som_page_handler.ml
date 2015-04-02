@@ -90,7 +90,7 @@ let t ~args = object (self)
         ("ALL"::options);
       printf "</tr></table>\n"
     in
-    List.iter ~f:print_table_for (List.combine_exn labels options_lst)
+    List.iter ~f:print_table_for (List.zip_exn labels options_lst)
 
   method private write_body =
     let som_id = int_of_string (List.Assoc.find_exn params "som") in
