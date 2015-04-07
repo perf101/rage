@@ -151,7 +151,7 @@ function preselect_fields_based_on_params() {
       for (var i in vals) {
         var option = vals[i];
         if (known_vals.indexOf(option) < 0) {
-	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it.');
+	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it. Known vals:' + known_vals);
           elt.append("<option value='" + option + "'>" + option + "</option>");
         }
       }
