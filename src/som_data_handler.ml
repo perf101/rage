@@ -10,6 +10,8 @@ let t ~args = object (self)
 
   val quote_re = Str.regexp "\""
 
+  method private escape_quotes = Str.global_replace quote_re "\\\""
+
   method private values_for_key ?(default=[]) key =
     let xs = List.fold params ~init:[]
       ~f:(fun acc (k, v) -> if k = key then v::acc else acc) in
@@ -67,7 +69,7 @@ let t ~args = object (self)
     let mapping_opt =
       self#get_generic_string_mapping rows col col_name col_types force_as_seq force_as_num in
     match mapping_opt with None -> () | Some mapping ->
-    let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i a in
+    let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i (self#escape_quotes a) in
     let mapping_str = concat (List.map mapping ~f:process_entry) in
     printf "\"%s\":{%s}," label mapping_str;
     let i_to_string_map = List.Assoc.inverse mapping in
@@ -173,7 +175,7 @@ let t ~args = object (self)
     let convert_row row =
       let other_vals = Array.sub row ~pos:2 ~len:num_other_keys in
       let process_val i v =
-        let v' = Str.global_replace quote_re "\\\"" v in
+        let v' = self#escape_quotes v in
         "\"" ^ (List.nth_exn keys (i+2)) ^ "\":\"" ^ v' ^ "\"" in
       let prop_array = Array.mapi other_vals ~f:process_val in
       let props = concat_array prop_array in
@@ -192,7 +194,7 @@ let t ~args = object (self)
       let label = concat pairs in
       let data_lst = List.map rows ~f:convert_row in
       if i <> 0 then printf ",";
-      printf "{\"label\":\"%s\",\"color\":%d,\"data\":[" label i;
+      printf "{\"label\":\"%s\",\"color\":%d,\"data\":[" (self#escape_quotes label) i;
       print_concat data_lst;
       printf "]}"
     in
