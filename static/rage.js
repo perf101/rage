@@ -600,8 +600,9 @@ function preselect_fields_based_on_params() {
     if (elt.is("select")) {
       // If any of the options we're expecting to select don't exist, append them
       var known_vals = $.map(elt.find('option'), function(elt, i) { return $(elt).val(); });
-      for (var i in params[param]) {
-        var option = params[param][i];
+      var vals = params[param].map(decode);
+      for (var i in vals) {
+        var option = vals[i];
         if (known_vals.indexOf(option) < 0) {
 	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it.');
           elt.append("<option value='" + option + "'>" + option + "</option>");
