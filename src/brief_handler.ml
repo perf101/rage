@@ -844,7 +844,9 @@ let t ~args = object (self)
                 (if number = 0 or baseline_col_idx = i then "" else
                  match is_more_is_better ctx with
                  |None->""
-                 |Some mb->if is_green (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb then "green" else "red"
+                 |Some mb->
+                     if (List.length baseline_ms) < 1 then "black" else
+                     if is_green (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb then "green" else "red"
                 ) in
               let avg = str_stddev_of (vals_of_ms ms) in
               let diff = 
