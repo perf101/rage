@@ -850,7 +850,7 @@ let t ~args = object (self)
                 ) in
               let avg = str_stddev_of (vals_of_ms ms) in
               let diff = 
-                (if number = 0 or baseline_col_idx = i then "" else
+                (if number = 0 or baseline_col_idx = i or (List.length baseline_ms < 1) then "" else
                  match is_more_is_better ctx with
                  |None->""
                  |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
