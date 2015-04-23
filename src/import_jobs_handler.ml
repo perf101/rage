@@ -17,6 +17,7 @@ let import_job job_ids =
   if not (Str.string_match (Str.regexp "^[0-9,\\-]*$") job_ids 0) then failwith (sprintf "expected '&lt;n&gt;' or '&lt;n&gt;-&lt;n&gt;' or '&lt;n&gt;,&lt;n&gt;,...'; got '%s'" job_ids);
 
   let cmd = Printf.sprintf "%s -jobs %s -ignoreseenjobs 2>&1" importer job_ids in
+  Printf.printf "<!-- %s -->" cmd;
   let ic = Unix.open_process_in cmd in
   try
     while true do
