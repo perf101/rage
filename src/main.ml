@@ -40,7 +40,6 @@ let handle_request () =
     | StdAxes -> Std_axes_handler.t
     | Briefs  -> Briefs_handler.t
     | Brief -> Brief_handler.t
-    | BriefCreate -> Brief_create_handler.t
     | ImportPage -> Import_page_handler.t
     | ImportJobs -> Import_jobs_handler.t
   end in (handler ~args)#handle;

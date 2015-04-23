@@ -18,7 +18,6 @@ HANDLERS=\
   std_axes_handler \
   briefs_handler \
   brief_handler \
-  brief_create_handler \
   import_page_handler \
   import_jobs_handler
 FILES=\

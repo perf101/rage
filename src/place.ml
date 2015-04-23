@@ -14,7 +14,6 @@ type t =
   | StdAxes
   | Briefs
   | Brief
-  | BriefCreate
   | ImportPage
   | ImportJobs
 
@@ -28,7 +27,6 @@ let of_string = function
   | "std_axes" -> StdAxes
   | "briefs" -> Briefs
   | "brief" -> Brief
-  | "brief_create" -> BriefCreate
   | "import_page" -> ImportPage
   | "import_jobs" -> ImportJobs
   | p -> failwith ("place_of_string: " ^ p)
@@ -45,6 +43,5 @@ let string_of = function
   | StdAxes -> "StdAxes"
   | Briefs -> "briefs"
   | Brief -> "brief"
-  | BriefCreate -> "brief_create"
   | ImportPage -> "import_page"
   | ImportJobs -> "import_jobs"
