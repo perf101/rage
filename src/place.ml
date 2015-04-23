@@ -6,13 +6,6 @@ type t =
   | CreateTinyUrl
   | Default
   | RedirectTinyUrl
-  | Report
-  | ReportClone
-  | ReportCreate
-  | ReportGeneratorPage
-  | ReportDelete
-  | ReportPage
-  | Reports
   | SomData
   | SomIndex
   | SomPage
@@ -27,13 +20,6 @@ type t =
 
 let of_string = function
   | "create_tiny_url" -> CreateTinyUrl
-  | "report" -> Report
-  | "report_clone" -> ReportClone
-  | "report_create" -> ReportCreate
-  | "report_delete" -> ReportDelete
-  | "report_generator_page" -> ReportGeneratorPage
-  | "report_page" -> ReportPage
-  | "reports" -> Reports
   | "som" -> SomPage
   | "soms" -> Soms
   | "soms_by_tc" -> SomsByTc
@@ -51,13 +37,6 @@ let string_of = function
   | CreateTinyUrl -> "CreateTinyUrl"
   | Default -> "Default"
   | RedirectTinyUrl -> "RedirectTinyUrl"
-  | Report -> "Report"
-  | ReportClone -> "ReportClone"
-  | ReportCreate -> "ReportCreate"
-  | ReportDelete -> "ReportDelete"
-  | ReportGeneratorPage -> "ReportGeneratorPage"
-  | ReportPage -> "ReportPage"
-  | Reports -> "Reports"
   | SomData -> "SomData"
   | SomIndex -> "SomIndex"
   | SomPage -> "SomPage"

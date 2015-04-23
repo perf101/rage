@@ -32,13 +32,6 @@ let handle_request () =
     | Default -> Default_handler.t
     | CreateTinyUrl -> Create_tiny_url_handler.t
     | RedirectTinyUrl -> Redirect_tiny_url_handler.t
-    | ReportClone -> Report_clone_handler.t
-    | ReportDelete -> Report_delete_handler.t
-    | ReportCreate -> Report_create_handler.t
-    | ReportGeneratorPage -> Report_generator_page_handler.t
-    | Report -> Report_handler.t
-    | ReportPage -> Javascript_only_handler.t
-    | Reports -> Reports_handler.t
     | SomPage -> Som_page_handler.t
     | SomData -> Som_data_handler.t
     | SomIndex -> Som_index_handler.t

@@ -38,16 +38,6 @@ Since the framework is fairly generic, its database schema is not trivial:
   configuration. The field `result_id` is used to allow multiple measurements
   for each unique permutation of the stated fields.
 * **standard\_builds**: Friendly names for specific product builds.
-* **reports**: The master table for storing reports, i.e. groups of graphs or
-  tables that logically fit together.
-* **report\_builds**: Builds associated with a specific report.
-* **report\_plots**: Plots associated with a specific report.
-* **report\_plot\_tc\_configs**: Test case configuration IDs associated with a
-  specific report plot.
-* **report\_plot\_som\_configs**: SOM configuration IDs associated with a
-  specific report plot.
-* **report\_plot\_split\_bys**: Split-by (line) instructions associated with a
-  specific report plot.
 
 We also provide the SQL to generate the main tables:
 \[[blob](https://github.com/perf101/rage/blob/master/sql/schema.sql)\],
