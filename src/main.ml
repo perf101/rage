@@ -48,7 +48,7 @@ let handle_request () =
   debug (sprintf "==========> '%s': %fs." (Place.string_of place) elapsed_time)
 
 let bind_modules () =
-  Sql.debug_fn := Some debug;
+  Sql.debug_fn := None; (* Some debug; *)
   Sql.show_sql := true;
   Sql.time_queries := true;
   Sql.ignore_limit_0 := true;
