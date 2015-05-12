@@ -490,7 +490,9 @@ function GraphObject() {
     var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
     var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
     var label = "";
-    if ("label" in item.series)
+    if ("tooltiplabel" in item.series)
+      label = item.series.tooltiplabel;
+    else if ("label" in item.series)
       label = item.series.label;
     else if (item.seriesIndex >= num_series) {
       var s = series[item.seriesIndex - num_series];
@@ -558,6 +560,7 @@ function GraphObject() {
         series.push({
           color: point_series[i].color, data: get_averages(point_series[i].data),
           label: is_checked("show_points") ? null : point_series[i].label,
+          tooltiplabel : point_series[i].label + " (mean)",
           points: {show: !is_checked("show_points"), symbol: symbol},
           lines: {show: true}
         });
