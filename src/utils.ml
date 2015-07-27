@@ -225,22 +225,10 @@ let values_prefix = "v_"
 
 (* Names of fields in the tc_config table *)
 let tc_config_fields = [
-  "dom0_memory_static_max";
-  "dom0_memory_target";
-  "cc_restrictions";
-  "redo_log";
-  "network_backend";
-  "option_clone_on_boot";
-  "force_non_debug_xen";
-  "cpufreq_governor";
-  "xen_cmdline";
-  "kernel_cmdline";
   "xenrt_pq_name";
   "xenrt_version";
   "xenrt_internal_version";
   "xenrt_pq_version";
-  "dom0_vcpus";
-  "host_pcpus";
 ]
 
 let som_config_tbl_exists ~conn som_id =
