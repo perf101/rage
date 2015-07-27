@@ -166,3 +166,10 @@ create materialized view measurements_distinct as select distinct measurements.s
 grant select on measurements_distinct to "www-data";
 create index measurements_distinct_job_id_som_id on measurements_distinct using btree (job_id, som_id);
 create index measurements_distinct_som_id_job_id on measurements_distinct using btree (som_id, job_id);
+
+create table tblRacktablesNameMapping (
+  strourname varchar(64) not null,
+  strracktablesname varchar(64),
+
+  primary key (strourname)
+);
