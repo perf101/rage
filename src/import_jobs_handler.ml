@@ -2,7 +2,7 @@ open Core.Std
 open Utils
 open Unix
 
-let importer = "/usr/groups/perfeng/bin/importer-xenrt"
+let importer = "/root/importer/src/importer-xenrt"
 
 (*
  * We accept either:
