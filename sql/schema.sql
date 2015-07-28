@@ -89,6 +89,11 @@ create table tc_config (
   tc_config_id integer not null,
   machine_id integer not null,
 
+  cloudinputdir varchar(128) not null,
+  product_name varchar(32) not null,
+  product_version varchar(16) not null,
+  product_build integer not null,
+  product_suffix varchar(32) not null,
   xenrt_pq_name varchar(64) not null,
   xenrt_version varchar(64) not null,
   xenrt_internal_version varchar(64) not null,

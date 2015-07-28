@@ -225,6 +225,11 @@ let values_prefix = "v_"
 
 (* Names of fields in the tc_config table *)
 let tc_config_fields = [
+  "cloudinputdir";
+  "product_name";
+  "product_version";
+  "product_build";
+  "product_suffix";
   "xenrt_pq_name";
   "xenrt_version";
   "xenrt_internal_version";
