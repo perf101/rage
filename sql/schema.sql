@@ -70,7 +70,7 @@ create table tblmachineinfo (
   name varchar(32) not null,
   machinetype varchar(256),
   cpumodel varchar(256),
-  numcps integer,
+  numcpus integer,
 
   primary key (name)
 );
