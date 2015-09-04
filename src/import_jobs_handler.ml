@@ -13,6 +13,8 @@ let importer = "/usr/groups/perfeng/bin/importer-xenrt"
  *)
 
 let import_job job_ids =
+  debug (sprintf "import_jobs handler importing jobs %s" job_ids);
+
   (* Sanitise input *)
   if not (Str.string_match (Str.regexp "^[0-9,\\-]*$") job_ids 0) then failwith (sprintf "expected '&lt;n&gt;' or '&lt;n&gt;-&lt;n&gt;' or '&lt;n&gt;,&lt;n&gt;,...'; got '%s'" job_ids);
 
