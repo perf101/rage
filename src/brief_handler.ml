@@ -413,24 +413,25 @@ let t ~args = object (self)
       let builds_of_branches = [latest_build_in_branch (List.nth_exn branches 0)] in (*TODO: handle >1 branches in context*)
       *)
 
-      (* brute-force way to find the max build with measurements, to work around the slowness in the query in latest_build_in_branch *)
-      let builds = builds_of_branch (List.nth_exn branches 0) in (*TODO: handle >1 branch in context*)
-      let builds_of_branches = List.slice builds 0 (min 100 (List.length builds)) in (* take up to 100 elements in the list *)
-      debug (sprintf "builds_of_branches=%s" (List.fold_left ~init:"" builds_of_branches ~f:(fun acc b->acc ^","^b)));
-
       let has_v_latest_in_branch =
         List.exists c_kvs ~f:(fun (k,vs) -> if k<>k_build_number then false else List.exists vs ~f:(fun v->v=v_latest_in_branch))
       in
       (* if 'latest_in_branch' value is present, expand ctx into many ctxs, one for each build; otherwise, return the ctx intact *)
       if not has_v_latest_in_branch then [c_kvs]
-      else List.map builds_of_branches ~f:(fun bs->
+      else (
+        (* brute-force way to find the max build with measurements, to work around the slowness in the query in latest_build_in_branch *)
+        let builds = builds_of_branch (List.nth_exn branches 0) in (*TODO: handle >1 branch in context*)
+        let builds_of_branches = List.slice builds 0 (min 100 (List.length builds)) in (* take up to 100 elements in the list *)
+        debug (sprintf "builds_of_branches=%s" (List.fold_left ~init:"" builds_of_branches ~f:(fun acc b->acc ^","^b)));
+
+        List.map builds_of_branches ~f:(fun bs->
         List.map c_kvs ~f:(fun (k,vs) ->
           if k<>k_build_number then (k,vs)
           else k,(List.map vs ~f:(fun v->
             if v<>v_latest_in_branch then v else bs
           ))
         )
-      )
+      ))
     in
     let c_kvs_of_tiny_url t =
       let url = url_decode (url_of_t t) in
