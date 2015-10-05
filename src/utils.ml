@@ -278,3 +278,10 @@ let get_tc_config_tbl_name conn som_id =
   let result = Sql.exec_exn ~conn ~query in
   let tc_fqn = String.lowercase (result#getvalue 0 0) in
   (tc_fqn, "tc_config_" ^ tc_fqn)
+
+(* WEBSERVER INTERACTION *)
+
+let server_name () =
+  (* We use HTTP_HOST, which comes from the client, rather than SERVER_NAME,
+   * which is defined by the webserver, in case it contains a port number *)
+  Sys.getenv_exn "HTTP_HOST"

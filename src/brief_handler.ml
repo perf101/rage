@@ -767,7 +767,7 @@ let t ~args = object (self)
           (
           (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
           let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
-          (sprintf "<a href='http://perf/?som=%s&show_dist=on%s%s'>graph</a>" som_id
+          (sprintf "<a href='http://%s/?som=%s&show_dist=on%s%s'>graph</a>" (Utils.server_name ()) som_id
             (* xaxis *)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
             (* preset values *)
@@ -897,7 +897,7 @@ let t ~args = object (self)
           (
           (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
           let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
-          (sprintf "[graph|http://perf/?som=%s&show_dist=on%s%s]" som_id
+          (sprintf "[graph|http://%s/?som=%s&show_dist=on%s%s]" (Utils.server_name ()) som_id
             (* xaxis *)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
             (* preset values *)
@@ -985,7 +985,7 @@ let t ~args = object (self)
       in
       printf "%s" "<pre>";
       printf "%s" "h1. Brief Rage Report\n\n";
-      printf "- [live html version, with parameters %s |http://perf/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
+      printf "- [live html version, with parameters %s |http://%s/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (Utils.server_name ()) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
       printf "%s" "- Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "- \\(x) indicates number of samples\n";
       printf "%s" "- \\(x%) indicates difference with baseline column\n";
