@@ -767,7 +767,7 @@ let t ~args = object (self)
           (
           (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
           let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
-          (sprintf "<a href='http://perf/?som=%s&show_dist=on%s%s'>graph</a>" som_id
+          (sprintf "<a href='?som=%s&show_dist=on%s%s'>graph</a>" som_id
             (* xaxis *)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
             (* preset values *)
