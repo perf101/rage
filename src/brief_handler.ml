@@ -318,18 +318,19 @@ let t ~args = object (self)
        let measurements_of_som som_id =
          let has_table_som_id som_id = has_table (sprintf "som_config_%s" som_id) in
          let tc_fqn = tc_of_som som_id in 
-         let query = "select measurements.job_id, measurements.result from measurements "
-           ^(sprintf "join tc_config_%s on measurements.tc_config_id=tc_config_%s.tc_config_id " tc_fqn tc_fqn)
+         let query = "select soms_jobs.job_id, m.result from measurements_2 m"
+           ^(sprintf "join tc_config_%s on m.tc_config_id=tc_config_%s.tc_config_id " tc_fqn tc_fqn)
            ^(if has_table_som_id som_id then
-              (sprintf "join som_config_%s on measurements.som_config_id=som_config_%s.som_config_id " som_id som_id)
+              (sprintf "join som_config_%s on m.som_config_id=som_config_%s.som_config_id " som_id som_id)
              else ""
             )
-           ^"join tc_config on measurements.job_id=tc_config.job_id "
+           ^"join tc_config on soms_jobs.job_id=tc_config.job_id "
            ^"join machines on tc_config.machine_id=machines.machine_id "
            ^"join jobs on tc_config.job_id=jobs.job_id "
            ^"join builds on jobs.build_id=builds.build_id "
+           ^"join soms_jobs on soms_jobs.id=m.som_job_id "
            ^"where "
-           ^(sprintf "measurements.som_id=%s " som_id)
+           ^(sprintf "soms_jobs.som_id=%s " som_id)
            ^(List.fold_left (values_of context ~at:contexts_of_machine) ~init:"" ~f:(fun acc (k,vs)->
               match vs with []->acc|_->
               sprintf "%s and (%s) " acc

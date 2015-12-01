@@ -84,7 +84,7 @@ let t ~args = object (self)
     let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
     let som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
     (* determine filter columns and their types *)
-    let tbls = ["measurements"; "jobs"; "builds"; "tc_config"; "machines";
+    let tbls = ["measurements_2"; "soms_jobs"; "jobs"; "builds"; "tc_config"; "machines";
       tc_config_tbl] @
       (if som_tbl_exists then [som_config_tbl] else []) in
     let col_fqns = get_column_fqns_many conn tbls in
@@ -124,17 +124,18 @@ let t ~args = object (self)
       (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
       (if restfqns = [] then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
       (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
-      (sprintf "WHERE measurements.tc_config_id=%s.tc_config_id "
+      (sprintf "WHERE measurements_2.tc_config_id=%s.tc_config_id "
                tc_config_tbl) ^
-      (sprintf "AND measurements.som_id=%d " som_id) ^
-      "AND measurements.job_id=jobs.job_id " ^
+      (sprintf "AND soms_jobs.som_id=%d " som_id) ^
+      "AND soms_jobs.job_id=jobs.job_id " ^
+      "AND measurements_2.som_job_id=soms_jobs.id "^
       "AND jobs.build_id=builds.build_id " ^
       "AND tc_config.job_id=jobs.job_id " ^
       (sprintf "AND tc_config.tc_fqn='%s' " tc_fqn) ^
-      "AND tc_config.tc_config_id=measurements.tc_config_id " ^
+      "AND tc_config.tc_config_id=measurements_2.tc_config_id " ^
       "AND tc_config.machine_id=machines.machine_id" ^
       (if som_tbl_exists
-       then sprintf " AND measurements.som_config_id=%s.som_config_id"
+       then sprintf " AND measurements_2.som_config_id=%s.som_config_id"
             som_config_tbl else "") ^
       (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
       (sprintf " LIMIT %d" limit_rows)
