@@ -94,7 +94,11 @@ let t ~args = object (self)
       let html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\(.+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
-      if not has_match then (sprintf "no match in %s" html) else try Str.matched_group 1 html with Not_found -> "not found"
+      if not has_match
+        then (debug (sprintf "no match in html from %s" url); raise Not_found)
+        else
+          try Str.matched_group 1 html
+          with Not_found -> (debug "not found"; raise Not_found)
     in
     let fetch_brief_params_from_db id =
       let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
