@@ -93,7 +93,7 @@ let t ~args = object (self)
       in
       let html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
-      let has_match = Str.string_match (Str.regexp ".*CDATA\\[\\(.+\\)\\]\\]><.*") html 0 in (*find the "code block" in the page*)
+      let has_match = Str.string_match (Str.regexp ".*<pre class=\"syntaxhighlighter-pre\"[^>]*>\\([^<]+\\)<") html 0 in (*find the "code block" in the page*)
       if not has_match
         then (debug (sprintf "no match in html from %s" url); raise Not_found)
         else
