@@ -376,7 +376,10 @@ let t ~args = object (self)
           Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->{job=int_of_string x.(0); value=x.(1)}))
         in
         (* add measurements for each one of the soms in the cell *)
-        List.concat (List.map ~f:measurements_of_som (get "soms" context))
+        try
+          List.concat (List.map ~f:measurements_of_som (get "soms" context))
+        with Not_found ->
+          failwith (sprintf "Could not find 'soms' in context; keys are [%s]" (List.map ~f:fst context |> String.concat ~sep:", "));
     in
 
     let context_of base row col =
