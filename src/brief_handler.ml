@@ -238,6 +238,13 @@ let t ~args = object (self)
     (* Sanity check input arguments *)
     if baseline_col_idx >= List.length input_cols then
       failwith (sprintf "Baseline column is %d but there are only %d columns" baseline_col_idx (List.length input_cols));
+    begin
+      match sort_by_col with
+      | None -> ()
+      | Some sort_by_col ->
+          if sort_by_col >= List.length input_cols then
+            failwith (sprintf "Sort-by column is %d but there are only %d columns" sort_by_col (List.length input_cols));
+    end;
 
     let soms_of_tc tc_fqn =
       let query = sprintf "select som_id from soms where tc_fqn='%s'" tc_fqn in
