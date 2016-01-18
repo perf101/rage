@@ -235,6 +235,10 @@ let t ~args = object (self)
 
     progress "<p>Progress...:";
 
+    (* Sanity check input arguments *)
+    if baseline_col_idx >= List.length input_cols then
+      failwith (sprintf "Baseline column is %d but there are only %d columns" baseline_col_idx (List.length input_cols));
+
     let soms_of_tc tc_fqn =
       let query = sprintf "select som_id from soms where tc_fqn='%s'" tc_fqn in
       Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
@@ -414,7 +418,7 @@ let t ~args = object (self)
       *)
 
       let has_v_latest_in_branch =
-        List.exists c_kvs ~f:(fun (k,vs) -> if k<>k_build_number then false else List.exists vs ~f:(fun v->v=v_latest_in_branch))
+        List.exists c_kvs ~f:(fun (k,vs) -> k=k_build_number && List.exists vs ~f:(fun v->v=v_latest_in_branch))
       in
       (* if 'latest_in_branch' value is present, expand ctx into many ctxs, one for each build; otherwise, return the ctx intact *)
       if not has_v_latest_in_branch then [c_kvs]
@@ -740,6 +744,7 @@ let t ~args = object (self)
     in
     let link_ctxs = (List.map (sort_table measurements_of_table) ~f:(fun (r,cs)->link_ctx_of_row (List.concat (List.map cs ~f:(fun (_,_,ctx,_)->ctx))))) in
     let link_xaxis = List.dedup (List.concat (List.map cs ~f:(fun c-> List.map c ~f:(fun (x,_)->x)))) in
+
 
     (* writers *)
 
