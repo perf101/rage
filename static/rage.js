@@ -229,7 +229,7 @@ function get_tinyurl() {
 
 function get_base_url() {
   var href = window.location.href;
-  return href.substring(0, href.lastIndexOf('/'));
+  return href.substring(0, href.indexOf('?')).substring(0, href.lastIndexOf('/'));
 }
 
 function get_som_url() {
