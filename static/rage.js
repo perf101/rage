@@ -299,9 +299,28 @@ function redraw_trigger() {
   fetch_data_and_process();
 }
 
+function set_graph_title() {
+  var form_data = $('form[name=optionsForm]').serialize();
+  var params = extract_params(form_data);
+  var set_vars = [];
+  for (var param in params) {
+    if (param.startsWith("v_") && params[param] != "ALL") {
+      set_vars.push(param.substr(2) + " = " + params[param]);
+    }
+  }
+  var graph_title = "Selections:";
+  if (set_vars.length == 0) {
+    graph_title += " (none)";
+  } else {
+    graph_title += "<ul>" + set_vars.map(function(v) { return "<li>" + decode(v) + "</li>" }).join("\n") + "</ul>";
+  }
+  $("#graph_title").html(graph_title);
+}
+
 function fetch_data_and_process() {
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
+  set_graph_title();
   var som_id = url_params.som[0];
   var request = "/?p=som_data&id=" + som_id;
   var params = get_minimised_params();

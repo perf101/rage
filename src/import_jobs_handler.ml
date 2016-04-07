@@ -21,12 +21,18 @@ let import_job job_ids =
   let cmd = Printf.sprintf "%s -jobs %s -ignoreseenjobs 2>&1" importer job_ids in
   Printf.printf "<!-- %s -->" cmd;
   let ic = Unix.open_process_in cmd in
+  begin
   try
     while true do
-      Printf.printf "%s\n" (input_line ic)
+      let input = input_line ic in
+      Printf.printf "%s\n" input;
+      Printf.eprintf "[import_jobs_handler|%s] %s\n" job_ids input
     done
   with End_of_file ->
+    Printf.eprintf "[import_jobs_handler|%s] EOF\n" job_ids;
     ignore (Unix.close_process_in ic)
+  end;
+  Printf.eprintf "[import_jobs_handler|%s] Finished\n" job_ids
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
