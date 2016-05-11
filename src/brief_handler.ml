@@ -28,6 +28,7 @@ let t ~args = object (self)
     let page_start_time = Unix.gettimeofday () in
 
     let show_jobids = try bool_of_string (List.Assoc.find_exn params "show_jobids") with _ -> false in
+    let no_rounding = try bool_of_string (List.Assoc.find_exn params "no_rounding") with _ -> false in
 
     let progress str =
 (*
@@ -645,6 +646,9 @@ let t ~args = object (self)
 
     in
     let of_round avg stddev ~f0 ~f1 ~f2 =
+      if no_rounding then
+        f1 (Float.to_string avg, avg)
+      else
       let lower = avg -. 2.0 *. stddev in (* 2-sigma = 95% confidence assuming normal distribution *)
       let upper = avg +. 2.0 *. stddev in
       if (Float.abs avg) < Float.min_value
