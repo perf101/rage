@@ -80,23 +80,23 @@ let t ~args = object (self)
 
     (* extra input from urls *)
     let is_digit id =  Str.string_match (Str.regexp "[0-9]+") id 0 in
+    let html_of_url url =
+        try
+          let conn = Curl.init() and write_buff = Buffer.create 16384 in
+          Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
+          Curl.set_url conn url;
+          Curl.perform conn;
+          Curl.global_cleanup();
+          Buffer.contents write_buff;
+        with _ -> sprintf "error fetching url %s" url
+    in
     let fetch_brief_params_from_url url =
       (* simple fetch using confluence page with brief_params inside the "code block" macro in the page *)
-      let html_of_url url =
-          try
-            let conn = Curl.init() and write_buff = Buffer.create 16384 in
-            Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
-            Curl.set_url conn url;
-            Curl.perform conn;
-            Curl.global_cleanup();
-            Buffer.contents write_buff;
-          with _ -> sprintf "error fetching url %s" url
-      in
       let html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let has_match = Str.string_match (Str.regexp ".*<pre class=\"syntaxhighlighter-pre\"[^>]*>\\([^<]+\\)<") html 0 in (*find the "code block" in the page*)
       if not has_match
-        then (debug (sprintf "no match in html from %s" url); raise Not_found)
+        then (debug (sprintf "no match in html ggg from %s" url); raise Not_found)
         else
           try Str.matched_group 1 html
           with Not_found -> (debug "not found"; raise Not_found)
@@ -105,8 +105,22 @@ let t ~args = object (self)
       let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
       (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
     in
+    let fetch_brief_params_from_suite id =
+      let url = "https://gitlab-tmp.xenrt.citrite.net/xenrt/xenrt-internal/raw/master/suites/" ^ id in
+      debug (sprintf "Fetching from suite %s" url);
+      let html = html_of_url url in
+      let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
+      (* Look for <!-- RAGE --> comments and concatenate their contents *)
+      let rage_str = ref [] in
+      let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
+      let pattern = Str.regexp "<!-- RAGE \\([^>]*\\) -->" in
+      Str.global_substitute pattern f html;
+      let rows = List.rev !rage_str |> String.concat ~sep:"\n" in
+      "rows=(" ^ rows ^ ")"
+    in
     let fetch_brief_params_from id =
       let xs = if is_digit id then fetch_brief_params_from_db id
+        else if String.is_prefix id ~prefix:"TC-" then fetch_brief_params_from_suite id
         else fetch_brief_params_from_url id
       in
       (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
