@@ -909,7 +909,9 @@ let t ~args = object (self)
       printf "<table>%s</table>" html_table;
       let page_finish_time = Unix.gettimeofday () in
       printf "<hr/>\n";
-      printf "<p>Report took <b>%f seconds</b> to prepare</p>" (page_finish_time -.  page_start_time)
+      printf "<p>Report contained <b>%d rows</b> and took <b>%f seconds</b> to prepare</p>"
+        (List.length table)
+        (page_finish_time -.  page_start_time)
     in
 
     let wiki_writer table =
