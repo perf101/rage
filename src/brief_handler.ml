@@ -20,6 +20,8 @@ let jobs_of_ms = List.map ~f:(fun m -> m.job)
 let vals_of_ms = List.map ~f:(fun m -> m.value)
 
 let k_add_rows_from = "add_rows_from"
+let k_for = "for"
+let k_endfor = "endfor"
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
@@ -32,7 +34,7 @@ let t ~args = object (self)
 
     let progress str =
 (*
-      printf "%s%!" str;
+      printf "<p>%s</p>%!" str;
       flush stdout;
 *)
       ()
@@ -531,6 +533,40 @@ let t ~args = object (self)
     let b = input_base_context in
     let cs = input_cols in
     let rec resolve_keywords rows =
+
+      let substitions : (string * string list) list ref = ref [] in
+      let add_to_each x ys = List.map ~f:(fun y -> x::y) ys in
+      let rec transform xs =
+        match xs with
+        | [] -> [[]]
+        | (k,vs)::xs -> List.map vs ~f:(fun v -> add_to_each (k,v) (transform xs)) |> List.concat
+      in
+
+      (* For a row r and current substitions [(x, [0;1]); (y, [a,b])], return [ r[0/x,a/y]; r[0/x,b/y]; r[1/x,a/y]; r[1/x,b/y] ] *)
+      let apply_substitions row =
+        let all_subs = transform !substitions in
+        List.map all_subs ~f:(fun sub ->
+          (* First expand any compound variables, e.g. ("a,b", "0,A") into [("a","0"); ("b","A")] *)
+          let sub = List.map sub ~f:(fun (k,v) ->
+            let k_split = String.split ~on:',' k in
+            let v_split = String.split ~on:',' v in
+            List.mapi k_split ~f:(fun i k' -> let v' = List.nth_exn v_split i in (k', v'))
+          ) |> List.concat in
+
+          progress (sprintf "current substitions: [%s]" (String.concat ~sep:", " (List.map ~f:(fun (k,v) -> sprintf "(%s, %s)" k v) sub)));
+
+          (* Create a modified row applying this set of substitutions *)
+          List.map row ~f:(fun (k,vs) ->
+            let new_vs = List.map vs ~f:(fun v ->
+              match List.Assoc.find sub v with
+              | None -> v
+              | Some sub_val -> sub_val
+            ) in
+            (k, new_vs)
+          )
+        )
+      in
+
        List.fold_left ~init:[] rows (* expand special row keys *) (*todo: this should also apply to columns *)
       ~f:(fun acc r-> 
        let rec resolve_keywords_in_row acc r =
@@ -567,8 +603,47 @@ let t ~args = object (self)
             )
           )
 
+        else if List.exists r ~f:(fun (k,_)->k=k_for) then (* it's a for-loop! *)
+          begin
+            let bs = List.filter r ~f:(fun (k,_)->k=k_for) in
+            List.iter bs ~f:(fun (_,v) ->
+              let key = List.hd_exn v in
+              let values = List.tl_exn v in
+              progress (sprintf "mapping: key '%s' becomes each of [%s]" key (String.concat ~sep:", " values));
+              substitions := (key, values) :: !substitions
+            );
+            acc
+          end
+
+        else if List.exists r ~f:(fun (k,_)->k=k_endfor) then (* it's the end of a for-loop! *)
+          begin
+            let bs =  List.filter r ~f:(fun (k,_)->k=k_endfor) in
+            List.iter bs ~f:(fun (_,v) ->
+              substitions := match v with
+                | [] ->
+                    begin
+                      progress ("unmapping unspecified variable");
+                      (* just pop the most recent 'for' variable *)
+                      match !substitions with
+                      | _::tl -> tl
+                      | _ -> failwith ("tried to pop (unspecified) variable from empty stack")
+                    end
+                | [v] ->
+                    begin
+                      progress (sprintf "unmapping '%s'" v);
+                      match !substitions with
+                      | (hk,hvs)::tl -> if hk=v then tl else failwith (sprintf "tried to pop variable '%s' but top of stack was '%s'" v hk)
+                      | _ -> failwith (sprintf "tried to pop variable '%s' from empty stack" v)
+                      (* check the most recent 'for' variable has this name and pop it *)
+                    end
+                | _ ->
+                    failwith "endfor can have either zero or one parameter"
+            );
+            acc
+          end
+
         else (* nothing to resolve, carry on *)
-          r::acc
+          (apply_substitions r) @ acc
 
        in
        resolve_keywords_in_row acc r
