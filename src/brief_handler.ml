@@ -116,7 +116,7 @@ let t ~args = object (self)
       (* Look for <!-- RAGE --> comments and concatenate their contents *)
       let rage_str = ref [] in
       let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
-      let pattern = Str.regexp "<!-- RAGE \\([^>]*\\) -->" in
+      let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
       Str.global_substitute pattern f html;
       let rows = List.rev !rage_str |> String.concat ~sep:"\n" in
       "rows=(" ^ rows ^ ")"
@@ -661,7 +661,7 @@ let t ~args = object (self)
             List.iter bs ~f:(fun (_,v) ->
               let key = List.hd_exn v in
               let values = List.tl_exn v in
-              progress (sprintf "mapping: key '%s' means array [%s]" key (String.concat ~sep:", " values));
+              progress (sprintf "definition: name '%s' means array [%s]" key (String.concat ~sep:", " values));
               deflists := List.Assoc.add !deflists key values
             );
             acc
