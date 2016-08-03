@@ -22,6 +22,7 @@ let vals_of_ms = List.map ~f:(fun m -> m.value)
 let k_add_rows_from = "add_rows_from"
 let k_for = "for"
 let k_endfor = "endfor"
+let k_deflist = "deflist"
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
@@ -534,6 +535,7 @@ let t ~args = object (self)
     let cs = input_cols in
     let rec resolve_keywords rows =
 
+      let deflists : (string * string list) list ref = ref [] in
       let substitions : (string * string list) list ref = ref [] in
       let add_to_each x ys = List.map ~f:(fun y -> x::y) ys in
       let rec transform xs =
@@ -541,6 +543,17 @@ let t ~args = object (self)
         | [] -> [[]]
         | (k,vs)::xs -> List.map vs ~f:(fun v -> add_to_each (k,v) (transform xs)) |> List.concat
       in
+
+      (* Expand any variables defined as lists *)
+      let apply_definitions row =
+        List.map row ~f:(fun (k,vs) ->
+          let new_vs = List.map vs ~f:(fun v ->
+            match List.Assoc.find !deflists v with
+            | None -> [v]
+            | Some exp -> exp
+          ) |> List.concat in
+          (k, new_vs)
+        ) in
 
       (* For a row r and current substitions [(x, [0;1]); (y, [a,b])], return [ r[0/x,a/y]; r[0/x,b/y]; r[1/x,a/y]; r[1/x,b/y] ] *)
       let apply_substitions row =
@@ -642,8 +655,20 @@ let t ~args = object (self)
             acc
           end
 
+        else if List.exists r ~f:(fun (k,_)->k=k_deflist) then (* it's a deflist *)
+          begin
+            let bs = List.filter r ~f:(fun (k,_)->k=k_deflist) in
+            List.iter bs ~f:(fun (_,v) ->
+              let key = List.hd_exn v in
+              let values = List.tl_exn v in
+              progress (sprintf "mapping: key '%s' means array [%s]" key (String.concat ~sep:", " values));
+              deflists := List.Assoc.add !deflists key values
+            );
+            acc
+          end
+
         else (* nothing to resolve, carry on *)
-          (apply_substitions r) @ acc
+          (r |> apply_definitions |> apply_substitions) @ acc
 
        in
        resolve_keywords_in_row acc r
