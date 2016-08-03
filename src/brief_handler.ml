@@ -668,7 +668,7 @@ let t ~args = object (self)
           end
 
         else (* nothing to resolve, carry on *)
-          (r |> apply_definitions |> apply_substitions) @ acc
+          (r |> apply_substitions |> List.map ~f:apply_definitions) @ acc
 
        in
        resolve_keywords_in_row acc r
