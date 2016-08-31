@@ -241,6 +241,7 @@ let tc_config_fields = [
   "xenrt_pq_version";
   "dom0_vcpus";
   "host_pcpus";
+  "live_patching";
 ]
 
 let som_config_tbl_exists ~conn som_id =
