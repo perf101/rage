@@ -33,12 +33,7 @@ let t ~args = object (self)
     let show_jobids = try bool_of_string (List.Assoc.find_exn params "show_jobids") with _ -> false in
     let no_rounding = try bool_of_string (List.Assoc.find_exn params "no_rounding") with _ -> false in
 
-    let progress str =
-(*
-      printf "<p>%s</p>%!" str;
-      flush stdout;
-*)
-      ()
+    let progress str = debug str
     in
     (* === input === *)
 
@@ -682,8 +677,9 @@ let t ~args = object (self)
       match measurements_of_cells with None->ctx,[]|Some (c,ms)->c,ms
     in
     let measurements_of_table = 
+      let rs_len = List.length rs in
       List.mapi rs ~f:(fun i r->
-        progress (sprintf "%d..." i);
+        progress (sprintf "row %d of %d..." i rs_len);
         r, (List.map cs ~f:(fun c->
           let ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
           (r, c, ctx,  ms)
