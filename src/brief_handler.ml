@@ -109,7 +109,7 @@ let t ~args = object (self)
       (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
     in
     let fetch_brief_params_from_suite id =
-      let url = "https://gitlab-tmp.xenrt.citrite.net/xenrt/xenrt-internal/raw/master/suites/" ^ id in
+      let url = "https://gitlab.xenrt.citrite.net/xenrt/xenrt-internal/raw/master/suites/" ^ id in
       debug (sprintf "Fetching from suite %s" url);
       let html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
