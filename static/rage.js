@@ -543,10 +543,13 @@ function GraphObject() {
     else if (Object.keys(diffs).length > 0) {
       body += "<br/><br/><table>";
       body += "<tr><th colspan='3'>Differences from latest selection:</th></tr>";
-      body += "<tr><th>Key</th><th>Latest selected point</th><th>This point</th></tr>";
+      body += "<tr><th>Key</th><th>Latest selected point</th><th>This point</th><th>% Diff</th></tr>";
       for (diff in diffs) {
         d = diffs[diff];
-        body += "<tr><th>" + diff + "</th><td>" + d[0] + "</td><td>" + d[1] + "</td></tr>";
+        prev_val = parseFloat(d[0]);
+        new_val =parseFloat(d[1]);
+        percent_diff = (isNaN(prev_val) || isNaN(new_val))? '' : ((new_val-prev_val)/prev_val*100).toFixed(2);
+        body += "<tr><th>" + diff + "</th><td>" + d[0] + "</td><td>" + d[1] + "</td><td>" + percent_diff + "</td></tr>";
       }
       body += "</table>";
     }
