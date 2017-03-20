@@ -103,8 +103,8 @@ let t ~args = object (self)
       let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
       (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
     in
-    let fetch_brief_params_from_suite id =
-      let url = "https://gitlab.xenrt.citrite.net/xenrt/xenrt-internal/raw/master/suites/" ^ id in
+    let fetch_brief_params_from_suite ?(branch="refs%2Fheads%2Fmaster") id =
+      let url = sprintf "https://code.citrite.net/projects/XRT/repos/xenrt/raw/suites/%s?at=%s" id branch in
       debug (sprintf "Fetching from suite %s" url);
       let html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
