@@ -118,8 +118,12 @@ let t ~args = object (self)
     in
     let fetch_brief_params_from id =
       let xs = if is_digit id then fetch_brief_params_from_db id
-        else if String.is_prefix id ~prefix:"TC-" then fetch_brief_params_from_suite id
-        else fetch_brief_params_from_url id
+        else if String.is_prefix id ~prefix:"TC-" then (
+          match String.split ~on:'#' id with
+          | [id; branch] -> fetch_brief_params_from_suite ~branch id
+          | [id] -> fetch_brief_params_from_suite id
+          | _ -> failwith (sprintf "unparseable id '%s'" id)
+        ) else fetch_brief_params_from_url id
       in
       (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
       xs
