@@ -1,7 +1,7 @@
 NATIVE_ENABLED=true
 USE_OCAMLFIND=true
 OCAMLINCLUDES+=ocaml-sql
-OCAMLPACKS=core,postgresql,str,curl
+OCAMLPACKS=core,postgresql,str,curl,uri
 OCAMLFLAGS=-g -thread -linkpkg -w +a-4-7-13-27 -principal
 HANDLERS=\
   create_tiny_url_handler \
