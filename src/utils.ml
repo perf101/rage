@@ -4,18 +4,6 @@ let debug msg =
   output_string stderr (msg ^ "\n");
   flush stderr
 
-module ListKey = struct
-  module T = struct
-    type t = string list with sexp
-    type sexpable = t
-    let compare = compare
-    let equal = (=)
-    let hash = Hashtbl.hash
-  end
-  include T
-  include Hashable.Make (T)
-end
-
 let index l x =
   let rec aux i = function
     | [] -> failwith "index []"

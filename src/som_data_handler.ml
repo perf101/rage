@@ -148,7 +148,7 @@ let t ~args = object (self)
     let split_bys =
       self#select_params filter_prefix ~value:(Some filter_by_value) in
     let split_by_is = List.map split_bys ~f:(index keys) in
-    let all_series = ListKey.Table.create () in
+    let all_series = Hashtbl.Poly.create () in
     let get_row_key row is = List.map is ~f:(Array.get row) in
     let add_to_series row series_opt =
       match series_opt with
@@ -157,7 +157,7 @@ let t ~args = object (self)
     in
     let update_all_series row =
       let row_key = get_row_key row split_by_is in
-      ListKey.Table.change all_series row_key (add_to_series row)
+      Hashtbl.Poly.change all_series row_key (add_to_series row)
     in
     Array.iter rows ~f:update_all_series;
     (* output axis labels and a "series" for each data group *)
@@ -199,6 +199,6 @@ let t ~args = object (self)
       print_concat data_lst;
       printf "]}"
     in
-    List.iteri (ListKey.Table.to_alist all_series) ~f:process_series;
+    List.iteri (Hashtbl.Poly.to_alist all_series) ~f:process_series;
     printf "]}"
 end
