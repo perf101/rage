@@ -257,6 +257,7 @@ let build_fields = [
   "product";
   "branch";
   "build_number";
+  "build_date";
   "build_tag";
 ]
 
