@@ -44,7 +44,8 @@ let t ~args = object (self)
     (* LABELS *)
     let som_config_labels =
       match som_configs_opt with None -> [] | Some som_configs -> som_configs#get_fnames_lst in
-    let labels = ["job_id"] @
+    let labels =
+      Utils.job_fields @
       Utils.build_fields @
       Utils.tc_config_fields @
       machines#get_fnames_lst @ config_column_names @ som_config_labels in
@@ -55,8 +56,7 @@ let t ~args = object (self)
       List.map (List.range 0 dbresult#nfields)
         ~f:(fun col -> get_options_for_field dbresult ~data col) in
 
-    let job_id_lst = get_options_for_field_once_byname job_ids "job_id" in
-
+    let job_lsts = List.map Utils.job_fields ~f:(get_options_for_field_once_byname job_ids) in
     let build_lsts = List.map Utils.build_fields ~f:(get_options_for_field_once_byname builds) in
     let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field_once job_attributes i) Utils.tc_config_fields in
 
@@ -72,7 +72,8 @@ let t ~args = object (self)
       match som_configs_opt with None -> [] | Some som_configs ->
         options_lst_of_dbresult som_configs in
 
-    let options_lst = [job_id_lst] @
+    let options_lst =
+      job_lsts @
       build_lsts @
       job_attrs_lsts @ machine_options_lst @ config_options_lst @
       som_config_options_lst in
@@ -100,7 +101,8 @@ let t ~args = object (self)
     let som_info = Sql.exec_exn ~conn ~query in
     let query = "SELECT * FROM " ^ tc_config_tbl ^ " LIMIT 0" in
     let config_columns = Sql.exec_exn ~conn ~query in
-    let query = "SELECT DISTINCT job_id FROM soms_jobs WHERE " ^
+    let job_fields = String.concat ~sep:", " Utils.job_fields in
+    let query = "SELECT DISTINCT " ^ job_fields ^ " FROM soms_jobs WHERE " ^
       (sprintf "som_id=%d" som_id) in
     let job_ids = Sql.exec_exn ~conn ~query in
     let build_fields = String.concat ~sep:", " Utils.build_fields in
