@@ -1,6 +1,5 @@
 open Core.Std
 open Utils
-open Sexplib.Std
 
 (* types of the url input arguments *)
 type cols_t = (string * string list) list list with sexp
@@ -486,6 +485,7 @@ let t ~args = object (self)
 
       (* map (k_i,v_i) and (k_j,v_j) to (k_i,[v_i,v_j,...]) when k_i=k_j *)
       let kvs =
+        let open Sexplib.Std in
         let ks_tbl = Hashtbl.create 128 in
         List.iter kv
           ~f:(fun (k,v)->
