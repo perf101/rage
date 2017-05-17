@@ -33,7 +33,7 @@ FILES=\
 	clean:
 		make -C $(ROOT)/src/ocaml-sql clean
 
-UseCamlp4(sexplib.syntax, main utils brief_handler)
+UseCamlp4(sexplib.syntax, brief_handler)
 
 OCamlProgram($(PROGRAM), $(FILES))
 
