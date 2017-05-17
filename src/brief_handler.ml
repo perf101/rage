@@ -580,7 +580,7 @@ let t ~args = object (self)
 
        List.fold_left ~init:[] rows (* expand special row keys *) (*todo: this should also apply to columns *)
       ~f:(fun acc r-> 
-       let rec resolve_keywords_in_row acc r =
+       let resolve_keywords_in_row acc r =
 
         if List.exists r ~f:(fun (k,v)->k="tcs") then (* expand tcs into soms *)
           let r_expanded = List.concat (List.map r 
