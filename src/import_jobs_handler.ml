@@ -1,6 +1,5 @@
 open! Core.Std
 open Utils
-open Unix
 
 let importer = "/usr/groups/perfeng/bin/importer-xenrt"
 

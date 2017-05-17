@@ -1,5 +1,4 @@
 open! Core.Std
-open Printf
 open Utils
 
 type args = {

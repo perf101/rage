@@ -1,7 +1,6 @@
 open Core.Std
 open Utils
 open Sexplib.Std
-open Curl
 
 (* types of the url input arguments *)
 type cols_t = (string * string list) list list with sexp
