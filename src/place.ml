@@ -1,6 +1,4 @@
-open Core.Std
-open Printf
-open Utils
+open! Core.Std
 
 type t =
   | CreateTinyUrl

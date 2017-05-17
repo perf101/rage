@@ -1,8 +1,8 @@
 NATIVE_ENABLED=true
 USE_OCAMLFIND=true
 OCAMLINCLUDES+=ocaml-sql
-OCAMLPACKS=core,postgresql,str,curl
-OCAMLFLAGS=-g -thread -linkpkg -warn-error +a -w +a-4-7-13-27 -principal
+OCAMLPACKS=core,postgresql,str,curl,uri
+OCAMLFLAGS=-g -thread -linkpkg -w +a-4-7-13-27 -principal
 HANDLERS=\
   create_tiny_url_handler \
   default_handler \
@@ -33,7 +33,7 @@ FILES=\
 	clean:
 		make -C $(ROOT)/src/ocaml-sql clean
 
-UseCamlp4(sexplib.syntax, main utils brief_handler)
+UseCamlp4(sexplib.syntax, brief_handler)
 
 OCamlProgram($(PROGRAM), $(FILES))
 

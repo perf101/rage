@@ -1,5 +1,4 @@
-open Core.Std
-open Printf
+open! Core.Std
 
 class t = fun ~args ->
 object (self)

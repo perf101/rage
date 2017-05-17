@@ -151,7 +151,7 @@ function preselect_fields_based_on_params() {
       for (var i in vals) {
         var option = vals[i];
         if (known_vals.indexOf(option) < 0) {
-	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it.');
+	  console.log('Note: ' + param + ' option "' + option + '" is not known; added it. Known vals:' + known_vals);
           elt.append("<option value='" + option + "'>" + option + "</option>");
         }
       }
@@ -229,7 +229,7 @@ function get_tinyurl() {
 
 function get_base_url() {
   var href = window.location.href;
-  return href.substring(0, href.lastIndexOf('/'));
+  return href.substring(0, href.indexOf('?')).substring(0, href.lastIndexOf('/'));
 }
 
 function get_som_url() {
@@ -299,9 +299,28 @@ function redraw_trigger() {
   fetch_data_and_process();
 }
 
+function set_graph_title() {
+  var form_data = $('form[name=optionsForm]').serialize();
+  var params = extract_params(form_data);
+  var set_vars = [];
+  for (var param in params) {
+    if (param.startsWith("v_") && params[param] != "ALL") {
+      set_vars.push(param.substr(2) + " = " + params[param]);
+    }
+  }
+  var graph_title = "Selections:";
+  if (set_vars.length == 0) {
+    graph_title += " (none)";
+  } else {
+    graph_title += "<ul>" + set_vars.map(function(v) { return "<li>" + decode(v) + "</li>" }).join("\n") + "</ul>";
+  }
+  $("#graph_title").html(graph_title);
+}
+
 function fetch_data_and_process() {
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
+  set_graph_title();
   var som_id = url_params.som[0];
   var request = "/?p=som_data&id=" + som_id;
   var params = get_minimised_params();
@@ -480,10 +499,7 @@ function GraphObject() {
     });
   }
 
-  function generate_tooltip(item, id) {
-    var click_tooltip = typeof id === 'undefined';
-    id = typeof id === 'undefined' ? "tooltip_" + tooltip_counter++ : id;
-    var body = "<div id='" + id + "' class='tooltip'><table>";
+  function get_metadata(item) {
     var o = graph_data;
     var x = item.datapoint[0].toFixed(2);
     var y = item.datapoint[1].toFixed(2);
@@ -498,21 +514,72 @@ function GraphObject() {
       var s = series[item.seriesIndex - num_series];
       if ("label" in s) label = s.label + " (mean)";
     }
+    var metadata = [];
     if (label)
-      body += "<tr><th>series:</th><td>" + label + "</td></tr>";
-    body += "<tr><th>x:</th><td>" + xl + "</td></tr>";
-    body += "<tr><th>y:</th><td>" + yl + "</td></tr>";
+      metadata.push(['series', label]);
+    metadata.push(['x', xl]);
+    metadata.push(['y', yl]);
     var itemData = item.series.data[item.dataIndex];
     if (2 in itemData) {
       var props = itemData[2];
       for (p in props)
-        body += "<tr><th>" + p + ":</th><td>" + props[p] + "</td></tr>";
+        metadata.push([p, props[p]]);
+    }
+    return metadata;
+  }
+
+  function generate_tooltip(item, id, diffs) {
+    var click_tooltip = typeof id === 'undefined';
+    id = typeof id === 'undefined' ? "tooltip_" + tooltip_counter++ : id;
+    var body = "<div id='" + id + "' class='tooltip'><table width='100%'>";
+    var metadata = get_metadata(item);
+    for (var i in metadata) {
+      var kv = metadata[i];
+      body += "<tr><th>" + kv[0] + ":</th><td>" + kv[1] + "</td></tr>";
     }
     body += "</table>";
     if (click_tooltip)
       body += "<img src='/close.png' />";
+    else if (Object.keys(diffs).length > 0) {
+      body += "<br/><br/><table>";
+      body += "<tr><th colspan='3'>Differences from latest selection:</th></tr>";
+      body += "<tr><th>Key</th><th>Latest selected point</th><th>This point</th><th>% Diff</th></tr>";
+      for (diff in diffs) {
+        d = diffs[diff];
+        prev_val = parseFloat(d[0]);
+        new_val =parseFloat(d[1]);
+        percent_diff = (isNaN(prev_val) || isNaN(new_val))? '' : ((new_val-prev_val)/prev_val*100).toFixed(2);
+        body += "<tr><th>" + diff + "</th><td>" + d[0] + "</td><td>" + d[1] + "</td><td>" + percent_diff + "</td></tr>";
+      }
+      body += "</table>";
+    }
     body += "</div>";
     return body;
+  }
+
+  function metadata_diff(x, y) {
+    // Convert both to dictionaries
+    var xdict = {};
+    var ydict = {};
+    for (var i in x) {
+      var kv = x[i];
+      xdict[kv[0]] = kv[1];
+    }
+    for (var i in y) {
+      var kv = y[i];
+      ydict[kv[0]] = kv[1];
+    }
+    // Find the differences
+    diffs = {}
+    for (var k in xdict) {
+      if (k in ydict) {
+	// compare values
+	if (xdict[k] != ydict[k]) {
+	  diffs[k] = [xdict[k], ydict[k]];
+	}
+      }
+    }
+    return diffs;
   }
 
   function draw_graph(o, cb) {
@@ -617,9 +684,11 @@ function GraphObject() {
       console.log("Plotting took " + (new Date() - start) + "ms.");
       // click
       graph.unbind("plotclick");
+      var latest_selection = null;
       graph.bind("plotclick", function (event, pos, item) {
         if (!item) return;
         show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
+	latest_selection = item;
       });
       // hover
       var previousPoint = null;
@@ -631,7 +700,14 @@ function GraphObject() {
         } else if (previousPoint != item.dataIndex) {
           previousPoint = item.dataIndex;
           $("#hover_tooltip").remove();
-          var contents = generate_tooltip(item, "hover_tooltip");
+          // Generate the diffs since latest_selection
+          var diffs;
+          if (latest_selection == null)
+            diffs = {};
+          else
+            diffs = metadata_diff(get_metadata(latest_selection), get_metadata(item));
+          // Display tooltip
+          var contents = generate_tooltip(item, "hover_tooltip", diffs);
           show_tooltip(graph, item.pageX + 10, item.pageY, contents);
         }
       });

@@ -1,4 +1,4 @@
-open Core.Std
+open! Core.Std
 open Utils
 
 let jira_hostname = "jira.uk.xensource.com"
@@ -44,7 +44,9 @@ let t ~args = object (self)
     (* LABELS *)
     let som_config_labels =
       match som_configs_opt with None -> [] | Some som_configs -> som_configs#get_fnames_lst in
-    let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag"] @
+    let labels =
+      Utils.job_fields @
+      Utils.build_fields @
       Utils.tc_config_fields @
       machines#get_fnames_lst @ config_column_names @ som_config_labels in
 
@@ -54,11 +56,8 @@ let t ~args = object (self)
       List.map (List.range 0 dbresult#nfields)
         ~f:(fun col -> get_options_for_field dbresult ~data col) in
 
-    let job_id_lst = get_options_for_field_once job_ids 0 in
-    let branch_lst = get_options_for_field_once builds 0 in
-    let build_no_lst = get_options_for_field_once builds 1 in
-    let tag_lst = get_options_for_field_once builds 2 in
-    let product_lst = get_options_for_field_once builds 3 in
+    let job_lsts = List.map Utils.job_fields ~f:(get_options_for_field_once_byname job_ids) in
+    let build_lsts = List.map Utils.build_fields ~f:(get_options_for_field_once_byname builds) in
     let job_attrs_lsts = List.mapi ~f:(fun i job_attr -> get_options_for_field_once job_attributes i) Utils.tc_config_fields in
 
     let machine_options_lst = options_lst_of_dbresult machines in
@@ -73,7 +72,9 @@ let t ~args = object (self)
       match som_configs_opt with None -> [] | Some som_configs ->
         options_lst_of_dbresult som_configs in
 
-    let options_lst = [job_id_lst; product_lst; branch_lst; build_no_lst; tag_lst] @
+    let options_lst =
+      job_lsts @
+      build_lsts @
       job_attrs_lsts @ machine_options_lst @ config_options_lst @
       som_config_options_lst in
     let print_table_for (label, options) =
@@ -90,7 +91,7 @@ let t ~args = object (self)
         ("ALL"::options);
       printf "</tr></table>\n"
     in
-    List.iter ~f:print_table_for (List.combine_exn labels options_lst)
+    List.iter ~f:print_table_for (List.zip_exn labels options_lst)
 
   method private write_body =
     let som_id = int_of_string (List.Assoc.find_exn params "som") in
@@ -100,17 +101,19 @@ let t ~args = object (self)
     let som_info = Sql.exec_exn ~conn ~query in
     let query = "SELECT * FROM " ^ tc_config_tbl ^ " LIMIT 0" in
     let config_columns = Sql.exec_exn ~conn ~query in
-    let query = "SELECT DISTINCT job_id FROM measurements_distinct WHERE " ^
+    let job_fields = String.concat ~sep:", " Utils.job_fields in
+    let query = "SELECT DISTINCT " ^ job_fields ^ " FROM soms_jobs WHERE " ^
       (sprintf "som_id=%d" som_id) in
     let job_ids = Sql.exec_exn ~conn ~query in
+    let build_fields = String.concat ~sep:", " Utils.build_fields in
     let query =
-      "SELECT DISTINCT branch, build_number, build_tag, product " ^
-      (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from measurements_distinct where som_id=%d) AS m " som_id) ^
+      "SELECT DISTINCT " ^ build_fields ^ " " ^
+      (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from soms_jobs where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.build_id=b.build_id "
     in
     let builds = Sql.exec_exn ~conn ~query in
     let query = "SELECT DISTINCT " ^ (String.concat ~sep:", " Utils.tc_config_fields) ^ " " ^
-      (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from measurements_distinct where som_id=%d) AS m " som_id) ^
+      (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from soms_jobs where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.job_id=c.job_id "
     in
     let job_attributes = Sql.exec_exn ~conn ~query in
@@ -121,7 +124,7 @@ let t ~args = object (self)
       Some (Sql.exec_exn ~conn ~query) in
     let query =
       "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
-      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from measurements_distinct where som_id=%d) AS mr " som_id) ^
+      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from soms_jobs where som_id=%d) AS mr " som_id) ^
       "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
     in
     let machines = Sql.exec_exn ~conn ~query in
@@ -169,6 +172,7 @@ let t ~args = object (self)
     printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
     printf "%s'redraw' value='Redraw' />" submit_prefix;
     printf "<br /><img id='progress_img' src='progress.gif' />\n";
+    printf "<div id='graph_title' class='graph_title'></div>\n";
     printf "<div class='graph_container'>";
     printf "<div class='yaxis'></div>";
     printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";

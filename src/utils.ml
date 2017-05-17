@@ -1,21 +1,8 @@
-open Core.Std
-open Postgresql
+open! Core.Std
 
 let debug msg =
   output_string stderr (msg ^ "\n");
   flush stderr
-
-module ListKey = struct
-  module T = struct
-    type t = string list with sexp
-    type sexpable = t
-    let compare = compare
-    let equal = (=)
-    let hash = Hashtbl.hash
-  end
-  include T
-  include Hashable.Make (T)
-end
 
 let index l x =
   let rec aux i = function
@@ -23,7 +10,7 @@ let index l x =
     | x'::xs -> if x = x' then i else aux (i+1) xs
   in aux 0 l
 
-let rec concat ?(sep = ",") l =
+let concat ?(sep = ",") l =
   String.concat ~sep
     (List.filter l ~f:(fun s -> not (String.is_empty s)))
 
@@ -35,7 +22,7 @@ let rec print_concat ?(sep = ",") = function
   | [e] -> print_string e
   | e::l -> print_string e; print_string sep; print_concat l
 
-let rec concat_array ?(sep = ",") a =
+let concat_array ?(sep = ",") a =
   String.concat_array ~sep
     (Array.filter a ~f:(fun s -> not (String.is_empty s)))
 
@@ -112,7 +99,7 @@ let extract_filter col_fqns col_types params key_prefix =
   let conds = List.map l
     ~f:(fun (k, vs) ->
       let vs = List.map vs ~f:decode_html in
-      let has_null = List.mem ~set:vs "(NULL)" in
+      let has_null = List.mem vs "(NULL)" in
       let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
       let ty = String.Table.find_exn col_types k in
       let quote = Sql.Type.is_quoted ty in
@@ -162,7 +149,7 @@ let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   printf ">\n";
   let print_option (l, v) =
     printf "<option value='%s'" v;
-    if List.mem ~set:selected l then printf " selected='selected'";
+    if List.mem selected l then printf " selected='selected'";
     printf ">%s</option>\n" l
   in List.iter options ~f:print_option;
   printf "</select>\n";
@@ -191,6 +178,15 @@ let get_options_for_field db_result ~data col =
   List.sort ~cmp (List.dedup (aux [] nRows))
 
 let get_options_for_field_once db_result col =
+  let data = db_result#get_all in
+  get_options_for_field db_result ~data col
+
+let get_options_for_field_once_byname db_result col_name =
+  let col_names = db_result#get_fnames_lst in
+  let col = match List.findi ~f:(fun _ c -> c = col_name) col_names with
+      | Some (i, _) -> i
+      | _ -> failwith (sprintf "could not find column '%s' amongst [%s]" col_name (String.concat ~sep:"; " col_names))
+  in
   let data = db_result#get_all in
   get_options_for_field db_result ~data col
 
@@ -242,6 +238,19 @@ let tc_config_fields = [
   "xenrt_pq_version";
   "dom0_vcpus";
   "host_pcpus";
+  "live_patching";
+]
+
+let build_fields = [
+  "product";
+  "branch";
+  "build_number";
+  "build_date";
+  "build_tag";
+]
+
+let job_fields = [
+  "job_id";
 ]
 
 let som_config_tbl_exists ~conn som_id =
@@ -251,7 +260,7 @@ let som_config_tbl_exists ~conn som_id =
 let get_std_xy_choices ~conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  ["job_id"; "branch"; "product"; "build_number"; "build_tag"] @ tc_config_fields @ machine_field_lst
+  job_fields @ build_fields @ tc_config_fields @ machine_field_lst
 
 let get_xy_choices ~conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with

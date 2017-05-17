@@ -1,6 +1,4 @@
-open Core.Std
-open Printf
-open Utils
+open! Core.Std
 
 class t = fun ~args ->
 object (self)
@@ -24,5 +22,5 @@ object (self)
 
   method private write_header = self#write_html_header
 
-  method private write_footer = cat (base_path ^ "footer.html")
+  method private write_footer = Utils.cat (base_path ^ "footer.html")
 end

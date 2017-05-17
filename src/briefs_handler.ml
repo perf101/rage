@@ -1,5 +1,4 @@
-open Core.Std
-open Utils
+open! Core.Std
 
 let t ~args = object (self)
   inherit Html_handler.t ~args

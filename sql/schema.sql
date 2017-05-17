@@ -138,11 +138,24 @@ create table soms (
 );
 grant select on soms to "www-data";
 
-create table measurements (
+CREATE TABLE soms_jobs (
+  id serial,
+  som_id integer NOT NULL,
+  job_id integer NOT NULL,
+
+  PRIMARY KEY (id),
+  CONSTRAINT soms_jobs_unique_keys UNIQUE (som_id, job_id),
+  foreign key (som_id) references soms(som_id),
+  foreign key (job_id) references jobs(job_id)
+);
+grant select on soms_jobs to "www-data";
+CREATE INDEX soms_jobs_job_id_index ON soms_jobs USING btree (job_id);
+CREATE INDEX soms_jobs_som_id_index ON soms_jobs USING btree (som_id);
+
+create table measurements_2 (
   /* Measurement context. */
-  job_id integer not null,
+  som_job_id integer not null,
   tc_config_id integer not null,
-  som_id integer not null,
   som_config_id integer null,
 
   /* Measurement. */
@@ -151,21 +164,20 @@ create table measurements (
 
   /* Constraints. */
   constraint measurements_unique_keys unique
-    (job_id, tc_config_id, som_id, som_config_id, result_id),
-  foreign key (job_id) references jobs(job_id),
+    (som_job_id, tc_config_id, som_config_id, result_id),
+  foreign key (som_job_id) references soms_jobs(id),
   /* (Cannot reference tc_config_id, since table is variable.) */
-  foreign key (som_id) references soms(som_id)
   /* (Cannot reference som_config_id, since table is variable.) */
 );
-grant select on measurements to "www-data";
-create index measurements_som_config_id_index on measurements using btree (som_config_id);
-create index measurements_som_id_job_id_index on measurements using btree (som_id, job_id);
-create index measurements_tc_config_id_index on measurements using btree (tc_config_id);
+grant select on measurements_2 to "www-data";
+create index measurements_som_config_id_index on measurements_2 using btree (som_config_id);
+create index measurements_som_job_id_index on measurements_2 using btree (som_job_id);
+create index measurements_tc_config_id_index on measurements_2 using btree (tc_config_id);
 
-create materialized view measurements_distinct as select distinct measurements.som_id, measurements.job_id from measurements order by measurements.som_id, measurements.job_id;
-grant select on measurements_distinct to "www-data";
-create index measurements_distinct_job_id_som_id on measurements_distinct using btree (job_id, som_id);
-create index measurements_distinct_som_id_job_id on measurements_distinct using btree (som_id, job_id);
+---create materialized view measurements_distinct as select distinct measurements.som_id, measurements.job_id from measurements order by measurements.som_id, measurements.job_id;
+---grant select on measurements_distinct to "www-data";
+---create index measurements_distinct_job_id_som_id on measurements_distinct using btree (job_id, som_id);
+---create index measurements_distinct_som_id_job_id on measurements_distinct using btree (som_id, job_id);
 
 create table tblRacktablesNameMapping (
   strourname varchar(64) not null,
