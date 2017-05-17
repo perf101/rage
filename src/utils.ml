@@ -193,6 +193,15 @@ let get_options_for_field_once db_result col =
   let data = db_result#get_all in
   get_options_for_field db_result ~data col
 
+let get_options_for_field_once_byname db_result col_name =
+  let col_names = db_result#get_fnames_lst in
+  let col = match List.findi ~f:(fun _ c -> c = col_name) col_names with
+      | Some (i, _) -> i
+      | _ -> failwith (sprintf "could not find column '%s' amongst [%s]" col_name (String.concat ~sep:"; " col_names))
+  in
+  let data = db_result#get_all in
+  get_options_for_field db_result ~data col
+
 let print_options_for_field namespace db_result col =
   let fname = db_result#fname col in
   let opts = get_options_for_field_once db_result col in
