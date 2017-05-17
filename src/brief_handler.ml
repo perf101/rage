@@ -111,7 +111,7 @@ let t ~args = object (self)
       let rage_str = ref [] in
       let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
       let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
-      Str.global_substitute pattern f html;
+      ignore (Str.global_substitute pattern f html);
       let rows = List.rev !rage_str |> String.concat ~sep:"\n" in
       "rows=(" ^ rows ^ ")"
     in
