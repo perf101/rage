@@ -22,7 +22,7 @@ let index l x =
     | x'::xs -> if x = x' then i else aux (i+1) xs
   in aux 0 l
 
-let rec concat ?(sep = ",") l =
+let concat ?(sep = ",") l =
   String.concat ~sep
     (List.filter l ~f:(fun s -> not (String.is_empty s)))
 
@@ -34,7 +34,7 @@ let rec print_concat ?(sep = ",") = function
   | [e] -> print_string e
   | e::l -> print_string e; print_string sep; print_concat l
 
-let rec concat_array ?(sep = ",") a =
+let concat_array ?(sep = ",") a =
   String.concat_array ~sep
     (Array.filter a ~f:(fun s -> not (String.is_empty s)))
 
