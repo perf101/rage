@@ -1,4 +1,4 @@
-open Core.Std
+open! Core.Std
 open Printf
 
 class t = fun ~args ->

@@ -1,4 +1,4 @@
-open Core.Std
+open! Core.Std
 open Utils
 
 let t ~args = object (self)

@@ -1,4 +1,4 @@
-open Core.Std
+open! Core.Std
 
 let t ~args = object (self)
   inherit Json_handler.t ~args

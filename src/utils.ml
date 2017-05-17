@@ -1,4 +1,4 @@
-open Core.Std
+open! Core.Std
 
 let debug msg =
   output_string stderr (msg ^ "\n");
