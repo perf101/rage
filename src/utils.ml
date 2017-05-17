@@ -244,6 +244,13 @@ let tc_config_fields = [
   "live_patching";
 ]
 
+let build_fields = [
+  "product";
+  "branch";
+  "build_number";
+  "build_tag";
+]
+
 let som_config_tbl_exists ~conn som_id =
   let som_config_tbl = sprintf "som_config_%d" som_id in
   som_config_tbl, Sql.tbl_exists ~conn ~tbl:som_config_tbl
@@ -251,7 +258,7 @@ let som_config_tbl_exists ~conn som_id =
 let get_std_xy_choices ~conn =
   let machine_field_lst =
     List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-  ["job_id"; "branch"; "product"; "build_number"; "build_tag"] @ tc_config_fields @ machine_field_lst
+  ["job_id"] @ build_fields @ tc_config_fields @ machine_field_lst
 
 let get_xy_choices ~conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with

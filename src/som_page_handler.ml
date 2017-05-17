@@ -44,7 +44,8 @@ let t ~args = object (self)
     (* LABELS *)
     let som_config_labels =
       match som_configs_opt with None -> [] | Some som_configs -> som_configs#get_fnames_lst in
-    let labels = ["job_id"; "product"; "branch"; "build_number"; "build_tag"] @
+    let labels = ["job_id"] @
+      Utils.build_fields @
       Utils.tc_config_fields @
       machines#get_fnames_lst @ config_column_names @ som_config_labels in
 
@@ -103,8 +104,9 @@ let t ~args = object (self)
     let query = "SELECT DISTINCT job_id FROM soms_jobs WHERE " ^
       (sprintf "som_id=%d" som_id) in
     let job_ids = Sql.exec_exn ~conn ~query in
+    let build_fields = String.concat ~sep:", " Utils.build_fields in
     let query =
-      "SELECT DISTINCT branch, build_number, build_tag, product " ^
+      "SELECT DISTINCT " ^ build_fields ^ " " ^
       (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from soms_jobs where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.build_id=b.build_id "
     in
