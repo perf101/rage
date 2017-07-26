@@ -184,6 +184,18 @@ a {
   background-color:#205081;
 }
 
+.import_page {
+  width: 460px;
+  margin: auto;
+  text-align:justify;
+  border-radius:10px;
+  background-color:#3572b0;
+  color: #FFFFFF;
+  padding: 10px 10px 20px 10px;
+  margin-top: 20px;
+  font-size: 110%;
+}
+
 .heading {
   position:relative;
   font-weight:normal;
