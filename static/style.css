@@ -98,6 +98,7 @@ a {
   border-style: none;
   outline:0;
 }
+
 .title {
   margin:auto;
   width:256px;
@@ -125,4 +126,39 @@ a {
 .title a {
   color: #000000;
   display:inline-block;
+}
+
+.list {
+  list-style-type: none;
+  margin-bottom: 40px;
+  margin-top:0;
+  padding:0;
+  margin-left:0;
+  margin-right:0;
+}
+.list li {
+  width: 420px;
+  text-align: center;
+  position:relative;
+  left: 50%; 
+  -webkit-transform: translateX(-50%);
+  -moz-transform: translateX(-50%);
+  -ms-transform: translateX(-50%);
+  -o-transform: translateX(-50%);
+  transform: translateX(-50%);
+}
+.list li a {
+  position: relative;
+  color: #FFFFFF;
+  font-size: 150%;
+  display:inline-block;
+  width:100%;
+  padding: 15px 0 15px 0;
+  border-radius:5px;
+  background-color:#3572b0;
+  margin-bottom:0px;
+  margin-top:30px;
+}
+.list li a:active {
+  background-color: #205081;
 }
