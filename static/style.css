@@ -153,12 +153,8 @@ a {
   width:100%;
   padding: 15px 0 15px 0;
   border-radius:5px;
-  background-color:#3572b0;
   margin-bottom:0px;
   margin-top:30px;
-}
-.list li a:active {
-  background-color: #205081;
 }
 
 .list.home li {
@@ -173,6 +169,19 @@ a {
 }
 .list.som li a {
   font-size: 120%;
+}
+.list.home li a, .list.som li a {
+  background-color:#3572b0;
+}
+.list.home li a:active, .list.som li a:active {
+  background-color: #205081;
+}
+.list.no_item li {
+  width: 300px;
+}
+.list.no_item li a {
+  font-size: 120%;
+  background-color:#205081;
 }
 
 .heading {

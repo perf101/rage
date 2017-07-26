@@ -113,7 +113,7 @@ function on_soms_by_tc_received(o) {
       });
       s += "</ul>";
     } else {
-      s += "<p>none</p>";
+      s += "<ul class=\"list no_item\"><li><a href=\"#\" onclick=\"return false;\">none</a></li></ul>";
     }
   });
   $("body").append(s);
