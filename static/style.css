@@ -137,7 +137,6 @@ a {
   margin-right:0;
 }
 .list li {
-  width: 420px;
   text-align: center;
   position:relative;
   left: 50%; 
@@ -150,7 +149,6 @@ a {
 .list li a {
   position: relative;
   color: #FFFFFF;
-  font-size: 150%;
   display:inline-block;
   width:100%;
   padding: 15px 0 15px 0;
@@ -161,6 +159,20 @@ a {
 }
 .list li a:active {
   background-color: #205081;
+}
+
+.list.home li {
+  width: 420px;
+}
+.list.home li a {
+  font-size: 150%;
+}
+.list.som li {
+  width: 60vw;
+  min-width: 420px;
+}
+.list.som li a {
+  font-size: 120%;
 }
 
 .heading {
