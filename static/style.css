@@ -92,3 +92,118 @@ canvas.flot-base {
 .clear {
   clear: both;
 }
+
+a {
+  text-decoration: none;
+  border-style: none;
+  outline:0;
+}
+
+.title {
+  margin:auto;
+  width:256px;
+  text-align: center;
+  margin-top:25px;
+  margin-bottom:20px;
+}
+.title h1 {
+  position:relative;
+  font-size:50px;
+  margin-top:0px;
+  margin-bottom:0px;
+  min-height:50px;
+  width:100%;
+  font-weight:lighter;
+  display:inline-block;
+}
+.title h3 {
+  position:relative;
+  width: 100%;
+  margin-bottom:0;
+  margin-top:0;
+  display:inline-block;
+}
+.title a {
+  color: #000000;
+  display:inline-block;
+}
+
+.list {
+  list-style-type: none;
+  margin-bottom: 40px;
+  margin-top:0;
+  padding:0;
+  margin-left:0;
+  margin-right:0;
+}
+.list li {
+  text-align: center;
+  position:relative;
+  left: 50%; 
+  -webkit-transform: translateX(-50%);
+  -moz-transform: translateX(-50%);
+  -ms-transform: translateX(-50%);
+  -o-transform: translateX(-50%);
+  transform: translateX(-50%);
+}
+.list li a {
+  position: relative;
+  color: #FFFFFF;
+  display:inline-block;
+  width:100%;
+  padding: 15px 0 15px 0;
+  border-radius:5px;
+  margin-bottom:0px;
+  margin-top:30px;
+}
+
+.list.home li {
+  width: 420px;
+}
+.list.home li a {
+  font-size: 150%;
+}
+.list.som li {
+  width: 60vw;
+  min-width: 420px;
+}
+.list.som li a {
+  font-size: 120%;
+}
+.list.home li a, .list.som li a {
+  background-color:#3572b0;
+}
+.list.home li a:active, .list.som li a:active {
+  background-color: #205081;
+}
+.list.no_item li {
+  width: 300px;
+}
+.list.no_item li a {
+  font-size: 120%;
+  background-color:#205081;
+}
+
+.import_page {
+  width: 460px;
+  margin: auto;
+  text-align:justify;
+  border-radius:10px;
+  background-color:#3572b0;
+  color: #FFFFFF;
+  padding: 10px 10px 20px 10px;
+  margin-top: 20px;
+  font-size: 110%;
+}
+
+.heading {
+  position:relative;
+  font-weight:normal;
+  display:block;
+  text-align:center;
+  margin-top:50px;
+  margin-bottom:0px;
+  font-size:25px;
+  margin:auto;
+  width:100%;
+}
