@@ -162,3 +162,15 @@ a {
 .list li a:active {
   background-color: #205081;
 }
+
+.heading {
+  position:relative;
+  font-weight:normal;
+  display:block;
+  text-align:center;
+  margin-top:50px;
+  margin-bottom:0px;
+  font-size:25px;
+  margin:auto;
+  width:100%;
+}

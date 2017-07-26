@@ -103,9 +103,9 @@ function on_soms_by_tc_received(o) {
   var base_url = get_base_url();
   var s = "";
   $.each(o.tcs, function(tc_fqn, tc) {
-    s += "<h2>" + tc_fqn + " (" + tc.desc + ")</h2>";
+    s += "<h2 class=\"heading\">" + tc_fqn + " (" + tc.desc + ")</h2>";
     if (tc_fqn in tc_to_soms) {
-      s += "<ul>";
+      s += "<ul class=\"list\">";
       $.each(tc_to_soms[tc_fqn], function(i, som_id) {
         var som_url = base_url + "/?som=" + som_id;
         var som_caption = som_id + " (" + o.soms[som_id].name + ")";
