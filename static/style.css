@@ -92,3 +92,37 @@ canvas.flot-base {
 .clear {
   clear: both;
 }
+
+a {
+  text-decoration: none;
+  border-style: none;
+  outline:0;
+}
+.title {
+  margin:auto;
+  width:256px;
+  text-align: center;
+  margin-top:25px;
+  margin-bottom:20px;
+}
+.title h1 {
+  position:relative;
+  font-size:50px;
+  margin-top:0px;
+  margin-bottom:0px;
+  min-height:50px;
+  width:100%;
+  font-weight:lighter;
+  display:inline-block;
+}
+.title h3 {
+  position:relative;
+  width: 100%;
+  margin-bottom:0;
+  margin-top:0;
+  display:inline-block;
+}
+.title a {
+  color: #000000;
+  display:inline-block;
+}
