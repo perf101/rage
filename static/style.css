@@ -107,20 +107,16 @@ a {
   margin-bottom:20px;
 }
 .title h1 {
-  position:relative;
   font-size:50px;
-  margin-top:0px;
-  margin-bottom:0px;
+  margin:0;
   min-height:50px;
   width:100%;
   font-weight:lighter;
   display:inline-block;
 }
 .title h3 {
-  position:relative;
   width: 100%;
-  margin-bottom:0;
-  margin-top:0;
+  margin:0;
   display:inline-block;
 }
 .title a {
@@ -138,16 +134,9 @@ a {
 }
 .link_list li {
   text-align: center;
-  position:relative;
-  left: 50%; 
-  -webkit-transform: translateX(-50%);
-  -moz-transform: translateX(-50%);
-  -ms-transform: translateX(-50%);
-  -o-transform: translateX(-50%);
-  transform: translateX(-50%);
+  margin:auto;
 }
 .link_list li a {
-  position: relative;
   color: #FFFFFF;
   display:inline-block;
   width:100%;
@@ -221,7 +210,6 @@ a {
 }
 
 .heading {
-  position:relative;
   font-weight:normal;
   display:block;
   text-align:center;
