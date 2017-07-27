@@ -2,7 +2,7 @@ html {
   font-family: Helvetica, Arial, sans-serif;
   font-size: 14px;
 }
-.graph_container, #table > table {
+.graph_container {
   clear: left;
   margin: 20px auto;
   position: relative;
