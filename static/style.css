@@ -19,12 +19,16 @@ html {
   display: inline-block;
 }
 .graph_title {
-  margin: 0 auto;
+  margin: auto;
   text-align: left;
   clear: left;
   font-weight: bold;
   display: inline-block;
-  background: lightblue;
+  background-color: #3572b0;
+  margin: 10px 10px 10px 10px;
+  padding: 10px 30px 10px 10px;
+  border-radius: 10px;
+  color:white;
 }
 .error {
   color: red;
