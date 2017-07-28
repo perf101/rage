@@ -73,6 +73,11 @@ canvas.flot-base {
 #get_img, #progress_img {
   display: none;
 }
+#progress_img {
+  padding: 5px 5px 5px 5px;
+  margin: 0;
+  vertical-align:top;
+}
 .xaxis {
   text-align: center;
 }
