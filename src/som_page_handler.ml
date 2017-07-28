@@ -172,8 +172,8 @@ let t ~args = object (self)
     printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
     printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
     printf "%s'redraw' value='Redraw' />" submit_prefix;
-    printf "<br /><img id='progress_img' src='progress.gif' />\n";
-    printf "<div class='graph_container'>";
+    printf "<img id='progress_img' src='progress.gif' />\n";
+    printf "<br /><div class='graph_container'>";
     printf "<div class='yaxis'></div>";
     printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";
     printf "<div class='xaxis'></div>";
