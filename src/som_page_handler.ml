@@ -131,7 +131,9 @@ let t ~args = object (self)
     printf "<form name='optionsForm'>\n";
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
+    printf "<div>";
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
+    printf "</div><br />\n";
     print_x_axis_choice ~conn config_columns som_configs_opt;
     print_y_axis_choice ~conn config_columns som_configs_opt;
     let checkbox name caption =
