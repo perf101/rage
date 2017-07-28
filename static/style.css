@@ -18,7 +18,7 @@ html {
 .graph {
   display: inline-block;
 }
-.graph_title {
+#graph_title {
   margin: auto;
   text-align: left;
   clear: left;
