@@ -9,7 +9,6 @@ type t =
   | Soms
   | SomsByTc
   | StdAxes
-  | Briefs
   | Brief
   | ImportPage
   | ImportJobs
@@ -21,7 +20,6 @@ let of_string = function
   | "soms_by_tc" -> SomsByTc
   | "som_data" -> SomData
   | "std_axes" -> StdAxes
-  | "briefs" -> Briefs
   | "brief" -> Brief
   | "import_page" -> ImportPage
   | "import_jobs" -> ImportJobs
@@ -36,7 +34,6 @@ let string_of = function
   | Soms -> "Soms"
   | SomsByTc -> "SomsByTc"
   | StdAxes -> "StdAxes"
-  | Briefs -> "briefs"
   | Brief -> "brief"
   | ImportPage -> "import_page"
   | ImportJobs -> "import_jobs"
