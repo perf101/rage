@@ -15,7 +15,6 @@ HANDLERS=\
   som_data_handler \
   som_page_handler \
   std_axes_handler \
-  briefs_handler \
   brief_handler \
   import_page_handler \
   import_jobs_handler
