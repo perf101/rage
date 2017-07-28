@@ -37,6 +37,20 @@ canvas.flot-base {
 .filter_table {
   table-layout: fixed;
   display:inline-block;
+  margin: 2px 2px 2px 2px;
+  padding: 5px 5px 5px 5px;
+  background-color:#3572b0;
+  border:0;
+  border-radius: 5px;
+}
+.filter_table th, .filter_table td {
+  border: 0;
+  background-color: white;
+  border-radius:3px;
+}
+.filterselect {
+  display: block;
+  margin: auto;
 }
 .multiselect {
   width: 100%;
