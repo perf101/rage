@@ -5,7 +5,6 @@ type t =
   | Default
   | RedirectTinyUrl
   | SomData
-  | SomIndex
   | SomPage
   | Soms
   | SomsByTc
@@ -21,7 +20,6 @@ let of_string = function
   | "soms" -> Soms
   | "soms_by_tc" -> SomsByTc
   | "som_data" -> SomData
-  | "som_index" -> SomIndex
   | "std_axes" -> StdAxes
   | "briefs" -> Briefs
   | "brief" -> Brief
@@ -34,7 +32,6 @@ let string_of = function
   | Default -> "Default"
   | RedirectTinyUrl -> "RedirectTinyUrl"
   | SomData -> "SomData"
-  | SomIndex -> "SomIndex"
   | SomPage -> "SomPage"
   | Soms -> "Soms"
   | SomsByTc -> "SomsByTc"
