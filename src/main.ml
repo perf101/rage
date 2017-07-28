@@ -37,7 +37,6 @@ let handle_request () =
     | Soms -> Soms_handler.t
     | SomsByTc -> Javascript_only_handler.t
     | StdAxes -> Std_axes_handler.t
-    | Briefs  -> Briefs_handler.t
     | Brief -> Brief_handler.t
     | ImportPage -> Import_page_handler.t
     | ImportJobs -> Import_jobs_handler.t
