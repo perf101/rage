@@ -245,7 +245,7 @@ let get_xy_choices ~conn configs som_configs_opt =
   in get_std_xy_choices ~conn @ configs#get_fnames_lst @ som_configs_lst
 
 let print_axis_choice ?(multiselect=false) label id choices =
-  printf "<div id='%s' style='display: inline'>\n" id;
+  printf "<div id='%s' style='display: inline-block'>\n" id;
   let attrs = [("name", id)] in
   let attrs = (if multiselect then ("multiple", "multiple")::attrs else attrs) in
   print_select_list ~label ~attrs:attrs choices;
