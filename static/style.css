@@ -37,6 +37,12 @@ canvas.flot-base {
 form[name="optionsForm"] {
   text-align:justify;
 }
+form[name="optionsForm"] option:checked {
+  box-shadow: 0px 0px 10px 100px #3572b0 inset;
+}
+form[name="optionsForm"] input:enabled {
+  box-shadow: 0px 0px 10px 100px #3572b0 inset;
+}
 #axes_selectors {
   margin: 10px 0px 10px 0px;
   height: 70px;
@@ -79,9 +85,6 @@ form[name="optionsForm"] {
 .multiselect {
   width: 100%;
   text-align: right;
-}
-.multiselect option:checked {
-  box-shadow: 0px 0px 10px 100px #3572b0 inset;
 }
 .tooltip {
   position: absolute;
