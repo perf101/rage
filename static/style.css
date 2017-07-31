@@ -68,6 +68,9 @@ form[name="optionsForm"] {
   width: 100%;
   text-align: right;
 }
+.multiselect option:checked {
+  box-shadow: 0px 0px 10px 100px #3572b0 inset;
+}
 .tooltip {
   position: absolute;
   display: none;
