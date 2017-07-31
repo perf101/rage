@@ -34,19 +34,31 @@ html {
 canvas.flot-base {
   background: white;
 }
+form[name="optionsForm"] {
+  text-align:justify;
+}
 .filter_table {
   table-layout: fixed;
   display:inline-block;
-  margin: 2px 2px 2px 2px;
-  padding: 5px 5px 5px 5px;
+  margin: 4px 0.4% 4px 0.4%;
+  padding: 2px 7px 2px 7px;
   background-color:#3572b0;
   border:0;
+  border-collapse: separate;
+  border-spacing: 0px 5px;
   border-radius: 5px;
+  max-width:100%;
+  min-width:19%;
 }
 .filter_table th, .filter_table td {
   border: 0;
   background-color: white;
   border-radius:3px;
+  max-width:100%;
+  min-width:19%;
+}
+.filter_table th {
+  text-align:center;
 }
 .filterselect {
   display: block;
