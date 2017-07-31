@@ -53,9 +53,6 @@ form[name="optionsForm"] {
 form[name="optionsForm"] option:checked {
   box-shadow: 0px 0px 10px 100px #3572b0 inset;
 }
-form[name="optionsForm"] input:enabled {
-  box-shadow: 0px 0px 10px 100px #3572b0 inset;
-}
 #axes_selectors {
   margin: 10px 0px 10px 0px;
   height: 70px;
