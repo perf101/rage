@@ -37,6 +37,18 @@ canvas.flot-base {
 form[name="optionsForm"] {
   text-align:justify;
 }
+#axes_selectors {
+  margin: 10px 0px 10px 0px;
+  height: 70px;
+}
+#xaxis, #yaxis {
+  margin-right: 5px;
+  height: 100%;
+}
+#xaxis b, #yaxis b, #xaxis select, #yaxis select {
+  display:inline-block;
+  vertical-align:middle;
+}
 .filter_table {
   table-layout: fixed;
   display:inline-block;
@@ -91,6 +103,10 @@ form[name="optionsForm"] {
 }
 .som {
   font-size: 120%;
+  margin-bottom: 15px;
+}
+.som a {
+  color: #3572b0; 
 }
 .som_name {
   font-weight: bold;
