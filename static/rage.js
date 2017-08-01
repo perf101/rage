@@ -73,7 +73,7 @@ function som_page_init() {
   $(".multiselect").change(redraw_trigger);
   // fetch and process data immediately
   preselect_fields_based_on_params();
-  fetch_data_and_process();
+  if (autofetch) fetch_data_and_process();
   // extract image button
   load_get_image_if_not_ie();
   // tiny url
@@ -105,7 +105,7 @@ function on_soms_by_tc_received(o) {
   $.each(o.tcs, function(tc_fqn, tc) {
     s += "<h2 class=\"heading\">" + tc_fqn + " (" + tc.desc + ")</h2>";
     if (tc_fqn in tc_to_soms) {
-      s += "<ul class=\"list som\">";
+      s += "<ul class=\"link_list som\">";
       $.each(tc_to_soms[tc_fqn], function(i, som_id) {
         var som_url = base_url + "/?som=" + som_id;
         var som_caption = som_id + " (" + o.soms[som_id].name + ")";
@@ -113,7 +113,7 @@ function on_soms_by_tc_received(o) {
       });
       s += "</ul>";
     } else {
-      s += "<ul class=\"list no_item\"><li><a href=\"#\" onclick=\"return false;\">none</a></li></ul>";
+      s += "<ul class=\"link_list no_item\"><li><a href=\"#\" onclick=\"return false;\">none</a></li></ul>";
     }
   });
   $("body").append(s);
@@ -162,6 +162,7 @@ function preselect_fields_based_on_params() {
   for (var i in checkboxes_on_by_default) {
     var cb_name = checkboxes_on_by_default[i];
     if (cb_name in params) continue;
+    set_auto_redraw();
     $("input[name='" + cb_name + "']").prop("checked", true);
   }
 }
@@ -308,10 +309,11 @@ function set_graph_title() {
       set_vars.push(param.substr(2) + " = " + params[param]);
     }
   }
-  var graph_title = "Selections:";
+  var graph_title = "";
   if (set_vars.length == 0) {
-    graph_title += " (none)";
+    $("#graph_title").css('display','none');
   } else {
+    $("#graph_title").css('display','block');
     graph_title += "<ul>" + set_vars.map(function(v) { return "<li>" + decode(v) + "</li>" }).join("\n") + "</ul>";
   }
   $("#graph_title").html(graph_title);

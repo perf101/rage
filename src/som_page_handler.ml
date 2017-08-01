@@ -14,7 +14,7 @@ let t ~args = object (self)
     let name = sprintf "<span class='som_name'>%s</span>" i.(1) in
     let jira_link = sprintf "<a href='http://%s/browse/SOM-%s'>SOM-%s</a>" jira_hostname id id in
     let prefix = "<div class='som'>" in
-    let suffix = "</div><br />\n" in
+    let suffix = "</div>\n" in
     printf "%s%s: %s (tc: %s) %s" prefix jira_link name i.(2) suffix
 
   method private write_legend_position_choice id =
@@ -128,12 +128,14 @@ let t ~args = object (self)
       "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
     in
     let machines = Sql.exec_exn ~conn ~query in
+    printf "<form name='optionsForm'>\n";
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
-    printf "<form name='optionsForm'>\n";
+    printf "<div id='axes_selectors'>";
     print_x_axis_choice ~conn config_columns som_configs_opt;
     print_y_axis_choice ~conn config_columns som_configs_opt;
+    printf "</div>\n";
     let checkbox name caption =
       printf "<div id='%s' style='display: inline'>\n" name;
       printf "<input type='checkbox' name='%s' />%s\n" name caption;
@@ -164,6 +166,7 @@ let t ~args = object (self)
     self#write_filter_table job_ids builds job_attributes config_columns tc_config_tbl
       som_configs_opt machines;
     printf "</form>\n";
+    printf "<div id='graph_title'></div>\n";
     let submit_prefix = "<input type='submit' id=" in
     printf "%s'reset_config' value='Reset Configuration' />" submit_prefix;
     printf "%s'get_img' value='Get Image' />" submit_prefix;
@@ -171,9 +174,8 @@ let t ~args = object (self)
     printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
     printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
     printf "%s'redraw' value='Redraw' />" submit_prefix;
-    printf "<br /><img id='progress_img' src='progress.gif' />\n";
-    printf "<div id='graph_title' class='graph_title'></div>\n";
-    printf "<div class='graph_container'>";
+    printf "<img id='progress_img' src='progress.gif' />\n";
+    printf "<br /><div class='graph_container'>";
     printf "<div class='yaxis'></div>";
     printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";
     printf "<div class='xaxis'></div>";

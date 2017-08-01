@@ -34,11 +34,9 @@ let handle_request () =
     | RedirectTinyUrl -> Redirect_tiny_url_handler.t
     | SomPage -> Som_page_handler.t
     | SomData -> Som_data_handler.t
-    | SomIndex -> Som_index_handler.t
     | Soms -> Soms_handler.t
     | SomsByTc -> Javascript_only_handler.t
     | StdAxes -> Std_axes_handler.t
-    | Briefs  -> Briefs_handler.t
     | Brief -> Brief_handler.t
     | ImportPage -> Import_page_handler.t
     | ImportJobs -> Import_jobs_handler.t

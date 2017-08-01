@@ -1,8 +1,8 @@
 html {
-  font-family: helvetica;
+  font-family: Helvetica, Arial, sans-serif;
   font-size: 14px;
 }
-.graph_container, #table > table {
+.graph_container {
   clear: left;
   margin: 20px auto;
   position: relative;
@@ -18,13 +18,28 @@ html {
 .graph {
   display: inline-block;
 }
-.graph_title {
-  margin: 0 auto;
+#graph_title {
   text-align: left;
   clear: left;
   font-weight: bold;
-  display: inline-block;
-  background: lightblue;
+  background-color: #3572b0;
+  margin: 5px 0px 5px 0px;
+  padding: 10px 5px 10px 10px;
+  border-radius: 10px;
+  color:white;
+}
+#graph_title ul {
+  list-style-type:none;
+  padding: 0;
+  margin: 0;
+}
+#graph_title ul li {
+  padding: 5px 5px 5px 5px;
+  margin: 5px 0px 5px 5px;
+  background-color:white;
+  color:#3572b0;
+  border-radius:5px;
+  display:inline-block;
 }
 .error {
   color: red;
@@ -32,9 +47,50 @@ html {
 canvas.flot-base {
   background: white;
 }
+form[name="optionsForm"] {
+  text-align:justify;
+}
+form[name="optionsForm"] option:checked {
+  box-shadow: 0px 0px 10px 100px #3572b0 inset;
+}
+#axes_selectors {
+  margin: 10px 0px 10px 0px;
+  height: 70px;
+}
+#xaxis, #yaxis {
+  margin-right: 5px;
+  height: 100%;
+}
+#xaxis b, #yaxis b, #xaxis select, #yaxis select {
+  display:inline-block;
+  vertical-align:middle;
+}
 .filter_table {
   table-layout: fixed;
-  float: left;
+  display:inline-block;
+  margin: 4px 0.4% 4px 0.4%;
+  padding: 2px 7px 2px 7px;
+  background-color:#3572b0;
+  border:0;
+  border-collapse: separate;
+  border-spacing: 0px 5px;
+  border-radius: 5px;
+  max-width:100%;
+  min-width:19%;
+}
+.filter_table th, .filter_table td {
+  border: 0;
+  background-color: white;
+  border-radius:3px;
+  max-width:100%;
+  min-width:19%;
+}
+.filter_table th {
+  text-align:center;
+}
+.filterselect {
+  display: block;
+  margin: auto;
 }
 .multiselect {
   width: 100%;
@@ -60,19 +116,25 @@ canvas.flot-base {
 }
 .som {
   font-size: 120%;
+  margin-bottom: 15px;
+}
+.som a {
+  color: #3572b0; 
 }
 .som_name {
   font-weight: bold;
 }
 #reset_config, #get_img, #get_tinyurl, #tinyurl, #stop_plotting, #redraw,
 #progress_img {
-  float: left;
-}
-#reset_config {
-  clear: left;
+  display:inline-block;
 }
 #get_img, #progress_img {
   display: none;
+}
+#progress_img {
+  padding: 5px 5px 5px 5px;
+  margin: 0;
+  vertical-align:top;
 }
 .xaxis {
   text-align: center;
@@ -107,20 +169,16 @@ a {
   margin-bottom:20px;
 }
 .title h1 {
-  position:relative;
   font-size:50px;
-  margin-top:0px;
-  margin-bottom:0px;
+  margin:0;
   min-height:50px;
   width:100%;
   font-weight:lighter;
   display:inline-block;
 }
 .title h3 {
-  position:relative;
   width: 100%;
-  margin-bottom:0;
-  margin-top:0;
+  margin:0;
   display:inline-block;
 }
 .title a {
@@ -128,7 +186,7 @@ a {
   display:inline-block;
 }
 
-.list {
+.link_list {
   list-style-type: none;
   margin-bottom: 40px;
   margin-top:0;
@@ -136,18 +194,11 @@ a {
   margin-left:0;
   margin-right:0;
 }
-.list li {
+.link_list li {
   text-align: center;
-  position:relative;
-  left: 50%; 
-  -webkit-transform: translateX(-50%);
-  -moz-transform: translateX(-50%);
-  -ms-transform: translateX(-50%);
-  -o-transform: translateX(-50%);
-  transform: translateX(-50%);
+  margin:auto;
 }
-.list li a {
-  position: relative;
+.link_list li a {
   color: #FFFFFF;
   display:inline-block;
   width:100%;
@@ -157,34 +208,34 @@ a {
   margin-top:30px;
 }
 
-.list.home li {
+.link_list.home li {
   width: 420px;
 }
-.list.home li a {
+.link_list.home li a {
   font-size: 150%;
 }
-.list.som li {
+.link_list.som li {
   width: 60vw;
   min-width: 420px;
 }
-.list.som li a {
+.link_list.som li a {
   font-size: 120%;
 }
-.list.home li a, .list.som li a {
+.link_list.home li a, .link_list.som li a {
   background-color:#3572b0;
 }
-.list.home li a:active, .list.som li a:active {
+.link_list.home li a:active, .link_list.som li a:active {
   background-color: #205081;
 }
-.list.no_item li {
+.link_list.no_item li {
   width: 300px;
 }
-.list.no_item li a {
+.link_list.no_item li a {
   font-size: 120%;
   background-color:#205081;
 }
 
-.import_page {
+.import_page.box {
   width: 460px;
   margin: auto;
   text-align:justify;
@@ -195,9 +246,32 @@ a {
   margin-top: 20px;
   font-size: 110%;
 }
+.import_page.input_label {
+  width:100px;
+  margin:0px;
+  display:inline-block;
+}
+.import_page.box input[type="text"] {
+  width: 230px;
+  margin:0px;
+  height:25px;
+  border:0px;
+  border-radius:5px;
+  padding-left:5px;
+  padding-right:5px;
+  padding-top:2px;
+  margin-right:8px;
+}
+.import_page.box input[type="submit"] {
+  margin:0px;
+  width: 110px;
+  border-radius:5px;
+  height:25px;
+  border:0px;
+  background-color:#F9F9F9;
+}
 
 .heading {
-  position:relative;
   font-weight:normal;
   display:block;
   text-align:center;

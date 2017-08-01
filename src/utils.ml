@@ -117,30 +117,6 @@ let extract_filter col_fqns col_types params key_prefix =
 
 (* PRINTING HTML *)
 
-let print_col_default _ _ tag data =
-  printf "<%s>%s</%s>" tag data tag
-
-let print_row_custom ?(print_col = print_col_default) row_i tag row =
-  print_string "   <tr>";
-  List.iteri row ~f:(fun col_i data -> print_col row_i col_i tag data);
-  print_endline "</tr>"
-
-let print_row_default row_i tag row =
-  print_row_custom ~print_col:print_col_default row_i tag row
-
-let print_row_header row =
-  print_row_default 0 "th" row
-
-let print_table_custom_row print_row result =
-  print_endline "  <table border='1'>";
-  print_row (-1) "th" result#get_fnames_lst;
-  List.iteri result#get_all_lst
-    ~f:(fun row_i row -> print_row row_i "td" row);
-  print_endline "  </table>"
-
-let print_table result =
-  print_table_custom_row print_row_default result
-
 let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   if td then printf "<td>\n";
   if label <> "" then printf "<b>%s</b>:\n" label;
@@ -269,7 +245,7 @@ let get_xy_choices ~conn configs som_configs_opt =
   in get_std_xy_choices ~conn @ configs#get_fnames_lst @ som_configs_lst
 
 let print_axis_choice ?(multiselect=false) label id choices =
-  printf "<div id='%s' style='display: inline'>\n" id;
+  printf "<div id='%s' style='display: inline-block'>\n" id;
   let attrs = [("name", id)] in
   let attrs = (if multiselect then ("multiple", "multiple")::attrs else attrs) in
   print_select_list ~label ~attrs:attrs choices;
