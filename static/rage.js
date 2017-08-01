@@ -73,7 +73,8 @@ function som_page_init() {
   $(".multiselect").change(redraw_trigger);
   // fetch and process data immediately
   preselect_fields_based_on_params();
-  fetch_data_and_process();
+  set_auto_redraw();
+  if (autofetch) fetch_data_and_process();
   // extract image button
   load_get_image_if_not_ie();
   // tiny url
