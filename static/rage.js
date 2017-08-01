@@ -73,7 +73,7 @@ function som_page_init() {
   $(".multiselect").change(redraw_trigger);
   // fetch and process data immediately
   preselect_fields_based_on_params();
-  fetch_data_and_process();
+  if (autofetch) fetch_data_and_process();
   // extract image button
   load_get_image_if_not_ie();
   // tiny url
@@ -162,6 +162,7 @@ function preselect_fields_based_on_params() {
   for (var i in checkboxes_on_by_default) {
     var cb_name = checkboxes_on_by_default[i];
     if (cb_name in params) continue;
+    set_auto_redraw();
     $("input[name='" + cb_name + "']").prop("checked", true);
   }
 }
