@@ -79,6 +79,7 @@ function som_page_init() {
   // tiny url
   $("#get_tinyurl").click(get_tinyurl);
   $("input[name='auto_redraw']").change(set_auto_redraw);
+  set_graph_title();
 }
 
 function soms_by_tc_page_init() {
@@ -298,6 +299,7 @@ function redraw_graph() {
 }
 
 function redraw_trigger() {
+  set_graph_title();
   if (!autofetch) return;
   fetch_data_and_process();
 }
@@ -324,7 +326,6 @@ function set_graph_title() {
 function fetch_data_and_process() {
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
-  set_graph_title();
   var som_id = url_params.som[0];
   var request = "/?p=som_data&id=" + som_id;
   var params = get_minimised_params();
