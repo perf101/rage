@@ -35,7 +35,7 @@ canvas.flot-base {
   background: white;
 }
 form[name="optionsForm"] {
-  text-align:justify;
+  text-align: left;
 }
 form[name="optionsForm"] option:checked {
   box-shadow: 0px 0px 10px 100px #3572b0 inset;
@@ -55,22 +55,18 @@ form[name="optionsForm"] option:checked {
 .filter_table {
   table-layout: fixed;
   display:inline-block;
-  margin: 4px 0.4% 4px 0.4%;
+  margin: 4px 2px 4px 2px;
   padding: 2px 7px 2px 7px;
   background-color:#3572b0;
   border:0;
   border-collapse: separate;
   border-spacing: 0px 5px;
   border-radius: 5px;
-  max-width:100%;
-  min-width:19%;
 }
 .filter_table th, .filter_table td {
   border: 0;
   background-color: white;
   border-radius:3px;
-  max-width:100%;
-  min-width:19%;
 }
 .filter_table th {
   text-align:center;
@@ -82,6 +78,7 @@ form[name="optionsForm"] option:checked {
 .multiselect {
   width: 100%;
   text-align: right;
+  border: 0;
 }
 .tooltip {
   position: absolute;
