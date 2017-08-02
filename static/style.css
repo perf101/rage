@@ -1,8 +1,8 @@
 html {
-  font-family: helvetica;
+  font-family: Helvetica, Arial, sans-serif;
   font-size: 14px;
 }
-.graph_container, #table > table {
+.graph_container {
   clear: left;
   margin: 20px auto;
   position: relative;
@@ -18,13 +18,17 @@ html {
 .graph {
   display: inline-block;
 }
-.graph_title {
-  margin: 0 auto;
+#graph_title {
+  margin: auto;
   text-align: left;
   clear: left;
   font-weight: bold;
   display: inline-block;
-  background: lightblue;
+  background-color: #3572b0;
+  margin: 10px 10px 10px 10px;
+  padding: 10px 30px 10px 10px;
+  border-radius: 10px;
+  color:white;
 }
 .error {
   color: red;
@@ -107,20 +111,16 @@ a {
   margin-bottom:20px;
 }
 .title h1 {
-  position:relative;
   font-size:50px;
-  margin-top:0px;
-  margin-bottom:0px;
+  margin:0;
   min-height:50px;
   width:100%;
   font-weight:lighter;
   display:inline-block;
 }
 .title h3 {
-  position:relative;
   width: 100%;
-  margin-bottom:0;
-  margin-top:0;
+  margin:0;
   display:inline-block;
 }
 .title a {
@@ -128,7 +128,7 @@ a {
   display:inline-block;
 }
 
-.list {
+.link_list {
   list-style-type: none;
   margin-bottom: 40px;
   margin-top:0;
@@ -136,18 +136,11 @@ a {
   margin-left:0;
   margin-right:0;
 }
-.list li {
+.link_list li {
   text-align: center;
-  position:relative;
-  left: 50%; 
-  -webkit-transform: translateX(-50%);
-  -moz-transform: translateX(-50%);
-  -ms-transform: translateX(-50%);
-  -o-transform: translateX(-50%);
-  transform: translateX(-50%);
+  margin:auto;
 }
-.list li a {
-  position: relative;
+.link_list li a {
   color: #FFFFFF;
   display:inline-block;
   width:100%;
@@ -157,34 +150,34 @@ a {
   margin-top:30px;
 }
 
-.list.home li {
+.link_list.home li {
   width: 420px;
 }
-.list.home li a {
+.link_list.home li a {
   font-size: 150%;
 }
-.list.som li {
+.link_list.som li {
   width: 60vw;
   min-width: 420px;
 }
-.list.som li a {
+.link_list.som li a {
   font-size: 120%;
 }
-.list.home li a, .list.som li a {
+.link_list.home li a, .link_list.som li a {
   background-color:#3572b0;
 }
-.list.home li a:active, .list.som li a:active {
+.link_list.home li a:active, .link_list.som li a:active {
   background-color: #205081;
 }
-.list.no_item li {
+.link_list.no_item li {
   width: 300px;
 }
-.list.no_item li a {
+.link_list.no_item li a {
   font-size: 120%;
   background-color:#205081;
 }
 
-.import_page {
+.import_page.box {
   width: 460px;
   margin: auto;
   text-align:justify;
@@ -195,9 +188,32 @@ a {
   margin-top: 20px;
   font-size: 110%;
 }
+.import_page.input_label {
+  width:100px;
+  margin:0px;
+  display:inline-block;
+}
+.import_page.box input[type="text"] {
+  width: 230px;
+  margin:0px;
+  height:25px;
+  border:0px;
+  border-radius:5px;
+  padding-left:5px;
+  padding-right:5px;
+  padding-top:2px;
+  margin-right:8px;
+}
+.import_page.box input[type="submit"] {
+  margin:0px;
+  width: 110px;
+  border-radius:5px;
+  height:25px;
+  border:0px;
+  background-color:#F9F9F9;
+}
 
 .heading {
-  position:relative;
   font-weight:normal;
   display:block;
   text-align:center;
