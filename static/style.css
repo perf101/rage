@@ -24,9 +24,22 @@ html {
   font-weight: bold;
   background-color: #3572b0;
   margin: 5px 0px 5px 0px;
-  padding: 10px 10px 10px 10px;
+  padding: 10px 5px 10px 10px;
   border-radius: 10px;
   color:white;
+}
+#graph_title ul {
+  list-style-type:none;
+  padding: 0;
+  margin: 0;
+}
+#graph_title ul li {
+  padding: 5px 5px 5px 5px;
+  margin: 5px 0px 5px 5px;
+  background-color:white;
+  color:#3572b0;
+  border-radius:5px;
+  display:inline-block;
 }
 .error {
   color: red;

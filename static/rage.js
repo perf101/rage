@@ -311,10 +311,11 @@ function set_graph_title() {
       set_vars.push(param.substr(2) + " = " + params[param]);
     }
   }
-  var graph_title = "Selections:";
+  var graph_title = "";
   if (set_vars.length == 0) {
-    graph_title += " (none)";
+    $("#graph_title").css('display','none');
   } else {
+    $("#graph_title").css('display','block');
     graph_title += "<ul>" + set_vars.map(function(v) { return "<li>" + decode(v) + "</li>" }).join("\n") + "</ul>";
   }
   $("#graph_title").html(graph_title);
