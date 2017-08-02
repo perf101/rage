@@ -14,7 +14,7 @@ let t ~args = object (self)
     let name = sprintf "<span class='som_name'>%s</span>" i.(1) in
     let jira_link = sprintf "<a href='http://%s/browse/SOM-%s'>SOM-%s</a>" jira_hostname id id in
     let prefix = "<div class='som'>" in
-    let suffix = "</div><br />\n" in
+    let suffix = "</div>\n" in
     printf "%s%s: %s (tc: %s) %s" prefix jira_link name i.(2) suffix
 
   method private write_legend_position_choice id =
@@ -131,11 +131,11 @@ let t ~args = object (self)
     printf "<form name='optionsForm'>\n";
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
-    printf "<div>";
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
-    printf "</div><br />\n";
+    printf "<div id='axes_selectors'>";
     print_x_axis_choice ~conn config_columns som_configs_opt;
     print_y_axis_choice ~conn config_columns som_configs_opt;
+    printf "</div>\n";
     let checkbox name caption =
       printf "<div id='%s' style='display: inline'>\n" name;
       printf "<input type='checkbox' name='%s' />%s\n" name caption;
