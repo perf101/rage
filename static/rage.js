@@ -9,8 +9,8 @@ Invariants (also reflected on server side):
 */
 
 // === GLOBAL VARIABLES --- start ===
-var autofetch = true; // if false, the following triggers have no effect
-var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero", "auto_redraw"];
+var autofetch = false; // if false, the following triggers have no effect
+var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
   "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#x_as_num", "#show_all_meta",
