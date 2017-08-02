@@ -9,8 +9,8 @@ let t ~args = object (self)
     printf "<p>This page can be used to force the immediate import of one or more XenRT jobs.</p>\n";
     printf "<form action='/' method='post'>\n";
     printf "<input type='hidden' name='p' value='import_jobs'/>\n";
-    printf "Job number: ";
-    printf "<input type='text' name='jobid'/>\n";
+    printf "<div class=\"import_page_label\">Job number: </div>"; (*newline omitted as html will render a space in between these elements*)
+    printf "<input type='text' name='jobid'/>";
     printf "<input type='submit' name='submit' value='Import now'/>\n";
     printf "</form>";
     printf "</div>";

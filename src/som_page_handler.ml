@@ -172,7 +172,7 @@ let t ~args = object (self)
     printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
     printf "%s'redraw' value='Redraw' />" submit_prefix;
     printf "<br /><img id='progress_img' src='progress.gif' />\n";
-    printf "<div id='graph_title' class='graph_title'></div>\n";
+    printf "<div id='graph_title'></div>\n";
     printf "<div class='graph_container'>";
     printf "<div class='yaxis'></div>";
     printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";
