@@ -55,8 +55,8 @@ form[name="optionsForm"] option:checked {
 .filter_table {
   table-layout: fixed;
   display:inline-block;
-  margin: 4px 2px 4px 2px;
-  padding: 2px 7px 2px 7px;
+  margin: 0px 0px 0px 0px;
+  padding: 0px 5px 0px 5px;
   background-color:#3572b0;
   border:0;
   border-collapse: separate;
