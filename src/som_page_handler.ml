@@ -128,10 +128,10 @@ let t ~args = object (self)
       "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
     in
     let machines = Sql.exec_exn ~conn ~query in
+    printf "<form name='optionsForm'>\n";
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
-    printf "<form name='optionsForm'>\n";
     print_x_axis_choice ~conn config_columns som_configs_opt;
     print_y_axis_choice ~conn config_columns som_configs_opt;
     let checkbox name caption =
