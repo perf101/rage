@@ -240,9 +240,11 @@ function set_auto_redraw() {
   if (is_checked("auto_redraw")) {
     autofetch = true;
     fetch_data_and_process();
+    $("#redraw").prop('value', 'Redraw');
   }
   else {
     autofetch = false;
+    $("#redraw").prop('value', 'Draw');
   }
 }
 
