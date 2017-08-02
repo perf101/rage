@@ -18,6 +18,7 @@ var graph_only_fields = [
 ]
 var url_params = get_url_params();
 var debug = ("debug" in url_params);
+var filters_visible = true;
 
 // ==== GLOBAL VARIABLES --- end ====
 
@@ -52,6 +53,7 @@ function som_page_init() {
   // "stop" button is disabled by default
   $("#stop_plotting").prop("disabled", true);
   $("#stop_plotting").click(on_stop_plotting);
+  $("#toggle_filters").click(toggle_filter_visibility);
   $("#redraw").click(redraw_graph);
   // automatic refresh on change
   $("select[name='xaxis']").change(redraw_trigger);
@@ -120,6 +122,18 @@ function on_soms_by_tc_received(o) {
   $("body").append(s);
 }
 
+function toggle_filter_visibility() {
+  if (filters_visible) {
+    filters_visible = false;
+    $("#toggle_filters").prop('value', 'Show Tables');
+    $("form[name='optionsForm']").css('display','none');
+  }
+  else {
+    filters_visible = true;
+    $("#toggle_filters").prop('value', 'Hide Tables');
+    $("form[name='optionsForm']").css('display','block');
+  }
+}
 function view_change() {
   autofetch = false;
   var view = $('#view').val();
