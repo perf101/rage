@@ -19,14 +19,12 @@ html {
   display: inline-block;
 }
 #graph_title {
-  margin: auto;
   text-align: left;
   clear: left;
   font-weight: bold;
-  display: inline-block;
   background-color: #3572b0;
-  margin: 10px 10px 10px 10px;
-  padding: 10px 30px 10px 10px;
+  margin: 5px 0px 5px 0px;
+  padding: 10px 10px 10px 10px;
   border-radius: 10px;
   color:white;
 }
@@ -38,7 +36,7 @@ canvas.flot-base {
 }
 .filter_table {
   table-layout: fixed;
-  float: left;
+  display:inline-block;
 }
 .multiselect {
   width: 100%;
@@ -70,13 +68,15 @@ canvas.flot-base {
 }
 #reset_config, #get_img, #get_tinyurl, #tinyurl, #stop_plotting, #redraw,
 #progress_img {
-  float: left;
-}
-#reset_config {
-  clear: left;
+  display:inline-block;
 }
 #get_img, #progress_img {
   display: none;
+}
+#progress_img {
+  padding: 5px 5px 5px 5px;
+  margin: 0;
+  vertical-align:top;
 }
 .xaxis {
   text-align: center;

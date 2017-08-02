@@ -164,6 +164,7 @@ let t ~args = object (self)
     self#write_filter_table job_ids builds job_attributes config_columns tc_config_tbl
       som_configs_opt machines;
     printf "</form>\n";
+    printf "<div id='graph_title'></div>\n";
     let submit_prefix = "<input type='submit' id=" in
     printf "%s'reset_config' value='Reset Configuration' />" submit_prefix;
     printf "%s'get_img' value='Get Image' />" submit_prefix;
@@ -171,9 +172,8 @@ let t ~args = object (self)
     printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
     printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
     printf "%s'redraw' value='Redraw' />" submit_prefix;
-    printf "<br /><img id='progress_img' src='progress.gif' />\n";
-    printf "<div id='graph_title'></div>\n";
-    printf "<div class='graph_container'>";
+    printf "<img id='progress_img' src='progress.gif' />\n";
+    printf "<br /><div class='graph_container'>";
     printf "<div class='yaxis'></div>";
     printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";
     printf "<div class='xaxis'></div>";
