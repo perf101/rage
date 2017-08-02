@@ -73,8 +73,7 @@ function som_page_init() {
   $(".multiselect").change(redraw_trigger);
   // fetch and process data immediately
   preselect_fields_based_on_params();
-  set_auto_redraw();
-  if (autofetch) fetch_data_and_process();
+  set_auto_redraw(); //will call fetch_data_and_process() if auto_redraw is enabled
   // extract image button
   load_get_image_if_not_ie();
   // tiny url
@@ -238,10 +237,13 @@ function get_som_url() {
 }
 
 function set_auto_redraw() {
-  if (is_checked("auto_redraw"))
+  if (is_checked("auto_redraw")) {
     autofetch = true;
-  else
+    fetch_data_and_process();
+  }
+  else {
     autofetch = false;
+  }
 }
 
 function serialise_params(params) {
