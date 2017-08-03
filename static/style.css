@@ -134,7 +134,7 @@ form[name="optionsForm"] option:checked {
   vertical-align:top;
 }
 #tinyurl {
-  color: black;
+  color: #3572b0;
   padding: 3px;
   font-weight: bold;
 }
