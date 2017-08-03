@@ -134,6 +134,11 @@ form[name="optionsForm"] option:checked {
   margin: 0;
   vertical-align:top;
 }
+#tinyurl {
+  color: #3572b0;
+  padding: 3px;
+  font-weight: bold;
+}
 .xaxis {
   text-align: center;
   height: 50px;
