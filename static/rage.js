@@ -70,7 +70,13 @@ function som_page_init() {
   $("select[name='legend_position']").change(redraw_trigger);
   $("select[name='symbol']").change(redraw_trigger);
   $(".filterselect").change(redraw_trigger);
-  $(".multiselect").change(redraw_trigger);
+  $(".multiselect").change(function() {
+    redraw_trigger(); 
+    if ($(this).prop('value') == "ALL")
+      $("th[name='title_" + $(this).prop('name') + "']").css({'color':'black'});
+    else
+      $("th[name='title_" + $(this).prop('name') + "']").css({'color':'red'});
+  });
   // fetch and process data immediately
   preselect_fields_based_on_params();
   $("#graph_title").css('display','none'); //until a graph is drawn, the graph title should be hidden
