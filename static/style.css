@@ -121,8 +121,7 @@ form[name="optionsForm"] option:checked {
 .som_name {
   font-weight: bold;
 }
-#reset_config, #get_img, #get_tinyurl, #tinyurl, #stop_plotting, #redraw,
-#progress_img {
+#reset_config, #get_img, #get_tinyurl, #tinyurl, #toggle_filters, #stop_plotting, #redraw, #progress_img {
   display:inline-block;
 }
 #get_img, #progress_img {
