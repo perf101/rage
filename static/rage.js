@@ -73,6 +73,7 @@ function som_page_init() {
   $(".multiselect").change(redraw_trigger);
   // fetch and process data immediately
   preselect_fields_based_on_params();
+  $("#graph_title").css('display','none'); //until a graph is drawn, the graph title should be hidden
   set_auto_redraw(); //will call fetch_data_and_process() if auto_redraw is enabled
   // extract image button
   load_get_image_if_not_ie();
