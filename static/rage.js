@@ -124,12 +124,12 @@ function on_soms_by_tc_received(o) {
 function toggle_filter_visibility() {
   if (filters_visible) {
     filters_visible = false;
-    $("#toggle_filters").prop('value', 'Show Tables');
+    $("#toggle_filters").prop('value', 'Show Configuration');
     $("form[name='optionsForm']").css('display','none');
   }
   else {
     filters_visible = true;
-    $("#toggle_filters").prop('value', 'Hide Tables');
+    $("#toggle_filters").prop('value', 'Hide Configuration');
     $("form[name='optionsForm']").css('display','block');
   }
 }

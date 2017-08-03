@@ -172,7 +172,7 @@ let t ~args = object (self)
     printf "%s'get_img' value='Get Image' />" submit_prefix;
     printf "%s'get_tinyurl' value='Get Tiny URL' />" submit_prefix;
     printf "<a id='tinyurl' style='display: none' title='Tiny URL'></a>";
-    printf "%s'toggle_filters' value='Hide Tables' />" submit_prefix;
+    printf "%s'toggle_filters' value='Hide Configuration' />" submit_prefix;
     printf "%s'stop_plotting' value='Stop Plotting' />" submit_prefix;
     printf "%s'redraw' value='Redraw' />" submit_prefix;
     printf "<img id='progress_img' src='progress.gif' />\n";
