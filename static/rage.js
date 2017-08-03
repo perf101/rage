@@ -82,6 +82,7 @@ function som_page_init() {
   // fetch and process data immediately
   preselect_fields_based_on_params();
   $("#graph_title").css('display','none'); //until a graph is drawn, the graph title should be hidden
+  $("#redraw").css('color', 'red'); //until a graph is drawn, the Draw/Redraw button should be red
   set_auto_redraw(); //will call fetch_data_and_process() if auto_redraw is enabled
   // extract image button
   load_get_image_if_not_ie();
@@ -321,8 +322,10 @@ function redraw_graph() {
 }
 
 function redraw_trigger() {
-  if (!autofetch) return;
-  fetch_data_and_process();
+  if (autofetch)
+    fetch_data_and_process();
+  else
+    $("#redraw").css('color', 'red');
 }
 
 function set_graph_title() {
@@ -345,6 +348,7 @@ function set_graph_title() {
 }
 
 function fetch_data_and_process() {
+  $("#redraw").css('color', 'black');
   $("#tinyurl").toggle(false);
   $("#progress_img").toggle(true);
   set_graph_title();
