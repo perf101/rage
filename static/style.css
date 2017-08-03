@@ -7,9 +7,6 @@ html {
   margin: 20px auto;
   position: relative;
   top: 10px;
-}
-.graph_container {
-  white-space: nowrap;
   text-align: center;
 }
 .graph_container > * {
@@ -17,6 +14,11 @@ html {
 }
 .graph {
   display: inline-block;
+  transform:translate(-275px);
+  -ms-transform:translate(-275px);
+  -moz-transform:translate(-275px);
+  -webkit-transform:translate(-275px);
+  -o-transform:translate(-275px);
 }
 #graph_title {
   text-align: left;
@@ -134,15 +136,18 @@ form[name="optionsForm"] option:checked {
 }
 .xaxis {
   text-align: center;
+  height: 50px;
+  vertical-align: top;
 }
 .yaxis {
   display: inline-block;
-  width: 2.0em;
+  width: 550px;
+  text-align: center;
   transform:rotate(-90deg);
-  -ms-transform:rotate(-90deg); /* IE 9 */
-  -moz-transform:rotate(-90deg); /* Firefox */
-  -webkit-transform:rotate(-90deg); /* Safari and Chrome */
-  -o-transform:rotate(-90deg); /* Opera */
+  -ms-transform: translateX(-60px) rotate(-90deg); /* IE 9 */
+  -moz-transform: translateX(-60px) rotate(-90deg); /* Firefox */
+  -webkit-transform: translateX(-60px) rotate(-90deg); /* Safari and Chrome */
+  -o-transform: translateX(-60px) rotate(-90deg); /* Opera */
 }
 #legend_position, #symbol {
   display: inline-block;
