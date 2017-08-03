@@ -186,6 +186,9 @@ function preselect_fields_based_on_params() {
     if (cb_name in params) continue;
     $("input[name='" + cb_name + "']").prop("checked", true);
   }
+  if ("filters_visible" in params) {
+    toggle_filter_visibility();   
+  }
 }
 
 function get_url_params() {
@@ -291,6 +294,9 @@ function get_minimised_params() {
     if (cb.name in params) delete params[cb.name];
     else params[cb.name] = ["off"];
   });
+  if (!filters_visible) {
+    params["filters_visible"] = ["false"];
+  }
   var minimised = {};
   for (var p in params) {
     var vs = params[p];
