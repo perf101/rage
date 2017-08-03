@@ -77,12 +77,12 @@ function som_page_init() {
     if ($(this).prop('value') == "ALL")
       $("th[name='title_" + $(this).prop('name') + "']").css({'color':'black'});
     else
-      $("th[name='title_" + $(this).prop('name') + "']").css({'color':'red'});
+      $("th[name='title_" + $(this).prop('name') + "']").css({'color':'#8035b0'});
   });
   // fetch and process data immediately
   preselect_fields_based_on_params();
   $("#graph_title").css('display','none'); //until a graph is drawn, the graph title should be hidden
-  $("#redraw").css('color', 'red'); //until a graph is drawn, the Draw/Redraw button should be red
+  $("#redraw").css('color', '#8035b0'); //until a graph is drawn, the Draw/Redraw button should be red
   set_auto_redraw(); //will call fetch_data_and_process() if auto_redraw is enabled
   // extract image button
   load_get_image_if_not_ie();
@@ -179,7 +179,7 @@ function preselect_fields_based_on_params() {
       }
     }
     $("[name='" + param + "']").val(params[param].map(decode));
-    $("th[name='title_" + param + "']").css({'color':'red'});
+    $("th[name='title_" + param + "']").css({'color':'#8035b0'});
   }
   for (var i in checkboxes_on_by_default) {
     var cb_name = checkboxes_on_by_default[i];
@@ -331,7 +331,7 @@ function redraw_trigger() {
   if (autofetch)
     fetch_data_and_process();
   else
-    $("#redraw").css('color', 'red');
+    $("#redraw").css('color', '#8035b0');
 }
 
 function set_graph_title() {
