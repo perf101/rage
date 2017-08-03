@@ -8,6 +8,7 @@ html {
   position: relative;
   top: 10px;
   text-align: center;
+  white-space: nowrap;
 }
 .graph_container > * {
   vertical-align: middle;
@@ -143,6 +144,7 @@ form[name="optionsForm"] option:checked {
   text-align: center;
   height: 50px;
   vertical-align: top;
+  margin-top: 20px;
 }
 .yaxis {
   display: inline-block;
@@ -153,6 +155,7 @@ form[name="optionsForm"] option:checked {
   -moz-transform: translateX(-60px) rotate(-90deg); /* Firefox */
   -webkit-transform: translateX(-60px) rotate(-90deg); /* Safari and Chrome */
   -o-transform: translateX(-60px) rotate(-90deg); /* Opera */
+  white-space: normal;
 }
 #legend_position, #symbol {
   display: inline-block;
