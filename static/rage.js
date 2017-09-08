@@ -717,6 +717,7 @@ function GraphObject() {
     }
     $("#stop_plotting").prop("disabled", false);
     var start = new Date();
+    d3_graph(graph, series, options, o);
     flot_object = $.plot(graph, series, options, function() {
       console.log("Plotting took " + (new Date() - start) + "ms.");
       // click
@@ -804,5 +805,23 @@ function on_async_fail(XMLHttpRequest, textStatus, errorThrown) {
   console.log(XMLHttpRequest);
   console.log(textStatus);
   console.log(errorThrown);
+}
+
+function change_graph() {
+
+        var sel_value = $("#graph_option").val();
+
+        if (sel_value == "d3") {
+                $(".graph_container").css("display", "none");
+                $("#graph1").css("display", "block");
+
+        }
+        else if (sel_value == "flot") {
+
+                $("#graph1").css("display", "none");
+                $(".graph_container").css("display", "block");
+
+        }
+
 }
 
