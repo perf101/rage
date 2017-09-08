@@ -455,11 +455,18 @@ SimpleGraph.prototype.redraw = function() {
 		table_tr.append("td").attr("class", "a30x100").append("div")
 
 			.attr("style", "width:960px; white-space: initial;overflow: hidden;text-overflow: ellipsis; word-wrap:break-word")
-			.text(self.series[i].label);
-			
-		
-}
+			.html(function(d) {
+				var coma_split = self.series[i].label.split(",");
+				var equal_split = coma_split.map(function(n) {return n.split("=");});
+				var html = "";
+				for (var j=0; j < equal_split.length; ++j) {
 
+					html += "<strong>" + equal_split[j][0] + "</strong>" + "=" + equal_split[j][1] + ", ";
+
+				}
+				return html;
+			});
+}
   if (typeof(this.o.x_labels) != "undefined") {
 
     var fx_label = function(d) { return d[1]; };
