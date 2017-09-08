@@ -130,8 +130,8 @@ SimpleGraph = function(elemid, name, options, series, o) {
   this.vis = d3.select(this.chart).append("svg")
       .attr("name_d3graph", name) 
       .attr("width",  this.cx)
-      .attr("height", this.cy)
-      .attr("style", "background-color:white")
+      .attr("height", this.cy + 40)
+      .attr("style", "background-color:white; padding:20px")
       .append("g")
         .attr("transform", "translate(" + this.padding.left + "," + this.padding.top + ")");
 
@@ -172,11 +172,10 @@ SimpleGraph = function(elemid, name, options, series, o) {
         .attr("class", "axis")
         .text(this.options.xlabel)
         .attr("x", this.size.width/2)
-        .attr("y", this.size.height)
+        .attr("y", this.size.height - this.size.width/2 - 20)
         .attr("dy","2.4em")
         .style("text-anchor","middle");
   }
-
   // add y-axis label
   if (this.options.ylabel) {
     this.vis.append("g").append("text")
@@ -498,7 +497,7 @@ SimpleGraph.prototype.redraw = function() {
 			return a;
 		}, String)
 
-        .attr("transform", tx); 
+        .attr("transform", tx);
     gx.select("text")
         .text(fx);
 
@@ -515,16 +514,15 @@ SimpleGraph.prototype.redraw = function() {
         .attr("class", "axis")
         .attr("y", self.size.height)
         .attr("dy", "1em")
-        .attr("text-anchor", "middle")
+        .attr("text-anchor", "start")
         .text(fx)
         .style("cursor", "ew-resize")
         .on("mouseover", function(d) { d3.select(this).style("font-weight", "bold");})
         .on("mouseout",  function(d) { d3.select(this).style("font-weight", "normal");})
         .on("mousedown.drag",  self.xaxis_drag())
-        .on("touchstart.drag", self.xaxis_drag()); 
-//	.attr("transform", function(d) {
-//                return "rotate(20)" 
-//                }); 
+        .on("touchstart.drag", self.xaxis_drag())
+	.attr("transform", function(d) {
+                return "translate(" + 80 + ", " + 30 + ")" + " rotate(12)"});
  
     gx.exit().remove();
 
