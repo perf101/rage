@@ -806,3 +806,21 @@ function on_async_fail(XMLHttpRequest, textStatus, errorThrown) {
   console.log(errorThrown);
 }
 
+function change_graph() {
+
+        var sel_value = $("#graph_option").val();
+
+        if (sel_value == "d3") {
+                $(".graph_container").css("display", "none");
+                $("#graph1").css("display", "block");
+
+        }
+        else if (sel_value == "flot") {
+
+                $("#graph1").css("display", "none");
+                $(".graph_container").css("display", "block");
+
+        }
+
+}
+
