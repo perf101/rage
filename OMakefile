@@ -10,7 +10,7 @@ SETTINGS="host=$(RAGE_HOST) user=$(RAGE_USER) password=$(RAGE_PASS) dbname=$(RAG
 RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) "$(SETTINGS)"
 WWW_DIR=/var/www
 CGI_SCRIPT=index.cgi
-STATIC_FILES=$(glob static/*)
+STATIC_DIR=static
 README=README.markdown
 DISTRO_DIR=distro
 MODE=775
@@ -21,9 +21,8 @@ INSTALL=install -m $(MODE)
 
 .SUBDIRS: $(SRC)
 
-distro: build $(STATIC_FILES)
-	$(INSTALL) -d $(DISTRO_DIR)
-	$(INSTALL) $(SRC)/$(PROGRAM) $(STATIC_FILES) $(DISTRO_DIR)
+distro: build
+	rsync -avpL $(STATIC_DIR)/ $(SRC)/$(PROGRAM) $(DISTRO_DIR)
 	printf '#!/bin/bash\n\n$(RUN_CMD)' > $(DISTRO_DIR)/$(CGI_SCRIPT)
 	chmod $(MODE) $(DISTRO_DIR)/$(CGI_SCRIPT)
 
