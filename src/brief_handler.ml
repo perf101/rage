@@ -92,7 +92,7 @@ let t ~args = object (self)
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let has_match = Str.string_match (Str.regexp ".*<pre class=\"syntaxhighlighter-pre\"[^>]*>\\([^<]+\\)<") html 0 in (*find the "code block" in the page*)
       if not has_match
-        then (debug (sprintf "no match in html ggg from %s" url); raise Not_found)
+        then (Printf.printf "Error: no '{code}' block found in %s" url; raise Not_found)
         else
           try Str.matched_group 1 html
           with Not_found -> (debug "not found"; raise Not_found)
