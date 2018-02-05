@@ -1005,12 +1005,22 @@ let t ~args = object (self)
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
       printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul>\n";
+      printf "<h4 style='margin:5px'>Filtering</h4>";
+      printf "<input name='filterEnabled' value='filtered' type='checkbox'>";
+      printf "<label for='filterEnabled'>Show";
+      printf "<select name='filterType'> 
+                <option value='regressions'>only regressions</option> 
+                <option value='all'>all rows</option>
+              </select> >= ";
+      printf "<input name='minRegression' type='number' value='5' style='width:4em'>%%</label>";
       printf "<table>%s</table>" html_table;
       let page_finish_time = Unix.gettimeofday () in
       printf "<hr/>\n";
       printf "<p>Report contained <b>%d rows</b> and took <b>%f seconds</b> to prepare</p>"
         (List.length table)
-        (page_finish_time -.  page_start_time)
+        (page_finish_time -.  page_start_time);
+      (* Javascript *)
+      printf "<script src='ragebrief.js'></script>";
     in
 
     let wiki_writer table =
