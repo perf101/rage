@@ -1007,12 +1007,16 @@ let t ~args = object (self)
       printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul>\n";
       printf "<h4 style='margin:5px'>Filtering</h4>";
       printf "<input name='filterEnabled' value='filtered' type='checkbox'>";
-      printf "<label for='filterEnabled'>Show";
+      printf "<label for='filterEnabled'>Enable filtering</label>";
+      printf "<br>";
+      printf "<span>";
       printf "<select name='filterType'> 
                 <option value='regressions'>only regressions</option> 
                 <option value='all'>all rows</option>
-              </select> >= ";
-      printf "<input name='minRegression' type='number' value='5' style='width:4em'>%%</label>";
+              </select>";
+      printf ">=";
+      printf "<input name='minRegression' type='number' value='5' style='width:4em'>%%";
+      printf "</span>";
       printf "<table>%s</table>" html_table;
       let page_finish_time = Unix.gettimeofday () in
       printf "<hr/>\n";
