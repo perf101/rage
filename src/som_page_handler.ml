@@ -132,6 +132,10 @@ let t ~args = object (self)
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
+    printf "<br><br>";
+    printf "<b>Presets:</b>";
+    printf "<input value='Brief report analysis' id='preset-brief' type='button'>";
+    printf "<br>";
     printf "<div id='axes_selectors'>";
     print_x_axis_choice ~conn config_columns som_configs_opt;
     print_y_axis_choice ~conn config_columns som_configs_opt;

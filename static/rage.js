@@ -825,3 +825,52 @@ function change_graph() {
 
 }
 
+// Presets
+function _setSelected(sel, val, selected){
+    options = Array.from($(`select[name=${sel}] option`));
+    for(var i=0; i<options.length; i++){
+        option = options[i];
+        if(option.value == val){
+            option.selected = selected;
+            break;
+        }
+    }
+    $(`select[name=${sel}`).trigger('change');
+}
+
+const unselect = (sel, val) => _setSelected(sel, val, false);
+const select = (sel, val) => _setSelected(sel, val, true);
+const unselectAll = (sel) => {
+    Array.from($(`select[name=${sel}] option`)).map(opt => opt.selected = false); 
+    $(`select[name=${sel}`).trigger('change');
+};
+
+const setPresetBriefReport = () => {
+    // unselect build tag, select build date
+    unselect('xaxis', 'build_tag');
+    select('xaxis', 'build_date');
+
+    // select master
+    select('v_branch', 'master');
+
+    // split by branch
+    select('f_branch', 1); // 0=show for, 1=split by
+
+    // Select 'All' build number
+    unselectAll('v_build_number');
+    select('v_build_number', 'ALL');
+
+    // Select 'All' build tag
+    unselectAll('v_build_tag');
+    select('v_build_tag', 'ALL');
+
+    // Select SW legend position, our interesting data is usually NE
+    select('legend_position', 'sw');
+
+    // Enable autodraw - jquery to trigger its jquery change event
+    $('input[name=auto_redraw]').prop('checked', true);
+    redraw_graph();
+};
+
+// Set the preset brief report analysis button to call the setPresetBriefReport method
+document.querySelector('#preset-brief').addEventListener('click', (e) => setPresetBriefReport())
