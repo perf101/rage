@@ -868,6 +868,7 @@ let t ~args = object (self)
     in
     let link_ctxs = (List.map (sort_table measurements_of_table) ~f:(fun (r,cs)->link_ctx_of_row (List.concat (List.map cs ~f:(fun (_,_,ctx,_)->ctx))))) in
     let link_xaxis = List.dedup (List.concat (List.map cs ~f:(fun c-> List.map c ~f:(fun (x,_)->x)))) in
+    let link_xaxis = List.filter link_xaxis ~f:(fun x -> x <> "label") in
 
 
     (* writers *)
