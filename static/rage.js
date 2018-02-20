@@ -874,3 +874,7 @@ const setPresetBriefReport = () => {
 
 // Set the preset brief report analysis button to call the setPresetBriefReport method
 document.querySelector('#preset-brief').addEventListener('click', (e) => setPresetBriefReport())
+
+if(location.hash == '#brief_report_analysis'){
+    setPresetBriefReport();
+}
