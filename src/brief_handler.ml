@@ -905,7 +905,7 @@ let t ~args = object (self)
           (
           (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
           let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
-          (sprintf "<a href='http://%s/?som=%s&show_dist=on%s%s'>graph</a>" (Utils.server_name ()) som_id
+          (sprintf "<a href='http://%s/?som=%s&show_dist=on%s%s#brief_report_analysis'>graph</a>" (Utils.server_name ()) som_id
             (* xaxis *)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
             (* preset values *)
@@ -1000,7 +1000,7 @@ let t ~args = object (self)
        ))
       )
       in
-      let brief_name = if is_digit brief_id then "jim #"^brief_id else sprintf "from <a href='%s'>%s</a>" brief_id brief_id in
+      let brief_name = if is_digit brief_id then "jim #"^brief_id else sprintf "from <a href='%s#brief_report_analysis'>%s</a>" brief_id brief_id in
       printf "<p>Brief RAGE Report %s: <b>%s</b></p>\n" brief_name (title_of_id brief_id);
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
