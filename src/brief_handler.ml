@@ -1017,6 +1017,7 @@ let t ~args = object (self)
               </select>";
       printf ">=";
       printf "<input name='minRegression' type='number' value='5' style='width:4em'>%%";
+      printf "<span id='freeze_frozen' style='padding:0 10px'><input value='Freeze' title='Delete all hidden rows' type='button'></span>";
       printf "</span>";
       printf "<table>%s</table>" html_table;
       let page_finish_time = Unix.gettimeofday () in
