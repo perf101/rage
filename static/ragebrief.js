@@ -1,11 +1,14 @@
 // Include this at the end of body, so DOM is loaded
-
-
 const allRows = Array.from(document.querySelector('table').querySelectorAll('tr'));
 
 // First 3 rows are fixed text (product, titles, comparison) - all the rest are data
 const rows = Array.from(allRows);
 rows.splice(0,3);
+
+// Augment elements with a remove method
+Element.prototype.remove = function() {
+    this.parentElement.removeChild(this);
+}
 
 function getBaselineColumn(){
   // Baseline is a heading in table row 1
@@ -77,12 +80,25 @@ function hideNonInterestingRows(regressionsOnly=true, threshold=5){
 
     // second sub is the %
     const normalisedPercentage = normalise(subs[1].innerHTML);
-    console.log(normalisedPercentage, threshold);
     if(normalisedPercentage < threshold){
-      console.log('keeping');
       row.style.display = 'none'; 
       continue;
     }
+  }
+}
+
+const deleteHiddenRows = () => {
+  const hiddenRows = rows.filter(row => row.style.display == 'none');
+  hiddenRows.forEach(row => row.remove())
+}
+
+function freeze(){
+  // Freezing deletes all hidden rows, making the document smaller and easier to parse when saved
+  if(window.confirm("Freezing will delete all hidden rows permanently. This cannot be undone without refreshing the page, and should only be done when ready to save the current data. Are you sure?")){
+    deleteHiddenRows();
+    // Disable the filter inputs to avoid confusion
+    Array.from(document.querySelectorAll("input, select")).forEach(ele => ele.disabled = 'disabled');
+    document.getElementById('freeze_frozen').innerHTML = "<span style='color:red'>Frozen</span>";
   }
 }
 
@@ -111,3 +127,8 @@ minRegression.oninput = filter;
 
 // Run the filter on page load too
 filter({});
+
+// Set up the freeze button
+const freezeButton = document.querySelector("#freeze_frozen input[type='button']");
+if(freezeButton != null)
+  freezeButton.addEventListener('click', () => freeze());
