@@ -215,6 +215,7 @@ let tc_config_fields = [
   "dom0_vcpus";
   "host_pcpus";
   "live_patching";
+  "host_type";
 ]
 
 let build_fields = [

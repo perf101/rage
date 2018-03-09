@@ -105,6 +105,7 @@ create table tc_config (
   cpufreq_governor varchar(32) not null,
   dom0_vcpus integer not null,
   host_pcpus integer not null,
+  host_type varchar(16) not null,
 
   foreign key (job_id) references jobs(job_id),
   foreign key (tc_fqn) references test_cases(tc_fqn),
