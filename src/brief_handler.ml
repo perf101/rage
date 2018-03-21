@@ -553,6 +553,11 @@ let t ~args = object (self)
           (k, new_vs)
         ) in
 
+      let remove_quotes s =
+        let quote_re = Str.regexp "'" in
+        Str.global_replace quote_re "" s
+      in
+
       (* For a row r and current substitions [(x, [0;1]); (y, [a,b])], return [ r[0/x,a/y]; r[0/x,b/y]; r[1/x,a/y]; r[1/x,b/y] ] *)
       let apply_substitions row =
         let all_subs = transform !substitions in
@@ -561,7 +566,7 @@ let t ~args = object (self)
           let sub = List.map sub ~f:(fun (k,v) ->
             let k_split = String.split ~on:',' k in
             let v_split = String.split ~on:',' v in
-            List.mapi k_split ~f:(fun i k' -> let v' = List.nth_exn v_split i in (k', v'))
+            List.mapi k_split ~f:(fun i k' -> let v' = List.nth_exn v_split i |> remove_quotes  in (k', v'))
           ) |> List.concat in
 
           progress (sprintf "current substitions: [%s]" (String.concat ~sep:", " (List.map ~f:(fun (k,v) -> sprintf "(%s, %s)" k v) sub)));
