@@ -1010,7 +1010,10 @@ let t ~args = object (self)
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
-      printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul>\n";
+      printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul><br>";
+      printf "<h4 style='margin:5px'>Report Quality</h4>";
+      printf "Rows with data in last column: <span style='font-weight:bold' id='report_quality_data_last'></span><br>";
+      printf "Rows with data in 2nd-to-last, but not last: <span style='font-weight:bold' id='report_quality_missing_data_last'></span><br><br>";
       printf "<h4 style='margin:5px'>Filtering</h4>";
       printf "<input name='filterEnabled' value='filtered' type='checkbox'>";
       printf "<label for='filterEnabled'>Enable filtering</label>";
