@@ -5,6 +5,8 @@ const allRows = Array.from(document.querySelector('table').querySelectorAll('tr'
 const rows = Array.from(allRows);
 rows.splice(0,3);
 
+const num_tds = rows[0].querySelectorAll('td').length
+
 // Augment elements with a remove method
 Element.prototype.remove = function() {
     this.parentElement.removeChild(this);
@@ -132,3 +134,15 @@ filter({});
 const freezeButton = document.querySelector("#freeze_frozen input[type='button']");
 if(freezeButton != null)
   freezeButton.addEventListener('click', () => freeze());
+
+// Populate the row with/without data counts
+// Count rows where the last cell is not empty (ie has data)
+const data_in_last = rows.filter(row => !isCellEmpty(row.querySelectorAll('td')[num_tds-1])).length
+document.getElementById('report_quality_data_last').innerHTML = data_in_last
+
+// Count rows where the last cell is empty *and* the cell before it is not (suggests missing data)
+const missing_in_last = rows.filter(row => {
+  tds = row.querySelectorAll('td')
+  return isCellEmpty(tds[num_tds-1]) && !isCellEmpty(tds[num_tds-2])
+}).length
+document.getElementById('report_quality_missing_data_last').innerHTML = missing_in_last
