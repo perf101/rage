@@ -89,6 +89,7 @@ function som_page_init() {
   // tiny url
   $("#get_tinyurl").click(get_tinyurl);
   $("input[name='auto_redraw']").change(set_auto_redraw);
+  change_graph(); //makes sure that only the default graph type is visible
 }
 
 function soms_by_tc_page_init() {
@@ -811,15 +812,20 @@ function change_graph() {
 
         var sel_value = $("#graph_option").val();
 
-        if (sel_value == "d3") {
-                $(".graph_container").css("display", "none");
-                $("#graph1").css("display", "block");
+        if (sel_value == "c3") {
+		$(".graph_container").hide();
+		$("#graph1").hide();
+		$("#graph2").show();
 
-        }
-        else if (sel_value == "flot") {
+	} else if (sel_value == "d3") {
+                $(".graph_container").hide();
+		$("#graph2").hide();
+                $("#graph1").show();
 
-                $("#graph1").css("display", "none");
-                $(".graph_container").css("display", "block");
+        } else if (sel_value == "flot") {
+                $("#graph1").hide();
+		$("#graph2").hide();
+                $(".graph_container").show();
 
         }
 

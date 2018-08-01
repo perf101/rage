@@ -1,5 +1,4 @@
 $( window ).load(function() {
-  $("#graph1").hide();
   $("#graph1").css("background-color", "white");
 });
 
