@@ -718,7 +718,8 @@ function GraphObject() {
     }
     $("#stop_plotting").prop("disabled", false);
     var start = new Date();
-    d3_graph(graph, series, options, o);
+    //d3_graph(graph, series, options, o);
+    c3_graph(series, options, o);
     flot_object = $.plot(graph, series, options, function() {
       console.log("Plotting took " + (new Date() - start) + "ms.");
       // click
