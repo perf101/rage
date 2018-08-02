@@ -564,25 +564,7 @@ SimpleGraph.prototype.redraw = function() {
     gy.exit().remove();
     self.plot.call(d3.zoom().on("zoom", function () {
 	self.redraw();
-	self.vis.select("svg").selectAll("circle").attr("cx", function (d) {
-        	return d3.event.transform.applyX(self.x(d[0]));
-	}).attr("cy", function (d) {
-        	return d3.event.transform.applyY(self.y(d[1]));
-        });
-	self.vis.select("svg").selectAll(".line").attr("d", function (d) {
-		var line = d3.line().x(function (d) { 
-			return d3.event.transform.applyX(self.x(d[0])); 
-		}).y(function (d) {
-			return d3.event.transform.applyY(self.y(d[1]));
-		});
-		return line(d.data);
-	});
-	self.vis.selectAll("g.x").attr("transform", function (d) {
-		return "translate(" + d3.event.transform.applyX(self.x(d[0]))  +  ",0)";
-	});
-	self.vis.selectAll("g.y").attr("transform", function (d) {
-		return "translate(0," + d3.event.transform.applyY(self.y(d))  +  ")";
-	});
+	self.zoom_adjust();
     }));
     self.vis.on("wheel", function() { d3.event.preventDefault(); });
     self.update();      
@@ -596,6 +578,29 @@ SimpleGraph.prototype.redraw = function() {
 }
   
 }
+
+SimpleGraph.prototype.zoom_adjust = function () {
+	var self = this;
+	self.vis.select("svg").selectAll("circle").attr("cx", function (d) {
+                return d3.event.transform.applyX(self.x(d[0]));
+        }).attr("cy", function (d) {
+                return d3.event.transform.applyY(self.y(d[1]));
+        });
+        self.vis.select("svg").selectAll(".line").attr("d", function (d) {
+                var line = d3.line().x(function (d) {
+                        return d3.event.transform.applyX(self.x(d[0]));
+                }).y(function (d) {
+                        return d3.event.transform.applyY(self.y(d[1]));
+                });
+                return line(d.data);
+        });
+        self.vis.selectAll("g.x").attr("transform", function (d) {
+                return "translate(" + d3.event.transform.applyX(self.x(d[0]))  +  ",0)";
+        });
+        self.vis.selectAll("g.y").attr("transform", function (d) {
+                return "translate(0," + d3.event.transform.applyY(self.y(d))  +  ")";
+        });
+};
 
 SimpleGraph.prototype.xaxis_drag = function() {
   var self = this;
