@@ -584,6 +584,7 @@ SimpleGraph.prototype.redraw = function() {
 		return "translate(0," + d3.event.transform.applyY(self.y(d))  +  ")";
 	});
     }));
+    self.vis.on("wheel", function() { d3.event.preventDefault(); });
     self.update();      
   }
 
