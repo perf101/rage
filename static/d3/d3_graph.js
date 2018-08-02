@@ -601,7 +601,7 @@ SimpleGraph.prototype.xaxis_drag = function() {
   var self = this;
   return function(d) {
     document.onselectstart = function() { return false; };
-    var p = d3.svg.mouse(self.vis[0][0]);
+    var p = d3.mouse(self.vis.node());
     self.downx = self.x.invert(p[0]);
   }
 };
@@ -610,7 +610,7 @@ SimpleGraph.prototype.yaxis_drag = function(d) {
   var self = this;
   return function(d) {
     document.onselectstart = function() { return false; };
-    var p = d3.svg.mouse(self.vis[0][0]);
+    var p = d3.mouse(self.vis.node());
     self.downy = self.y.invert(p[1]);
   }
 
