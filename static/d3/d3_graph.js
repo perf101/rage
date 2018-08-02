@@ -1,5 +1,4 @@
 $( window ).load(function() {
-  $("#graph1").hide();
   $("#graph1").css("background-color", "white");
 });
 
@@ -100,14 +99,14 @@ SimpleGraph = function(elemid, name, options, series, o) {
   };
 
   // x-scale
-  this.x = d3.scale.linear()
+  this.x = d3.scaleLinear()
       .domain([this.options.xmin, this.options.xmax])
       .range([0, this.size.width]);
   // drag x-axis logic
   this.downx = Math.NaN;
 
   // y-scale (inverted domain)
-  this.y = d3.scale.linear()
+  this.y = d3.scaleLinear()
       .domain([this.options.ymax, this.options.ymin])
       .nice()
       .range([0, this.size.height])
@@ -118,7 +117,7 @@ SimpleGraph = function(elemid, name, options, series, o) {
 
   //this.dragged = this.selected = null;
 
-  this.line = d3.svg.line()
+  this.line = d3.line()
       .x(function(d, i) { return self.x(d[0]); })
       .y(function(d, i) { return self.y(d[1]); });
 
@@ -134,7 +133,6 @@ SimpleGraph = function(elemid, name, options, series, o) {
       .attr("style", "background-color:white; padding:20px")
       .append("g")
         .attr("transform", "translate(" + this.padding.left + "," + this.padding.top + ")");
-
   this.plot = this.vis.append("rect")
       .attr("id", "graph1_rect")
       .attr("width", this.size.width)
@@ -145,7 +143,7 @@ SimpleGraph = function(elemid, name, options, series, o) {
       //.on("touchstart.drag", self.plot_drag())
 
 
-      this.plot.call(d3.behavior.zoom().x(this.x).y(this.y).on("zoom", this.redraw()));
+      this.plot.call(d3.zoom()/*.x(this.x).y(this.y)*/.on("zoom", this.redraw()));
 
 
   this.vis.append("svg")
@@ -360,7 +358,7 @@ SimpleGraph.prototype.datapoint_drag = function(index) { //update points positio
 SimpleGraph.prototype.mousemove = function(index) {
   var self = this;
   return function() {
-    var p = d3.svg.mouse(self.vis[0][0]),
+    var p = d3.mouse(self.vis.node()),
         t = d3.event.changedTouches;
     
     if (self.dragged) {
@@ -564,7 +562,7 @@ SimpleGraph.prototype.redraw = function() {
         .on("touchstart.drag", self.yaxis_drag());
 
     gy.exit().remove();
-    self.plot.call(d3.behavior.zoom().x(self.x).y(self.y).on("zoom", self.redraw()));
+    self.plot.call(d3.zoom()/*.x(self.x).y(self.y)*/.on("zoom", self.redraw()));
     self.update();      
   }
 
