@@ -566,19 +566,22 @@ SimpleGraph.prototype.redraw = function() {
 	self.redraw();
 	self.vis.select("svg").selectAll("circle").attr("cx", function (d) {
         	return d3.event.transform.applyX(self.x(d[0]));
-	});/*.attr("cy", function (d) {
-        	return d3.event.transform.applyX(self.y(d[1]));
-        });*/
+	}).attr("cy", function (d) {
+        	return d3.event.transform.applyY(self.y(d[1]));
+        });
 	self.vis.select("svg").selectAll(".line").attr("d", function (d) {
 		var line = d3.line().x(function (d) { 
 			return d3.event.transform.applyX(self.x(d[0])); 
 		}).y(function (d) {
-			return self.y(d[1]);
+			return d3.event.transform.applyY(self.y(d[1]));
 		});
 		return line(d.data);
 	});
 	self.vis.selectAll("g.x").attr("transform", function (d) {
 		return "translate(" + d3.event.transform.applyX(self.x(d[0]))  +  ",0)";
+	});
+	self.vis.selectAll("g.y").attr("transform", function (d) {
+		return "translate(0," + d3.event.transform.applyY(self.y(d))  +  ")";
 	});
     }));
     self.update();      
