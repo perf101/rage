@@ -562,7 +562,25 @@ SimpleGraph.prototype.redraw = function() {
         .on("touchstart.drag", self.yaxis_drag());
 
     gy.exit().remove();
-    self.plot.call(d3.zoom()/*.x(self.x).y(self.y)*/.on("zoom", self.redraw()));
+    self.plot.call(d3.zoom().on("zoom", function () {
+	self.redraw();
+	self.vis.select("svg").selectAll("circle").attr("cx", function (d) {
+        	return d3.event.transform.applyX(self.x(d[0]));
+	});/*.attr("cy", function (d) {
+        	return d3.event.transform.applyX(self.y(d[1]));
+        });*/
+	self.vis.select("svg").selectAll(".line").attr("d", function (d) {
+		var line = d3.line().x(function (d) { 
+			return d3.event.transform.applyX(self.x(d[0])); 
+		}).y(function (d) {
+			return self.y(d[1]);
+		});
+		return line(d.data);
+	});
+	self.vis.selectAll("g.x").attr("transform", function (d) {
+		return "translate(" + d3.event.transform.applyX(self.x(d[0]))  +  ",0)";
+	});
+    }));
     self.update();      
   }
 
