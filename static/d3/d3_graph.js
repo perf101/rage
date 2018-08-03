@@ -219,17 +219,16 @@ SimpleGraph.prototype.update = function() {
         return d.data.map(function(pos){ pos[3] = d.color; return pos;});
       })))
 
+  var is_img = 0; 
+
   circle.enter().append("circle")
       .attr("class", function(d) { return d === self.selected ? "selected" : null; })
       .attr("cx",    function(d) { return self.zoom().applyX(self.x(d[0])); })
       .attr("cy",    function(d) { return self.zoom().applyY(self.y(d[1])); })
       .attr("r", 5.0)
       .style("cursor", "ns-resize")
-      .style("fill", function(d) { return self.color[d[3]]; });
-	
-  var is_img = 0; 
-
-  circle
+      .style("fill", function(d) { return self.color[d[3]]; })
+  .merge(circle) //merge to include the circles we just added (if any)
       .attr("class", function(d) { return d === self.selected ? "selected" : null; })
       .attr("cx",    function(d) { return self.zoom().applyX(self.x(d[0])); })
       .attr("cy",    function(d) { return self.zoom().applyY(self.y(d[1])); })
