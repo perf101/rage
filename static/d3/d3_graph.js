@@ -186,6 +186,9 @@ SimpleGraph = function(elemid, name, options, series, o) {
       .on("mouseup.drag",   self.mouseup())
       .on("touchend.drag",  self.mouseup());
 
+  this.plot.call(d3.zoom().on("zoom", self.redraw()));
+  this.vis.on("wheel", function() { d3.event.preventDefault(); });
+
   this.redraw()();
 
   if (will_hide == 1) 
@@ -558,8 +561,6 @@ SimpleGraph.prototype.redraw = function() {
         .on("touchstart.drag", self.yaxis_drag());
 
     gy.exit().remove();
-    self.plot.call(d3.zoom().on("zoom", self.redraw()));
-    self.vis.on("wheel", function() { d3.event.preventDefault(); });
     self.update();      
   }
 
