@@ -108,7 +108,6 @@ SimpleGraph = function(elemid, name, options, series, o) {
   // y-scale (inverted domain)
   this.y = d3.scaleLinear()
       .domain([this.options.ymax, this.options.ymin])
-      .nice()
       .range([0, this.size.height])
       .nice();
 
@@ -141,9 +140,6 @@ SimpleGraph = function(elemid, name, options, series, o) {
       .attr("pointer-events", "all")
       //.on("mousedown.drag", self.plot_drag())
       //.on("touchstart.drag", self.plot_drag())
-
-
-      this.plot.call(d3.zoom()/*.x(this.x).y(this.y)*/.on("zoom", this.redraw()));
 
 
   this.vis.append("svg")
@@ -563,7 +559,6 @@ SimpleGraph.prototype.redraw = function() {
 
     gy.exit().remove();
     self.plot.call(d3.zoom().on("zoom", function () {
-	self.redraw();
 	self.zoom_adjust();
     }));
     self.vis.on("wheel", function() { d3.event.preventDefault(); });
