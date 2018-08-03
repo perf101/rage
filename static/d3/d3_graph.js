@@ -443,27 +443,26 @@ SimpleGraph.prototype.redraw = function() {
 
   for (var i=0; i < self.series.length; i++) {	
 		
-		var table_tr = d3.select("#legend_table").append("tr");  
-		table_tr.append("td").attr("style", function(d) {return "background-color:" + self.color[self.series[i].color] + ";";}).append("div").attr("style", "width:2em");
+	var table_tr = d3.select("#legend_table").append("tr");  
+	table_tr.append("td").attr("style", function(d) {return "background-color:" + self.color[self.series[i].color] + ";";}).append("div").attr("style", "width:2em");
 
-		table_tr.append("td").attr("class", "a30x100").append("div")
+	table_tr.append("td").attr("class", "a30x100").append("div")
+		.attr("style", "width:960px; white-space: initial;overflow: hidden;text-overflow: ellipsis; word-wrap:break-word")
+		.html(function(d) {
+			var coma_split = self.series[i].label.split(",");
+			var equal_split = coma_split.map(function(n) {return n.split("=");});
+			var html = "";
+			for (var j=0; j < equal_split.length; ++j) {
 
-			.attr("style", "width:960px; white-space: initial;overflow: hidden;text-overflow: ellipsis; word-wrap:break-word")
-			.html(function(d) {
-				var coma_split = self.series[i].label.split(",");
-				var equal_split = coma_split.map(function(n) {return n.split("=");});
-				var html = "";
-				for (var j=0; j < equal_split.length; ++j) {
+				html += "<strong>" + equal_split[j][0] + "</strong>" + "=" + equal_split[j][1] + ", ";
 
-					html += "<strong>" + equal_split[j][0] + "</strong>" + "=" + equal_split[j][1] + ", ";
-
-				}
-				return html;
-			});
-}
+			}
+			return html;
+		});
+  }
   if (typeof(this.o.x_labels) != "undefined") {
 
-    var fx_label = function(d) { return d[1]; };
+ 	 var fx_label = function(d) { return d[1]; };
 
   } else {
 
@@ -481,24 +480,25 @@ SimpleGraph.prototype.redraw = function() {
     stroke = function(d) { 
       return d ? "#ccc" : "#666"; 
     },
-
     fx = fx_label, 
     fy = self.y.tickFormat(10);
 
-	var count = 0; 
+    var count = 0; 
 
     // Regenerate x-ticks…
     var xs = get_xs(self.series);  
     var gx = self.vis.selectAll("g.x")
-        .data(function(d) {
-			xs_ary = Array.from(xs.values());
-			if (typeof(self.o.x_labels) != "undefined")
-				a =  zip(xs_ary,self.o.x_labels);
-			else a = zip(self.x.ticks(xs.size),self.x.ticks(xs.size))
-			return a;
-		}, String)
+    	.data(function(d) {
+		xs_ary = Array.from(xs.values());
+		if (typeof(self.o.x_labels) != "undefined") {
+			a =  zip(xs_ary,self.o.x_labels);
+		} else {
+			a = zip(self.x.ticks(xs.size),self.x.ticks(xs.size));
+		}
+		return a;
+	}, String)
+	.attr("transform", tx);
 
-        .attr("transform", tx);
     gx.select("text")
         .text(fx);
 
@@ -558,6 +558,7 @@ SimpleGraph.prototype.redraw = function() {
         .on("touchstart.drag", self.yaxis_drag());
 
     gy.exit().remove();
+
     self.update();      
   }
 
