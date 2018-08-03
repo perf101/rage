@@ -186,10 +186,12 @@ SimpleGraph = function(elemid, name, options, series, o) {
       .on("mouseup.drag",   self.mouseup())
       .on("touchend.drag",  self.mouseup());
 
-  this.plot.call(d3.zoom().on("zoom", self.redraw()));
+  this.plot.call(d3.zoom().on("zoom", function () {
+	self.redraw();
+  }));
   this.vis.on("wheel", function() { d3.event.preventDefault(); });
 
-  this.redraw()();
+  this.redraw();
 
   if (will_hide == 1) 
   $("#graph1").hide(); 
@@ -372,7 +374,7 @@ SimpleGraph.prototype.mousemove = function(index) {
         changex = self.downx / rupx;
         new_domain = [xaxis1, xaxis1 + (xextent * changex)];
         self.x.domain(new_domain);
-        self.redraw()();
+        self.redraw();
       }
       d3.event.preventDefault();
       d3.event.stopPropagation();
@@ -388,7 +390,7 @@ SimpleGraph.prototype.mousemove = function(index) {
         changey = self.downy / rupy;
         new_domain = [yaxis1 + (yextent * changey), yaxis1];
         self.y.domain(new_domain);
-        self.redraw()();
+        self.redraw();
       }
       d3.event.preventDefault();
       d3.event.stopPropagation();
@@ -403,13 +405,13 @@ SimpleGraph.prototype.mouseup = function() {
     d3.select('body').style("cursor", "auto");
     d3.select('body').style("cursor", "auto");
     if (!isNaN(self.downx)) {
-      self.redraw()();
+      self.redraw();
       self.downx = Math.NaN;
       d3.event.preventDefault();
       d3.event.stopPropagation();
     };
     if (!isNaN(self.downy)) {
-      self.redraw()();
+      self.redraw();
       self.downy = Math.NaN;
       d3.event.preventDefault();
       d3.event.stopPropagation();
@@ -434,7 +436,7 @@ SimpleGraph.prototype.redraw = function() {
 	.append("div")
 	.attr("id", "legend_container")
 	.attr("width", "200px")
-	.attr("height", "50px")
+	.attr("height", "50px");
 
   d3.select("#legend_container")
 	.append("table")
@@ -470,7 +472,11 @@ SimpleGraph.prototype.redraw = function() {
 
   }
 
-  return function() {
+  if (will_hide == 1) { 
+	$("#graph1").hide(); 
+	will_hide = 0;
+  }
+
     var tx = function(d) {
       return "translate(" + self.zoom().applyX(self.x(d[0])) +  ",0)"; 
     },
@@ -559,15 +565,7 @@ SimpleGraph.prototype.redraw = function() {
 
     gy.exit().remove();
 
-    self.update();      
-  }
-
-	if (will_hide == 1) {
-
-	$("#graph1").hide();
-	will_hide = 0;
-
-}
+    self.update();
   
 }
 
