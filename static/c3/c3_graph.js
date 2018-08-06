@@ -74,6 +74,9 @@ function c3_graph(series, options, o) {
 					if (arr.length === mean_data.length) return arr;
 					return hide(arr.concat(['mean' + arr.length]));
 				})([]) //returns ['mean0', 'mean1', 'mean2', ...]
+		},
+		tooltip: {
+			grouped: false
 		}
 	});
 }
