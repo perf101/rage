@@ -15,16 +15,16 @@ function c3_graph(series, options, o) {
 		types: {}
 	};
 	//add the necessary data to chart_data to plot graph points
-	series.forEach(function (item, index) {
-		chart_data.xs['data' + index] = 'x' + index;
+	series.forEach(function (item) {
+		chart_data.xs[item.label] = 'x_' + item.label;
 		var x_values = item.data.map(function(pair) {
 			return pair[0];
 		});
 		var y_values = item.data.map(function(pair) {
 			return pair[1];
 		});
-		chart_data.columns.push(['x' + index].concat(x_values));
-		chart_data.columns.push(['data' + index].concat(y_values));
+		chart_data.columns.push(['x_' + item.label].concat(x_values));
+		chart_data.columns.push([item.label].concat(y_values));
 	});
 	//add the necessary data to chart_data to plot average graph points
 	mean_data.forEach(function (item) {
