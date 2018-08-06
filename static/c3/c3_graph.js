@@ -7,12 +7,22 @@ function c3_graph(series, options, o) {
 	mean_data = series.filter(function (x) {return ('lines' in x)});
 	// keep only elements that contain graph points (remove average points)
 	series = series.filter(function (x) {return !('lines' in x)});
-
+	let colors_obj = {}; //for keeping track of colors in non-average plots
 	var chart_data = {
         	xs: {},
         	columns: [],
 		type: 'scatter',
-		types: {}
+		types: {},
+		//set color of average plots to be the same as the non-average plots
+		color: function (color, d) {
+			d = d.id || d;
+			if (/\(mean\)/.test(d)) {
+				return colors_obj[d.replace(/ \(mean\)/, '')];
+			} else {
+				colors_obj[d] = color;
+				return color;
+			}
+		}
 	};
 	//add the necessary data to chart_data to plot graph points
 	series.forEach(function (item) {
