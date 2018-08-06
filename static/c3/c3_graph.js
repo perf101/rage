@@ -24,6 +24,9 @@ function c3_graph(series, options, o) {
 	console.log("Chart Data:", chart_data);
 	var chart = c3.generate({
 		bindto: '#graph2',
-		data: chart_data
+		data: chart_data,
+		zoom: {
+			enabled: true
+		}
 	});
 }
