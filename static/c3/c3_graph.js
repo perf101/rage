@@ -13,11 +13,12 @@ function c3_graph(series, options, o) {
         	columns: [],
 		type: 'scatter',
 		types: {},
+		names: {},
 		//set color of average plots to be the same as the non-average plots
 		color: function (color, d) {
 			d = d.id || d;
-			if (/\(mean\)/.test(d)) {
-				return colors_obj[d.replace(/ \(mean\)/, '')];
+			if (/mean/.test(d)) {
+				return colors_obj[d.replace(/mean/, 'data')];
 			} else {
 				colors_obj[d] = color;
 				return color;
@@ -25,30 +26,34 @@ function c3_graph(series, options, o) {
 		}
 	};
 	//add the necessary data to chart_data to plot graph points
-	series.forEach(function (item) {
-		chart_data.xs[item.label] = 'x_' + item.label;
+	series.forEach(function (item, index) {
+		chart_data.xs['data' + index] = 'x_data' + index;
 		var x_values = item.data.map(function(pair) {
 			return pair[0];
 		});
 		var y_values = item.data.map(function(pair) {
 			return pair[1];
 		});
-		chart_data.columns.push(['x_' + item.label].concat(x_values));
-		chart_data.columns.push([item.label].concat(y_values));
+		chart_data.columns.push(['x_data' + index].concat(x_values));
+		chart_data.columns.push(['data' + index].concat(y_values));
+		//set displayed name
+		chart_data.names['data' + index] = item.label;
 	});
 	//add the necessary data to chart_data to plot average graph points
-	mean_data.forEach(function (item) {
-		chart_data.xs[item.tooltiplabel] = 'x_mean';
+	mean_data.forEach(function (item, index) {
+		chart_data.xs['mean' + index] = 'x_mean' + index;
 		var x_values = item.data.map(function(pair) {
 			return pair[0];
 		});
 		var y_values = item.data.map(function(pair) {
 			return pair[1];
 		});
-		chart_data.columns.push(['x_mean'].concat(x_values));
-		chart_data.columns.push([item.tooltiplabel].concat(y_values));
+		chart_data.columns.push(['x_mean' + index].concat(x_values));
+		chart_data.columns.push(['mean' + index].concat(y_values));
 		//set type for plots of average points
-		chart_data.types[item.tooltiplabel] = 'line';
+		chart_data.types['mean' + index] = 'line';
+		//set displayed name
+		chart_data.names['mean' + index] = item.tooltiplabel;
 	});
 
 	console.log('Options:', o);
@@ -62,7 +67,13 @@ function c3_graph(series, options, o) {
 		},
 		legend: {
 			//hide legend elements for average plots
-			hide: mean_data.map(function (item) { return item.tooltiplabel; })
+			hide: 	(function hide (arr) {
+					//if only one plot, return true (hide legend completely)
+					if (series.length === 1) return true;
+					//recursion:
+					if (arr.length === mean_data.length) return arr;
+					return hide(arr.concat(['mean' + arr.length]));
+				})([]) //returns ['mean0', 'mean1', 'mean2', ...]
 		}
 	});
 }
