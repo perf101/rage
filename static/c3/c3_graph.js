@@ -76,7 +76,13 @@ function c3_graph(series, options, o) {
 				})([]) //returns ['mean0', 'mean1', 'mean2', ...]
 		},
 		tooltip: {
-			grouped: false
+			grouped: false,
+			format: {
+				value: 	function (value) {
+						let format = d3.format('.2f');
+						return format(value);
+					}
+			}
 		}
 	});
 }
