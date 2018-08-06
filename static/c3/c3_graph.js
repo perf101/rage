@@ -41,7 +41,7 @@ function c3_graph(series, options, o) {
 		chart_data.types[item.tooltiplabel] = 'line';
 	});
 
-	console.log('Options', o);
+	console.log('Options:', o);
 	console.log("Chart Data:", chart_data);
 
 	var chart = c3.generate({
@@ -49,6 +49,10 @@ function c3_graph(series, options, o) {
 		data: chart_data,
 		zoom: {
 			enabled: true
+		},
+		legend: {
+			//hide legend elements for average plots
+			hide: mean_data.map(function (item) { return item.tooltiplabel; })
 		}
 	});
 }
