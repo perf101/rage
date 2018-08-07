@@ -86,7 +86,14 @@ function c3_graph(series, options, o) {
 			x: { 
 				label: {
 					text: o.xaxis,
-					position: 'outer-center'
+				},
+				tick: {
+					rotate: (o.x_labels ? -60 : 0),
+					multiline: false,
+					culling: (o.x_labels ? false : true),
+					format:	function (x) {
+							return (o.x_labels ? o.x_labels[x] : x);
+						}
 				}
 			},
 			y: { 
