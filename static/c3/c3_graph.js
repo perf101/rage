@@ -18,7 +18,7 @@ function c3_graph(series, options, o) {
 		color: function (color, d) {
 			d = d.id || d;
 			if (/mean/.test(d)) {
-				return colors_obj[d.replace(/mean/, 'data')];
+				return colors_obj[d.replace('mean', 'data')];
 			} else {
 				colors_obj[d] = color;
 				return color;
@@ -64,13 +64,15 @@ function c3_graph(series, options, o) {
 		},
 		legend: {
 			//hide legend elements for average plots
-			hide: 	(function hide (arr) {
+			hide: 	(function () {
 					//if only one plot, return true (hide legend completely)
 					if (series.length === 1) return true;
-					//recursion:
-					if (arr.length === mean_data.length) return arr;
-					return hide(arr.concat(['mean' + arr.length]));
-				})([]), //returns ['mean0', 'mean1', 'mean2', ...]
+					//otherwise return ['mean0', 'mean1', 'mean2', ...]
+					return (function hide (arr) {
+						if (arr.length === mean_data.length) return arr;
+						return hide(arr.concat(['mean' + arr.length]));
+					})([]); 
+				})(),
 			item: {
 				onmouseover: 	function (id) {
 							chart.focus([id, id.replace('data', 'mean')]);
@@ -100,11 +102,16 @@ function c3_graph(series, options, o) {
 					position: 'outer-middle'
 				},
 				tick: {
-					values:	(function tick_values (arr) {
+					//make all labels visible on the y-axis 
+					values:	(function () {
+							//if there are no y-labels, return undefined (let the y-axis manage itself)
 							if (!o.y_labels) return;
-							if (arr.length === Object.keys(o.y_labels).length) return arr;
-							return tick_values(arr.concat([arr.length + 1]));
-						})([]), //returns [1, 2, 3, 4, ... o.y_labels.length] 
+							//otherwise return [1, 2, 3, 4, ... o.y_labels.length] 
+							return (function tick_values (arr) {
+								if (arr.length === Object.keys(o.y_labels).length) return arr;
+								return tick_values(arr.concat([arr.length + 1]));
+							})([]);
+						})(),
 					format: function (y) {
 							return (o.y_labels ? o.y_labels[y] : y);
 						}
@@ -123,7 +130,7 @@ function c3_graph(series, options, o) {
 				//round to 2 decimal places
 				let decimal_format = d3.format('.2f');
 				let y_value = decimal_format(d.value);
-				let point_data = is_mean_series ? {} : series[d.id.replace(/data/,'')].data[d.index][2];
+				let point_data = is_mean_series ? {} : series[d.id.replace('data','')].data[d.index][2];
 				other_data = '';
 				Object.keys(point_data).forEach(function (key) {
 					other_data += '<tr class="' + key + '"><td class="name">' + key.replace(/_/g,' ') + ':</td><td class="value">' + point_data[key] + '</td></tr>';
