@@ -72,7 +72,15 @@ function c3_graph(series, options, o) {
 					//recursion:
 					if (arr.length === mean_data.length) return arr;
 					return hide(arr.concat(['mean' + arr.length]));
-				})([]) //returns ['mean0', 'mean1', 'mean2', ...]
+				})([]), //returns ['mean0', 'mean1', 'mean2', ...]
+			item: {
+				onmouseover: 	function (id) {
+							chart.focus([id, id.replace('data', 'mean')]);
+						},
+				onclick:	function (id) {
+							chart.toggle([id, id.replace('data', 'mean')]);
+						}
+			}
 		},
 		axis: {
 			x: { 
