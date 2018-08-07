@@ -56,9 +56,7 @@ function c3_graph(series, options, o) {
 		chart_data.names['mean' + index] = item.tooltiplabel;
 	});
 
-	console.log("Chart Data:", chart_data);
-
-	var chart = c3.generate({
+	var chart_properties = {
 		bindto: '#graph2',
 		data: chart_data,
 		zoom: {
@@ -100,6 +98,16 @@ function c3_graph(series, options, o) {
 				label: {
 					text: (o.yaxis === 'result' ? $('span.som_name').text() : o.yaxis),
 					position: 'outer-middle'
+				},
+				tick: {
+					values:	(function tick_values (arr) {
+							if (!o.y_labels) return;
+							if (arr.length === Object.keys(o.y_labels).length) return arr;
+							return tick_values(arr.concat([arr.length + 1]));
+						})([]), //returns [1, 2, 3, 4, ... o.y_labels.length] 
+					format: function (y) {
+							return (o.y_labels ? o.y_labels[y] : y);
+						}
 				}
 			}
 		},
@@ -127,5 +135,8 @@ function c3_graph(series, options, o) {
 					other_data + '</tbody></table>';
 			}
 		}
-	});
+	};
+
+	console.log("Chart Properties:", chart_properties);
+	var chart = c3.generate(chart_properties);
 }
