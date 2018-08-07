@@ -77,11 +77,26 @@ function c3_graph(series, options, o) {
 		},
 		tooltip: {
 			grouped: false,
-			format: {
-				value: 	function (value) {
-						let format = d3.format('.2f');
-						return format(value);
-					}
+			contents: function (d, defaultTitleFormat, defaultValueFormat, color) {
+				d = d[0];
+				//console.log("d:", d, "defaultTitleFormat:", defaultTitleFormat, "defaultValueFormat:", defaultValueFormat, "color:", color);
+				let is_mean_series = /mean/.test(d.id);
+				//set header to series label
+				let title_value = (is_mean_series ? mean_data : series)[d.id.replace(/mean|data/,'')][is_mean_series ? 'tooltiplabel' : 'label'];
+				let x_value = o.x_labels ? o.x_labels[d.x] : d.x;
+				//round to 2 decimal places
+				let decimal_format = d3.format('.2f');
+				let y_value = decimal_format(d.value);
+				let point_data = is_mean_series ? {} : series[d.id.replace(/data/,'')].data[d.index][2];
+				other_data = '';
+				Object.keys(point_data).forEach(function (key) {
+					other_data += '<tr class="' + key + '"><td class="name">' + key.replace(/_/g,' ') + ':</td><td class="value">' + point_data[key] + '</td></tr>';
+				});
+				return 	'<table class="c3-tooltip"><tbody>' + 
+					'<tr><th colspan="2">' + title_value + '</th></tr>' +
+					'<tr class="x"><td class="name">x:</td><td class="value">' + x_value + '</td></tr>' +
+					'<tr class="y"><td class="name">y:</td><td class="value">' + y_value + '</td></tr>' +
+					other_data + '</tbody></table>';
 			}
 		}
 	});
