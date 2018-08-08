@@ -212,7 +212,7 @@ function extract_params(s) {
   for(var i in pairs) {
     var pair = pairs[i].split('=');
     var key = pair[0];
-    var value = pair.slice(1, pair.length).join("=");
+    var value = pair.slice(1, pair.length).join("="); //for the hypothetical case where the value contained an equals sign
     if (!result[key]) result[key] = [];
     if (typeof(pair[1]) === 'undefined') value = "";
     result[key].push(value.replace(/\+/g, " "));
@@ -290,10 +290,9 @@ function serialise_params(params) {
 function get_minimised_params() {
   var form_data = $('form[name=optionsForm]').serialize();
   var params = extract_params(form_data);
-  $.each($('form[name=optionsForm] input[type=checkbox]'), function(i, cb) {
-    if (!on_by_default(cb.name)) return;
-    if (cb.name in params) delete params[cb.name];
-    else params[cb.name] = ["off"];
+  checkboxes_on_by_default.forEach(function (name) {
+    if (name in params) delete params[name]; //if a checkbox parameter that is on by default is found in the list (is checked), remove it from the list
+    else params[name] = ["off"]; //otherwise, add it to the list and indicate that it is off
   });
   if (!filters_visible) {
     params["filters_visible"] = ["false"];
