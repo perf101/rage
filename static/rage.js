@@ -2,8 +2,8 @@
 Invariants (also reflected on server side):
 - Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
-- Y minimum set to zero ("y_fromto_zero") is selected by default.
-- All other checkboxees are not selected by default.
+- show_points, show_avgs, y_fromto_zero is selected by default.
+- All other checkboxes are not selected by default.
 - "SHOW FOR" is the first (default) option for filters ("f_").
 - "ALL" is the first (default) option for filter values ("v_").
 */
@@ -303,27 +303,27 @@ function get_minimised_params() {
   if (!filters_visible) {
     params["filters_visible"] = ["false"];
   }
+
   //remove params that are set to default values
   checkboxes_on_by_default.forEach(function (name) {
     if (name in params) delete params[name]; //if a checkbox parameter that is on by default is found in the list (is checked), remove it from the list
     else params[name] = ["off"]; //otherwise, add it to the list and indicate that it is off
   });
-  //console.log("xaxis:", params.xaxis);
-  if (/*params.xaxis && */params.xaxis[0] == "branch" && params.xaxis.length === 1) delete params.xaxis;
-  if (params.yaxis[0] == "result") delete params.yaxis;
+  if (params.xaxis[0] == graph_selection_defaults.xaxis && params.xaxis.length === 1) delete params.xaxis;
+  if (params.yaxis[0] == graph_selection_defaults.yaxis) delete params.yaxis;
   if (params.legend_position[0] == "ne") delete params.legend_position;
   if (params.symbol[0] == "Circle") delete params.symbol;
-  
+  Object.keys(params).forEach(function (p) {
+    //remove parameter if for filter box "show all" selected (first selection is only selection here)
+    if (/^f_/.test(p) && params[p][0] == "0") return delete params[p];
+    //remove parameter if in filter box (only) "ALL" is selected
+    if (/^v_/.test(p) && params[p].length == 1 && params[p][0] == "ALL") return delete params[p];
+  });
+
   //minimize parameter data
   var minimised = {};
   for (var p in params) {
-    var vs = params[p];
-    var l = vs.length;
-    var f = vs[0]; // first value (the only one for non-multi-selections)
-    var is_show_for = p.indexOf("f_") == 0 && f == "0";
-    var is_all_only = p.indexOf("v_") == 0 && l == 1 && f == "ALL";
-    if (!(is_show_for || is_all_only))
-      minimised[p] = $.map(vs, decode);
+    minimised[p] = $.map(params[p], decode);
   }
   return minimised;
 }
