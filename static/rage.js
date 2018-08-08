@@ -11,6 +11,11 @@ Invariants (also reflected on server side):
 // === GLOBAL VARIABLES --- start ===
 var autofetch = false; // if false, the following triggers have no effect
 var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
+//defaults for all drop-down selection options above filter boxes
+var graph_selection_defaults = {
+	xaxis: ["branch"],
+	yaxis: "result"
+};
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
   "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#x_as_num", "#show_all_meta",
@@ -165,6 +170,7 @@ function on_by_default(name) {
 function preselect_fields_based_on_params() {
   var params = get_url_params();
   delete params.som;
+  //apply parameter data
   for (var param in params) {
     var elt = $("[name='" + param + "']");
     if (elt.is("select")) {
@@ -182,14 +188,18 @@ function preselect_fields_based_on_params() {
     $("[name='" + param + "']").val(params[param].map(decode));
     $("th[name='title_" + param + "']").css({'color':'#e21b09'});
   }
-  for (var i in checkboxes_on_by_default) {
-    var cb_name = checkboxes_on_by_default[i];
-    if (cb_name in params) continue;
-    $("input[name='" + cb_name + "']").prop("checked", true);
-  }
   if ("filters_visible" in params) {
     toggle_filter_visibility();   
   }
+  //apply default values
+  checkboxes_on_by_default.forEach(function (cb_name) {
+    if (cb_name in params) return;
+    $("input[name='" + cb_name + "']").prop("checked", true);
+  });
+  Object.keys(graph_selection_defaults).forEach(function (sel_name) {
+    if (sel_name in params) return;
+    $("select[name='" + sel_name + "']").val(graph_selection_defaults[sel_name]);
+  });
 }
 
 function get_url_params() {
@@ -212,9 +222,8 @@ function extract_params(s) {
   for(var i in pairs) {
     var pair = pairs[i].split('=');
     var key = pair[0];
-    var value = pair.slice(1, pair.length).join("="); //for the hypothetical case where the value contained an equals sign
+    var value = pair[1] ? pair.slice(1, pair.length).join("=") : ""; //goes beyond pair[1] in case the value originally contained an equals sign
     if (!result[key]) result[key] = [];
-    if (typeof(pair[1]) === 'undefined') value = "";
     result[key].push(value.replace(/\+/g, " "));
   }
   return result;
@@ -288,28 +297,32 @@ function serialise_params(params) {
 }
 
 function get_minimised_params() {
+  //get parameter data
   var form_data = $('form[name=optionsForm]').serialize();
   var params = extract_params(form_data);
+  if (!filters_visible) {
+    params["filters_visible"] = ["false"];
+  }
+  //remove params that are set to default values
   checkboxes_on_by_default.forEach(function (name) {
     if (name in params) delete params[name]; //if a checkbox parameter that is on by default is found in the list (is checked), remove it from the list
     else params[name] = ["off"]; //otherwise, add it to the list and indicate that it is off
   });
-  if (!filters_visible) {
-    params["filters_visible"] = ["false"];
-  }
+  //console.log("xaxis:", params.xaxis);
+  if (/*params.xaxis && */params.xaxis[0] == "branch" && params.xaxis.length === 1) delete params.xaxis;
+  if (params.yaxis[0] == "result") delete params.yaxis;
+  if (params.legend_position[0] == "ne") delete params.legend_position;
+  if (params.symbol[0] == "Circle") delete params.symbol;
+  
+  //minimize parameter data
   var minimised = {};
   for (var p in params) {
     var vs = params[p];
     var l = vs.length;
     var f = vs[0]; // first value (the only one for non-multi-selections)
-    var is_xaxis_branch = p == "xaxis" && vs == ["branch"];
-    var is_yaxis_result = p == "yaxis" && f == "result";
     var is_show_for = p.indexOf("f_") == 0 && f == "0";
     var is_all_only = p.indexOf("v_") == 0 && l == 1 && f == "ALL";
-    var is_legend_position_ne = p == "legend_position" && f == "ne";
-    var is_symbol_circle = p == "symbol" && f == "Circle";
-    if (!(is_xaxis_branch || is_yaxis_result || is_show_for || is_all_only
-        || is_legend_position_ne || is_symbol_circle))
+    if (!(is_show_for || is_all_only))
       minimised[p] = $.map(vs, decode);
   }
   return minimised;
