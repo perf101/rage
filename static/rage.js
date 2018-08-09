@@ -440,7 +440,8 @@ function on_stop_plotting() {
 }
 
 // Called after a successful plot, or when user clicks on Stop.
-function on_plotting_finished() {
+function on_plotting_finished(plot_time) {
+  if (plot_time) console.log("Plotting took " + plot_time + "ms.");
   $("#stop_plotting").prop("disabled", true);
   $("#progress_img").toggle(false);
 }
@@ -515,7 +516,7 @@ function GraphObject() {
       prc15to85: prc15to85s};
   }
 
-  function draw_graph(o, cb) {
+  function draw_graph(o, cb) { //will call callback function and pass in the time that plotting started
     stop_plotting();
     graph_data = o;
     // default options

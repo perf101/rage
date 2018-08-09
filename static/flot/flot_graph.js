@@ -56,7 +56,6 @@ function flot_graph (series, o, cb) {
     var start = new Date();
 
     return flot_object = $.plot(graph, series, options, function() {
-        console.log("Plotting took " + (new Date() - start) + "ms.");
         // click
         graph.unbind("plotclick");
         var latest_selection = null;
@@ -87,7 +86,7 @@ function flot_graph (series, o, cb) {
                 show_tooltip(graph, item.pageX + 10, item.pageY, contents);
             }
         });
-        if (typeof cb === "function") cb();
+        if (typeof cb === "function") cb(new Date() - start);
     });
 }
 
