@@ -13,7 +13,7 @@ var autofetch = false; // if false, the following triggers have no effect
 var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
 //defaults for all drop-down selection options above filter boxes
 var graph_selection_defaults = {
-	xaxis: ["branch"],
+	xaxis: ["branch"], //multiselect defaults of length > 1 will always show up in the url
 	yaxis: "result",
 	default_graph: "flot" //default value for selection "default_graph"
 };
@@ -312,34 +312,32 @@ function get_minimised_params() {
   });
   Object.keys(graph_selection_defaults).forEach(function (name) {
     let is_equal;
-    //if this is a mutiselect option
+    //check if this is a mutiselect option
     if (graph_selection_defaults[name].constructor === Array) {
-      //check arrays for equality
-      is_equal = (params[name].length === graph_selection_defaults[name].length && params[name].sort().every(function (val, i) { 
-        return val === graph_selection_defaults[name].sort()[i];
-      }));
+      //check arrays for equality (only for array lengths of 1; otherwise just put it in the url even if the elements are the same)
+      is_equal = (params[name].length === 1 && params[name][0] === graph_selection_defaults[name][0]); 
     } else {
       //otherwise compare the two strings
-      is_equal = (params[name][0] == graph_selection_defaults[name]);
+      is_equal = (params[name][0] === graph_selection_defaults[name]);
     }
     if (is_equal) delete params[name];
   });
-  //console.log(params.xaxis[0] == graph_selection_defaults.xaxis);
-  //if (params.xaxis[0] == graph_selection_defaults.xaxis && params.xaxis.length === 1) delete params.xaxis;
-  //if (params.yaxis[0] == graph_selection_defaults.yaxis) delete params.yaxis;
   if (params.legend_position[0] == "ne") delete params.legend_position;
   if (params.symbol[0] == "Circle") delete params.symbol;
-  Object.keys(params).forEach(function (p) {
-    //remove parameter if for filter box "show all" selected (first selection is only selection here)
-    if (/^f_/.test(p) && params[p][0] == "0") return delete params[p];
-    //remove parameter if in filter box (only) "ALL" is selected
-    if (/^v_/.test(p) && params[p].length == 1 && params[p][0] == "ALL") return delete params[p];
-  });
 
-  //minimize parameter data
+  //minimize parameter data (while excluding default filter box values)
   var minimised = {};
   for (var p in params) {
-    minimised[p] = $.map(params[p], decode);
+    var vs = params[p];
+    var l = vs.length;
+    var f = vs[0]; // first value (the only one for non-multi-selections)
+
+    var is_show_for = (/^f_/.test(p) && params[p][0] == "0");
+    var is_all_only = (/^v_/.test(p) && params[p].length == 1 && params[p][0] == "ALL");
+
+    if (!(is_show_for || is_all_only)) {
+      minimised[p] = $.map(vs, decode);
+    }
   }
   return minimised;
 }
