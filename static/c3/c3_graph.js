@@ -2,7 +2,7 @@ $(function () {
 	$("#graph2").css("background-color", "white");
 });
 
-function c3_graph(series, options, o) {
+function c3_graph(series, o) {
 	// keep only the elements that hold the average points
 	mean_data = series.filter(function (x) {return ('lines' in x)});
 	// keep only elements that contain graph points (remove average points)

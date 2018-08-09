@@ -33,7 +33,7 @@ function get_xs(series, args=null) {
 	return my_set;
 }
 
-function d3_graph(graph, series, o, name="default") {
+function d3_graph(series, o, name="default") {
 
 xaxis_label = o.xaxis;  
 yaxis_label = $("span[class='som_name']").text();
@@ -49,7 +49,7 @@ xyz = get_max_xy(series); //get max x and max y in the xyz array
 
 
 
-graph = new SimpleGraph("graph1",name, {
+var graph = new SimpleGraph("graph1",name, {
 	"xmax": xyz[0], "xmin": 0,
 	"ymax": xyz[1], "ymin": 0, 
 	"title": "Simple Graph1",

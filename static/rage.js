@@ -696,6 +696,8 @@ function GraphObject() {
           lines: {show: true}
         });
     }
+    // at this point, o.series and series may be different (use the data from series)
+
     // options
     var tickGenerator = function(axis) {
       var result = [];
@@ -744,8 +746,9 @@ function GraphObject() {
     }
     $("#stop_plotting").prop("disabled", false);
     var start = new Date();
-    d3_graph(graph, series, o);
-    c3_graph(series, options, o);
+    console.log("Options:", o);
+    d3_graph(series, o);
+    c3_graph(series, o);
     flot_object = $.plot(graph, series, options, function() {
       console.log("Plotting took " + (new Date() - start) + "ms.");
       // click
