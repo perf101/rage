@@ -649,10 +649,6 @@ function GraphObject() {
   function draw_graph(o, cb) {
     stop_plotting();
     graph_data = o;
-    var graph = $("#" + o.target);
-    // HTML graph labels
-    graph.siblings(".xaxis").html(o.xaxis);
-    graph.siblings(".yaxis").html((o.yaxis == "result") ? yaxis = $("span[class='som_name']").text() : o.yaxis); // use the name of the SOM rather than "result"
     // default options
     point_series = o.series;
     num_series = point_series.length;
@@ -663,11 +659,11 @@ function GraphObject() {
     }
     if (total_points > 10000) {
       if (!window.confirm("About to plot " + total_points + " points. This could take a while. Continue?")) {
-	on_plotting_finished();
+	if (typeof cb === "function") cb();
 	return;
       }
     }
-    var symbol = $("select[name='symbol']").val().toLowerCase();
+
     series = is_checked("show_points") ? point_series : [];
     // averages and distributions
     for (var i = 0; i < num_series; i++) {
@@ -692,96 +688,18 @@ function GraphObject() {
           color: point_series[i].color, data: get_averages(point_series[i].data),
           label: is_checked("show_points") ? null : point_series[i].label,
           tooltiplabel : point_series[i].label + " (mean)",
-          points: {show: !is_checked("show_points"), symbol: symbol},
+          points: {show: !is_checked("show_points"), symbol: $("select[name='symbol']").val().toLowerCase() },
           lines: {show: true}
         });
     }
     // at this point, o.series and series may be different (use the data from series)
 
-    // options
-    var tickGenerator = function(axis) {
-      var result = [];
-      var step = (axis.max - axis.min) / 10;
-      var current = axis.min;
-      while (current <= axis.max) {
-        result.push(current);
-        current += step;
-      }
-      return result;
-    };
-    var options = {
-      xaxis: {axisLabel: o.xaxis, labelAngle: 285},
-      yaxis: {axisLabel: o.yaxis},
-      grid: {
-        clickable: true,
-        hoverable: true,
-        canvasText: {show: true}
-      },
-      legend: {
-        type: "canvas",
-        backgroundColor: "white",
-        position: $("select[name='legend_position']").val(),
-      },
-      points: {show: true, symbol: symbol}
-    };
-    // force X from 0
-    if (is_checked("x_from_zero"))
-      options.xaxis.min = 0;
-    // force Y from/to 0
-    if (is_checked("y_fromto_zero"))
-      options.yaxis[o.positive ? "min" : "max"] = 0;
-    // labels
-    configure_labels(o, "x", options);
-    configure_labels(o, "y", options);
-    // log scale
-    if (is_checked("xaxis_log")) {
-      options.xaxis.transform = safe_log;
-      options.xaxis.inverseTransform = Math.exp;
-      options.xaxis.ticks = create_log_ticks;
-    }
-    if (is_checked("yaxis_log")) {
-      options.yaxis.transform = safe_log;
-      options.yaxis.inverseTransform = Math.exp;
-      options.yaxis.ticks = create_log_ticks;
-    }
     $("#stop_plotting").prop("disabled", false);
-    var start = new Date();
+
     console.log("Options:", o);
     d3_graph(series, o);
     c3_graph(series, o);
-    flot_object = $.plot(graph, series, options, function() {
-      console.log("Plotting took " + (new Date() - start) + "ms.");
-      // click
-      graph.unbind("plotclick");
-      var latest_selection = null;
-      graph.bind("plotclick", function (event, pos, item) {
-        if (!item) return;
-        show_tooltip(graph, item.pageX + 10, item.pageY, generate_tooltip(item));
-	latest_selection = item;
-      });
-      // hover
-      var previousPoint = null;
-      graph.unbind("plothover");
-      graph.bind("plothover", function (event, pos, item) {
-        if (!item) {
-          $("#hover_tooltip").remove();
-          previousPoint = null;
-        } else if (previousPoint != item.dataIndex) {
-          previousPoint = item.dataIndex;
-          $("#hover_tooltip").remove();
-          // Generate the diffs since latest_selection
-          var diffs;
-          if (latest_selection == null)
-            diffs = {};
-          else
-            diffs = metadata_diff(get_metadata(latest_selection), get_metadata(item));
-          // Display tooltip
-          var contents = generate_tooltip(item, "hover_tooltip", diffs);
-          show_tooltip(graph, item.pageX + 10, item.pageY, contents);
-        }
-      });
-      if (typeof cb === "function") cb();
-    });
+    flot_object = flot_graph(series, o, cb);
   }
 
   // Called when starting a new plot, or when user clicks on Stop.
