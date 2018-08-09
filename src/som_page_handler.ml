@@ -132,6 +132,7 @@ let t ~args = object (self)
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;
     print_select_list ~label:"View" ~attrs:[("id", "view")] ["Graph"; "Table"];
+    print_select_list ~label:"Default Graph" ~attrs:[("name", "default_graph")] ["flot"; "d3"; "c3"];
     printf "<br><br>";
     printf "<b>Presets:</b>";
     printf "<input value='Brief report analysis' id='preset-brief' type='button'>";

@@ -14,7 +14,8 @@ var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
 //defaults for all drop-down selection options above filter boxes
 var graph_selection_defaults = {
 	xaxis: ["branch"],
-	yaxis: "result"
+	yaxis: "result",
+	default_graph: "flot" //default value for selection "default_graph"
 };
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
@@ -309,8 +310,23 @@ function get_minimised_params() {
     if (name in params) delete params[name]; //if a checkbox parameter that is on by default is found in the list (is checked), remove it from the list
     else params[name] = ["off"]; //otherwise, add it to the list and indicate that it is off
   });
-  if (params.xaxis[0] == graph_selection_defaults.xaxis && params.xaxis.length === 1) delete params.xaxis;
-  if (params.yaxis[0] == graph_selection_defaults.yaxis) delete params.yaxis;
+  Object.keys(graph_selection_defaults).forEach(function (name) {
+    let is_equal;
+    //if this is a mutiselect option
+    if (graph_selection_defaults[name].constructor === Array) {
+      //check arrays for equality
+      is_equal = (params[name].length === graph_selection_defaults[name].length && params[name].sort().every(function (val, i) { 
+        return val === graph_selection_defaults[name].sort()[i];
+      }));
+    } else {
+      //otherwise compare the two strings
+      is_equal = (params[name][0] == graph_selection_defaults[name]);
+    }
+    if (is_equal) delete params[name];
+  });
+  //console.log(params.xaxis[0] == graph_selection_defaults.xaxis);
+  //if (params.xaxis[0] == graph_selection_defaults.xaxis && params.xaxis.length === 1) delete params.xaxis;
+  //if (params.yaxis[0] == graph_selection_defaults.yaxis) delete params.yaxis;
   if (params.legend_position[0] == "ne") delete params.legend_position;
   if (params.symbol[0] == "Circle") delete params.symbol;
   Object.keys(params).forEach(function (p) {
