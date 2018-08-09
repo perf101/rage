@@ -33,7 +33,7 @@ function get_xs(series, args=null) {
 	return my_set;
 }
 
-function d3_graph(series, o, name="default") {
+function d3_graph(series, o, cb, name="default") {
 
 xaxis_label = o.xaxis;  
 yaxis_label = $("span[class='som_name']").text();
@@ -55,7 +55,7 @@ var graph = new SimpleGraph("graph1",name, {
 	"title": "Simple Graph1",
 	"xlabel": xaxis_label, 
 	"ylabel": yaxis_label  
-	}, series, o);
+	}, series, o, cb);
 }; 
 
 registerKeyboardHandler = function(callback) {
@@ -63,7 +63,7 @@ registerKeyboardHandler = function(callback) {
   d3.select(window).on("keydown", callback);  
 };
 
-SimpleGraph = function(elemid, name, options, series, o) {
+SimpleGraph = function(elemid, name, options, series, o, cb) {
 
 
   if ($("#graph1").is(":hidden")) {     //if you click on the btn "redraw" while #graph1 is hidden, it won't redraw #graph1. Then if redraw is called while #graph1 
@@ -74,6 +74,7 @@ SimpleGraph = function(elemid, name, options, series, o) {
 } 
 
   var self = this;
+  this.cb = cb;
   this.o = o; 
   this.color = colors(series.length);
   this.series = series; 
@@ -426,6 +427,9 @@ SimpleGraph.prototype.redraw = function() {
 
   var will_hide = 0; 
 
+  //for measuring time taken
+  var start = new Date();
+
   var self = this;
   
   $("[class='tooltip']").remove();
@@ -566,7 +570,8 @@ SimpleGraph.prototype.redraw = function() {
     gy.exit().remove();
 
     self.update();
-  
+
+    if (typeof(self.cb) === "function") self.cb(new Date() - start);
 }
 
 SimpleGraph.prototype.xaxis_drag = function() {

@@ -567,8 +567,8 @@ function GraphObject() {
     $("#stop_plotting").prop("disabled", false);
 
     console.log("Options:", o);
-    d3_graph(series, o);
-    c3_graph(series, o);
+    d3_graph(series, o, cb);
+    c3_graph(series, o, cb);
     flot_object = flot_graph(series, o, cb);
   }
 
