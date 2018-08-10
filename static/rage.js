@@ -427,9 +427,8 @@ function on_received(o) {
     if (view == "Table") {
       $('#graph').hide();
       $('#table').show();
-      make_table(o);
+      make_table(o, on_plotting_finished);
     } else console.log("Unknown view.");
-    on_plotting_finished();
   }
 }
 
@@ -577,7 +576,7 @@ function GraphObject() {
 }
 
 
-function make_table(o) {
+function make_table(o, cb) {
   var content = '';
   // shell begin
   content += '<table border="1" class="tablesorter">';
@@ -615,7 +614,8 @@ function make_table(o) {
   // shell end + output
   content += '</tbody></table>';
   $('#table').html(content);
-  $("#table .tablesorter").tablesorter();
+  //$("#table .tablesorter").tablesorter();
+  if (typeof(cb) === "function") cb();
 }
 
 function on_async_fail(XMLHttpRequest, textStatus, errorThrown) {
