@@ -1,4 +1,3 @@
-//is_checked and has_labels exists in outside code (rage.js)
 function flot_graph (series, o, cb) {
     var graph = $("#" + o.target);
     // HTML graph labels
@@ -32,6 +31,10 @@ function flot_graph (series, o, cb) {
         },
         points: {show: true, symbol: symbol}
     };
+
+    function is_checked(cb_name) {
+        return $("input[name='" + cb_name + "']").is(":checked");
+    }
 
     // force X from 0
     if (is_checked("x_from_zero"))
@@ -97,7 +100,7 @@ function configure_labels(o, axis, options) {
         axis_options.ticks = 10;
         axis_options.tickDecimals = 0;
     }
-    if (!has_labels(o, axis)) return;
+    if (!o[axis + "_labels"]) return;
     var labels = o[axis + "_labels"];
     axis_options.min = 1;
     axis_options.tickFormatter = function(val, axis) {
@@ -154,8 +157,8 @@ function metadata_diff(x, y) {
 function get_metadata(o, item) {
     var x = item.datapoint[0].toFixed(2);
     var y = item.datapoint[1].toFixed(2);
-    var xl = has_labels(o, "x") ? o.x_labels[Math.floor(x)] : x;
-    var yl = has_labels(o, "y") ? o.y_labels[Math.floor(y)] : y;
+    var xl = o.x_labels ? o.x_labels[Math.floor(x)] : x;
+    var yl = o.y_labels ? o.y_labels[Math.floor(y)] : y;
     var label = "";
     if ("tooltiplabel" in item.series) {
         label = item.series.tooltiplabel;
