@@ -456,7 +456,6 @@ function GraphObject() {
   this.draw_graph = draw_graph;
   this.stop_plotting = stop_plotting;
 
-  var graph_data = {};
   var flot_object = null;
   var series = [];
   var num_series = 0;
@@ -518,7 +517,6 @@ function GraphObject() {
 
   function draw_graph(o, cb) { //will call callback function and pass in the time that plotting started
     stop_plotting();
-    graph_data = o;
     // default options
     point_series = o.series;
     num_series = point_series.length;
