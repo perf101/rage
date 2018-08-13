@@ -737,12 +737,17 @@ function change_graph() {
 	options_container.attr('id', sel_value).find("*").remove();
 	//add new options
 	var options_elements = generate_option_elements(specific_graph_options[sel_value]);
-	options_container.append(options_elements);
+	options_container.append(options_elements).change(function () {
+		selected_graph_options[sel_value][$(this).attr('id')] = $(this).val();
+		redraw_trigger();
+	});
 	// apply selected options
 	console.log("Extra Options:", selected_graph_options);
 	Object.keys(selected_graph_options[sel_value]).forEach(function (option) {
 		options_container.find('#' + option).val(selected_graph_options[sel_value][option]);
 	});
+	//trigger redraw
+	redraw_trigger();
 }
 
 function generate_option_elements(options) {
