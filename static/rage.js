@@ -707,7 +707,7 @@ function on_async_fail(XMLHttpRequest, textStatus, errorThrown) {
 }
 
 function load_default_graph() {
-	var sel_value = $("input[name='default_graph']").val();
+	var sel_value = $("select[name='default_graph']").val();
 	$("#graph_option").val(sel_value);
 	//change the graph (if necessary) and reveal graph_options
 	change_graph();
