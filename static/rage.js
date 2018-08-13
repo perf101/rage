@@ -212,9 +212,10 @@ function preselect_fields_based_on_params() {
   var params = get_url_params();
   delete params.som;
   //get graph-specific options data from parameters
-  if(params.specific_graph_options) {
-    selected_graph_options = params.specific_graph_options;
-    delete params.specific_graph_options;
+  if(params.graph_specific_options) {
+    console.log("Received Graph Options:", JSON.parse(decode(params.graph_specific_options[0])));
+    selected_graph_options = JSON.parse(decode(params.graph_specific_options[0]));
+    delete params.graph_specific_options;
   }
   specific_graph_options_init();
   //apply parameter data
@@ -260,7 +261,7 @@ function specific_graph_options_init () {
 	}
 	for (option in graph_type_defaults) {
 		if (!selected_graph_options[graph_type][option]) {
-			selected_graph_options[graph_type][option] = jQuery.extend(true, {}, graph_type_defaults[option]); //deep copy (changes to selected shouldn't affect defaults)
+			selected_graph_options[graph_type][option] = graph_type_defaults[option]; //no deep copy (not object)
 		}
 	}
   }
@@ -385,9 +386,18 @@ function get_minimised_params() {
     }
     if (is_equal) delete params[name];
   });
-  //if (params.legend_position[0] == "ne") delete params.legend_position;
-  //if (params.symbol[0] == "Circle") delete params.symbol;
-
+  //get graph-specific options with default values removed
+  var graph_options_without_defaults = jQuery.extend(true, {}, selected_graph_options); //deep copy
+  for (graph_type in graph_options_without_defaults) {
+    for (option in graph_options_without_defaults[graph_type]) {
+      if (specific_graph_options_defaults[graph_type][option] === graph_options_without_defaults[graph_type][option]) {
+        delete graph_options_without_defaults[graph_type][option];	
+      }
+    }
+    if (jQuery.isEmptyObject(graph_options_without_defaults[graph_type])) delete graph_options_without_defaults[graph_type];
+  }
+  console.log("Graph Options:", graph_options_without_defaults);
+  if (!jQuery.isEmptyObject(graph_options_without_defaults)) params.graph_specific_options = [JSON.stringify(graph_options_without_defaults)];
   //minimize parameter data (while excluding default filter box values)
   var minimised = {};
   for (var p in params) {
@@ -723,28 +733,27 @@ function change_graph() {
                 $(".graph_container").show();
         }
 
-	//collect old data and use it to update what the selected options are
-	/*var old_graph_type = $(".specific_graph_options").attr('id');
-	var old_graph_data = {};
-	$(".specific_graph_options").find("select, option").each(function () {
-		old_graph_data[$(this).attr('id')] = $(this).val();
-	});
-	Object.keys(selected_graph_options[old_graph_type]).forEach(function (key) {
-		selected_graph_options[old_graph_type][key] = selected_graph_options[key];
-	});*/
 	//reset id and remove old options
 	var options_container = $(".specific_graph_options");
 	options_container.attr('id', sel_value).find("*").remove();
 	//add new options
 	var options_elements = generate_option_elements(specific_graph_options[sel_value]);
-	options_container.append(options_elements).change(function () {
-		selected_graph_options[sel_value][$(this).attr('id')] = $(this).val();
+	options_container.append(options_elements);
+	options_container.find("select").change(function () {
+		selected_graph_options[sel_value][$(this).attr("id")] = $(this).val();
+		redraw_trigger();
+	});
+	options_container.find("input").change(function () {
+		selected_graph_options[sel_value][$(this).attr("id")] = $(this).is(":checked");
 		redraw_trigger();
 	});
 	// apply selected options
-	console.log("Extra Options:", selected_graph_options);
 	Object.keys(selected_graph_options[sel_value]).forEach(function (option) {
-		options_container.find('#' + option).val(selected_graph_options[sel_value][option]);
+		if (specific_graph_options[sel_value][option].type === "select") {
+			options_container.find('#' + option).val(selected_graph_options[sel_value][option]);
+		} else { //checkbox
+			options_container.find('#' + option).prop("checked", selected_graph_options[sel_value][option]);
+		}
 	});
 	//trigger redraw
 	redraw_trigger();
