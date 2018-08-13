@@ -157,8 +157,14 @@ form[name="optionsForm"] option:checked {
   -o-transform: translateX(-60px) rotate(-90deg); /* Opera */
   white-space: normal;
 }
-#legend_position, #symbol {
+.specific_graph_options {
   display: inline-block;
+  vertical-align: top;
+  float: right;
+}
+.specific_graph_options div {
+  display: inline-block;
+  padding-left: 8px;
 }
 .clear {
   clear: both;

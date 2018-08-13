@@ -15,7 +15,7 @@ function flot_graph (series, o, cb) {
         }
         return result;
     };
-    var symbol = $("select[name='symbol']").val().toLowerCase();
+    var symbol = $("select[id='symbol']").val().toLowerCase();
     var options = {
         xaxis: { axisLabel: o.xaxis, labelAngle: 285 },
         yaxis: { axisLabel: o.yaxis },
@@ -27,7 +27,7 @@ function flot_graph (series, o, cb) {
         legend: {
             type: "canvas",
             backgroundColor: "white",
-            position: $("select[name='legend_position']").val(),
+            position: $("select[id='legend_position']").val(),
         },
         points: {show: true, symbol: symbol}
     };

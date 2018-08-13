@@ -17,11 +17,53 @@ var graph_selection_defaults = {
 	yaxis: "result",
 	default_graph: "flot" //default value for selection "default_graph"
 };
+var selected_graph_options = {}; // which specific graph options are selected
+//specific options available for each graph
+var specific_graph_options = {
+	flot: {
+		legend_position: {
+			label: "Legend Position:",
+			type: "select",
+			options: [ ["ne", "North-East"],
+				   ["nw", "North-West"],
+				   ["se", "South-East"],
+				   ["sw", "South-West"],
+				   ["__", "(nowhere)"] ]
+		},
+		symbol: {
+			label: "Symbol to use:",
+			type: "select",
+			options: [ ["Diamond", "Diamond"],
+				   ["Circle", "Circle"],
+				   ["Cross", "Cross"],
+				   ["Square", "Square"],
+				   ["Triangle", "Triangle"] ]
+		}
+	},
+	d3: {},
+	c3: {
+		line_type: {
+			label: "Line Type:",
+			type: "select",
+			options: [ ["line", "Line"],
+				   ["spline", "Spline"] ]
+		},
+		rescale_y: {
+			label: "Autorescale Y:",
+			type: "checkbox"
+		}
+	}
+};
+var specific_graph_options_defaults = {
+	flot: { legend_position: "ne", symbol: "Circle" },
+	d3: {},
+	c3: { line_type: "line", rescale_y: false }
+};
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
   "#x_from_zero", "#y_fromto_zero", "#x_as_seq", "#y_as_seq", "#x_as_num", "#show_all_meta",
   "#symbol", "#xaxis_log", "#yaxis_log", "#legend_position", "#get_img", "#auto_redraw"
-]
+];
 var url_params = get_url_params();
 var debug = ("debug" in url_params);
 var filters_visible = true;
@@ -75,8 +117,6 @@ function som_page_init() {
   $("input[name='show_all_meta']").change(redraw_trigger);
   $("input[name='xaxis_log']").change(redraw_trigger);
   $("input[name='yaxis_log']").change(redraw_trigger);
-  $("select[name='legend_position']").change(redraw_trigger);
-  $("select[name='symbol']").change(redraw_trigger);
   $(".filterselect").change(redraw_trigger);
   $(".multiselect").change(function() {
     redraw_trigger(); 
@@ -87,6 +127,7 @@ function som_page_init() {
   });
   // fetch and process data immediately
   preselect_fields_based_on_params();
+  load_default_graph();
   $("#graph_title").css('display','none'); //until a graph is drawn, the graph title should be hidden
   $("#redraw").css('color', '#e21b09'); //until a graph is drawn, the Draw/Redraw button should be red
   set_auto_redraw(); //will call fetch_data_and_process() if auto_redraw is enabled
@@ -95,7 +136,6 @@ function som_page_init() {
   // tiny url
   $("#get_tinyurl").click(get_tinyurl);
   $("input[name='auto_redraw']").change(set_auto_redraw);
-  change_graph(); //makes sure that only the default graph type is visible
 }
 
 function soms_by_tc_page_init() {
@@ -171,6 +211,12 @@ function on_by_default(name) {
 function preselect_fields_based_on_params() {
   var params = get_url_params();
   delete params.som;
+  //get graph-specific options data from parameters
+  if(params.specific_graph_options) {
+    selected_graph_options = params.specific_graph_options;
+    delete params.specific_graph_options;
+  }
+  specific_graph_options_init();
   //apply parameter data
   for (var param in params) {
     var elt = $("[name='" + param + "']");
@@ -201,6 +247,23 @@ function preselect_fields_based_on_params() {
     if (sel_name in params) return;
     $("select[name='" + sel_name + "']").val(graph_selection_defaults[sel_name]);
   });
+}
+
+
+//apply necessary defaults to graph (what is missing is set to default)
+function specific_graph_options_init () {
+  for (graph_type in specific_graph_options_defaults) {
+	var graph_type_defaults = specific_graph_options_defaults[graph_type];
+	if (!selected_graph_options[graph_type]) {
+		selected_graph_options[graph_type] = jQuery.extend(true, {}, graph_type_defaults); //deep copy (changes to selected shouldn't affect defaults)
+		continue;
+	}
+	for (option in graph_type_defaults) {
+		if (!selected_graph_options[graph_type][option]) {
+			selected_graph_options[graph_type][option] = jQuery.extend(true, {}, graph_type_defaults[option]); //deep copy (changes to selected shouldn't affect defaults)
+		}
+	}
+  }
 }
 
 function get_url_params() {
@@ -322,8 +385,8 @@ function get_minimised_params() {
     }
     if (is_equal) delete params[name];
   });
-  if (params.legend_position[0] == "ne") delete params.legend_position;
-  if (params.symbol[0] == "Circle") delete params.symbol;
+  //if (params.legend_position[0] == "ne") delete params.legend_position;
+  //if (params.symbol[0] == "Circle") delete params.symbol;
 
   //minimize parameter data (while excluding default filter box values)
   var minimised = {};
@@ -555,7 +618,7 @@ function GraphObject() {
           color: point_series[i].color, data: get_averages(point_series[i].data),
           label: is_checked("show_points") ? null : point_series[i].label,
           tooltiplabel : point_series[i].label + " (mean)",
-          points: {show: !is_checked("show_points"), symbol: $("select[name='symbol']").val().toLowerCase() },
+          points: {show: !is_checked("show_points"), symbol: selected_graph_options.flot.symbol/*$("select[id='symbol']").val().toLowerCase()*/ },
           lines: {show: true}
         });
     }
@@ -564,9 +627,18 @@ function GraphObject() {
     $("#stop_plotting").prop("disabled", false);
 
     console.log("Options:", o);
-    d3_graph(series, o, cb);
-    c3_graph(series, o, cb);
-    flot_object = flot_graph(series, o, cb);
+    let graph_type = $("#graph_option").val();
+    switch (graph_type) {
+	case "flot":
+    	    flot_object = flot_graph(series, o, cb);
+	    break;
+	case "d3":
+	    d3_graph(series, o, cb);
+	    break;
+	case "c3":
+	    c3_graph(series, o, cb);
+	    break;
+    }
   }
 
   // Called when starting a new plot, or when user clicks on Stop.
@@ -624,6 +696,13 @@ function on_async_fail(XMLHttpRequest, textStatus, errorThrown) {
   console.log(errorThrown);
 }
 
+function load_default_graph() {
+	var sel_value = $("input[name='default_graph']").val();
+	$("#graph_option").val(sel_value);
+	//change the graph (if necessary) and reveal graph_options
+	change_graph();
+}
+
 function change_graph() {
 
         var sel_value = $("#graph_option").val();
@@ -642,9 +721,49 @@ function change_graph() {
                 $("#graph1").hide();
 		$("#graph2").hide();
                 $(".graph_container").show();
-
         }
 
+	//collect old data and use it to update what the selected options are
+	/*var old_graph_type = $(".specific_graph_options").attr('id');
+	var old_graph_data = {};
+	$(".specific_graph_options").find("select, option").each(function () {
+		old_graph_data[$(this).attr('id')] = $(this).val();
+	});
+	Object.keys(selected_graph_options[old_graph_type]).forEach(function (key) {
+		selected_graph_options[old_graph_type][key] = selected_graph_options[key];
+	});*/
+	//reset id and remove old options
+	var options_container = $(".specific_graph_options");
+	options_container.attr('id', sel_value).find("*").remove();
+	//add new options
+	var options_elements = generate_option_elements(specific_graph_options[sel_value]);
+	options_container.append(options_elements);
+	// apply selected options
+	console.log("Extra Options:", selected_graph_options);
+	Object.keys(selected_graph_options[sel_value]).forEach(function (option) {
+		options_container.find('#' + option).val(selected_graph_options[sel_value][option]);
+	});
+}
+
+function generate_option_elements(options) {
+	var elements = "";
+	Object.keys(options).forEach(function (key) {
+		let o = options[key];
+		if (o.type === "select") {
+			//construct dropdown
+			let options = "";
+			o.options.forEach(function (item) {
+				options += "<option value='" + item[0] + "'>" + item[1] + "</option>";
+			});
+			elements += "<div><b>" + o.label + "</b><select id='" + key + "'>" + options + "</select></div>";
+		} else if (o.type === "checkbox") {
+			//construct checkbox
+			elements += "<div><b>" + o.label + "</b><input id='" + key + "' type='checkbox'></div>";
+		} else {
+			console.error("unknown type for graph-specific options");
+		}
+	});
+	return elements;
 }
 
 // Presets
