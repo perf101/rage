@@ -147,6 +147,14 @@ function c3_graph(series, o, cb) {
 		},
 		onrendered: finished_rendering
 	};
+
+	//handle y_fromto_zero
+	if ($('input[name="y_fromto_zero"]').is(':checked')) {
+		chart_properties.axis.y[o.positive ? "min" : "max"] = 0;
+		chart_properties.axis.y.padding = {};
+		chart_properties.axis.y.padding[o.positive ? "bottom" : "top"] = 0;
+	}
+
 	console.log("Chart Properties:", chart_properties);
 	var chart = c3.generate(chart_properties);
 }
