@@ -47,7 +47,7 @@ function c3_graph(series, o, cb) {
 		chart_data.columns.push(['x_mean' + index].concat(x_values));
 		chart_data.columns.push(['mean' + index].concat(y_values));
 		//set type for plots of average points
-		chart_data.types['mean' + index] = 'line';
+		chart_data.types['mean' + index] = $('#line_type').val();
 		//set displayed name
 		chart_data.names['mean' + index] = item.tooltiplabel;
 	});
@@ -62,7 +62,8 @@ function c3_graph(series, o, cb) {
 		bindto: '#graph2',
 		data: chart_data,
 		zoom: {
-			enabled: true
+			enabled: true,
+			rescale: $('#rescale_y').is(':checked')
 		},
 		legend: {
 			//hide legend elements for average plots
