@@ -628,7 +628,7 @@ function GraphObject() {
           color: point_series[i].color, data: get_averages(point_series[i].data),
           label: is_checked("show_points") ? null : point_series[i].label,
           tooltiplabel : point_series[i].label + " (mean)",
-          points: {show: !is_checked("show_points"), symbol: selected_graph_options.flot.symbol/*$("select[id='symbol']").val().toLowerCase()*/ },
+          points: {show: !is_checked("show_points")},
           lines: {show: true}
         });
     }
