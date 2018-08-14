@@ -14,7 +14,7 @@ function c3_graph(series, o, cb) {
 		color: function (color, d) {
 			d = d.id || d;
 			if (/mean/.test(d)) {
-				return colors_obj[d.replace('mean', 'data')];
+				return colors_obj[d.replace('mean', 'data')] || color;
 			} else {
 				colors_obj[d] = color;
 				return color;
@@ -48,8 +48,8 @@ function c3_graph(series, o, cb) {
 		chart_data.columns.push(['mean' + index].concat(y_values));
 		//set type for plots of average points
 		chart_data.types['mean' + index] = $('#line_type').val();
-		//set displayed name
-		chart_data.names['mean' + index] = item.tooltiplabel;
+		//set displayed name (will have label property if show_points=false)
+		chart_data.names['mean' + index] = item.label || item.tooltiplabel;
 	});
 	
 	//for measuring time taken
@@ -70,6 +70,8 @@ function c3_graph(series, o, cb) {
 			hide: 	(function () {
 					//if only one plot, return true (hide legend completely)
 					if (series.length === 1) return true;
+					//if show_points=false, show mean curve legend elements (all elements)
+					if (series.length === 0 && mean_data.length !== 1) return false;
 					//otherwise return ['mean0', 'mean1', 'mean2', ...]
 					return (function hide (arr) {
 						if (arr.length === mean_data.length) return arr;
@@ -78,10 +80,18 @@ function c3_graph(series, o, cb) {
 				})(),
 			item: {
 				onmouseover: 	function (id) {
-							chart.focus([id, id.replace('data', 'mean')]);
+							if (/mean/.test(id)) {
+								chart.focus(id);
+							} else {
+								chart.focus([id, id.replace('data', 'mean')]);
+							}
 						},
 				onclick:	function (id) {
-							chart.toggle([id, id.replace('data', 'mean')]);
+							if (/mean/.test(id)) {
+								chart.toggle(id);
+							} else {
+								chart.toggle([id, id.replace('data', 'mean')]);
+							}
 						}
 			}
 		},
