@@ -1,7 +1,3 @@
-$( window ).load(function() {
-  $("#graph1").css("background-color", "white");
-});
-
 function zip(a, b) {
 
 	return a.map(function (e, i) {
