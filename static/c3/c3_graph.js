@@ -182,6 +182,10 @@ function c3_graph(series, o, cb) {
 
 	console.log("Chart Properties:", chart_properties);
 	var chart = c3.generate(chart_properties);
+	
+	mean_data.forEach(function (item, index) {
+		d3.selectAll('.c3-circles-mean' + index + ' circle').style('opacity', null).classed("circle-mean", true); //allows for external styling
+	});
 	fillArea();
 
 	function fillArea () {
