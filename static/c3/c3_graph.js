@@ -25,14 +25,19 @@ function c3_graph(series, o, cb) {
 			}
 		}
 	};
+	
+	//check if axis scale is linear or logarithmic
+	var x_log = $('input[name="xaxis_log"]').is(':checked');
+	var y_log = $('input[name="yaxis_log"]').is(':checked');
+
 	//add the necessary data to chart_data to plot graph points
 	series.forEach(function (item, index) {
 		chart_data.xs['data' + index] = 'x_data' + index;
 		var x_values = item.data.map(function(pair) {
-			return pair[0];
+			return x_log ? Math.log(pair[0]) : pair[0];
 		});
 		var y_values = item.data.map(function(pair) {
-			return pair[1];
+			return y_log ? Math.log(pair[1]) : pair[1];
 		});
 		chart_data.columns.push(['x_data' + index].concat(x_values));
 		chart_data.columns.push(['data' + index].concat(y_values));
@@ -43,10 +48,10 @@ function c3_graph(series, o, cb) {
 	mean_data.forEach(function (item, index) {
 		chart_data.xs['mean' + index] = 'x_mean' + index;
 		var x_values = item.data.map(function(pair) {
-			return pair[0];
+			return x_log ? Math.log(pair[0]) : pair[0];
 		});
 		var y_values = item.data.map(function(pair) {
-			return pair[1];
+			return y_log ? Math.log(pair[1]) : pair[1];
 		});
 		chart_data.columns.push(['x_mean' + index].concat(x_values));
 		chart_data.columns.push(['mean' + index].concat(y_values));
@@ -110,6 +115,7 @@ function c3_graph(series, o, cb) {
 					multiline: false,
 					culling: (o.x_labels ? false : true),
 					format:	function (x) {
+							x = (x_log ? Math.exp(x).toFixed(0) : x);
 							return (o.x_labels ? o.x_labels[x] : x);
 						}
 				}
@@ -125,12 +131,16 @@ function c3_graph(series, o, cb) {
 							//if there are no y-labels, return undefined (let the y-axis manage itself)
 							if (!o.y_labels) return;
 							//otherwise return [1, 2, 3, 4, ... o.y_labels.length] 
-							return (function tick_values (arr) {
+							var tick_values = (function get_values (arr) {
 								if (arr.length === Object.keys(o.y_labels).length) return arr;
-								return tick_values(arr.concat([arr.length + 1]));
+								return get_values(arr.concat([arr.length + 1]));
 							})([]);
+							//check if using logarithmic scale
+							if (y_log) return tick_values.map(Math.log);
+							return tick_values;
 						})(),
 					format: function (y) {
+							y = (y_log ? Math.exp(y).toFixed(0) : y);
 							return (o.y_labels ? o.y_labels[y] : y);
 						}
 				}
@@ -181,9 +191,9 @@ function c3_graph(series, o, cb) {
 			var yscale = chart.internal.y;
 			var color = colors_obj['data' + Math.floor(index/3)] || colors_obj['mean' + Math.floor(index/3)];
 			var area = d3.area()
-				.x(function (d) { return xscale(item.data[d][0]); })
-				.y0(function (d) { return yscale(item.data[d][1]); })
-				.y1(function (d) { return yscale(item.data[d][2]); })
+				.x(function (d) { return xscale( x_log ? Math.log(item.data[d][0]) : item.data[d][0] ); })
+				.y0(function (d) { return yscale( y_log ? Math.log(item.data[d][1]) : item.data[d][1] ); })
+				.y1(function (d) { return yscale( y_log ? Math.log(item.data[d][2]) : item.data[d][2] ); })
 				.curve($('#line_type').val() === "spline" ? d3.curveMonotoneX : d3.curveLinear);
 			d3.select('g.c3-chart #dist' + index).remove();
 			d3.select('g.c3-chart').append('path')
