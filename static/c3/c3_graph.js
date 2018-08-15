@@ -1,6 +1,7 @@
 function c3_graph(series, o, cb) {
-	// keep only the elements that hold the average points
-	mean_data = series.filter(function (x) {return ('lines' in x)});
+	// keep the elements that hold the average points and distribution points
+	var mean_data = series.filter(function (x) {return ('tooltiplabel' in x)});
+	var distribution_data =	series.filter(function (x) {return ('lines' in x) && ('fill' in x.lines)}); //shadowSize distribution line excluded - seems to have no purpose
 	// keep only elements that contain graph points (remove average points)
 	series = series.filter(function (x) {return !('lines' in x)});
 	let colors_obj = {}; //for keeping track of colors in non-average plots
@@ -13,8 +14,11 @@ function c3_graph(series, o, cb) {
 		//set color of average plots to be the same as the non-average plots
 		color: function (color, d) {
 			d = d.id || d;
-			if (/mean/.test(d)) {
-				return colors_obj[d.replace('mean', 'data')] || color;
+			if (/mean/.test(d)) { //if show_points=false, will use own color
+				let mean_color = colors_obj[d.replace('mean', 'data')] || color;
+				//store color for distribution when show_points=false
+				if (distribution_data.length !== 0 && series.length === 0) colors_obj[d] = mean_color; 
+				return mean_color;
 			} else {
 				colors_obj[d] = color;
 				return color;
@@ -51,7 +55,25 @@ function c3_graph(series, o, cb) {
 		//set displayed name (will have label property if show_points=false)
 		chart_data.names['mean' + index] = item.label || item.tooltiplabel;
 	});
-	
+	//add the necessary data to chart_data to plot average graph points
+	/*distribution_data.forEach(function (item, index) {
+		//format of names: dist(which plot)_(which pair)_(which value in pair)
+		var dist_name_part = 'dist' + Math.floor(index/3) + '_' + index % 3;
+		chart_data.xs[dist_name_part + '_0'] = 'x_dist' + index;
+		chart_data.xs[dist_name_part + '_1'] = 'x_dist' + index;
+		var x_values = item.data.map(function (triple) {
+			return triple[0];
+		});
+		var y1_values = item.data.map(function (triple) {
+			return triple[1];
+		});
+		var y2_values = item.data.map(function (triple) {
+			return triple[2];
+		});
+		chart_data.columns.push(['x_dist' + index].concat(x_values));
+		chart_data.columns.push([dist_name_part + '_0'].concat(y1_values));
+		chart_data.columns.push([dist_name_part + '_1'].concat(y2_values));
+	});*/
 	//for measuring time taken
 	var start = new Date();
 	var finished_rendering = function () {
@@ -63,7 +85,8 @@ function c3_graph(series, o, cb) {
 		data: chart_data,
 		zoom: {
 			enabled: true,
-			rescale: $('#rescale_y').is(':checked')
+			rescale: $('#rescale_y').is(':checked'),
+			onzoom: fillArea
 		},
 		legend: {
 			//hide legend elements for average plots
@@ -80,14 +103,14 @@ function c3_graph(series, o, cb) {
 				})(),
 			item: {
 				onmouseover: 	function (id) {
-							if (/mean/.test(id)) {
+							if (/mean/.test(id)) { //will only be a mean plot if show_points=false (no data plots)
 								chart.focus(id);
 							} else {
 								chart.focus([id, id.replace('data', 'mean')]);
 							}
 						},
 				onclick:	function (id) {
-							if (/mean/.test(id)) {
+							if (/mean/.test(id)) { //will only be a mean plot if show_points=false (no data plots)
 								chart.toggle(id);
 							} else {
 								chart.toggle([id, id.replace('data', 'mean')]);
@@ -167,4 +190,27 @@ function c3_graph(series, o, cb) {
 
 	console.log("Chart Properties:", chart_properties);
 	var chart = c3.generate(chart_properties);
+	fillArea();
+
+	function fillArea () {
+		distribution_data.forEach(function (item, index) {
+			var indices = d3.range(item.data.length); 
+			var xscale = chart.internal.x;
+			var yscale = chart.internal.y;
+			var color = colors_obj['data' + Math.floor(index/3)] || colors_obj['mean' + Math.floor(index/3)];
+			var area = d3.area()
+				.x(function (d) { return xscale(item.data[d][0]); })
+				.y0(function (d) { return yscale(item.data[d][1]); })
+				.y1(function (d) { return yscale(item.data[d][2]); })
+				.curve($('#line_type').val() === "spline" ? d3.curveMonotoneX : d3.curveLinear);
+			d3.select('g.c3-chart #dist' + index).remove();
+			d3.select('g.c3-chart').append('path')
+				.datum(indices)
+				.attr('class', 'area')
+				.attr('id', 'dist' + index)
+				.attr('d', area)
+				.style('fill', color)
+				.style('opacity', 0.2);
+		});
+	}
 }
