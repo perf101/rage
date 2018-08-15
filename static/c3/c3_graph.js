@@ -102,6 +102,7 @@ function c3_graph(series, o, cb) {
 							} else {
 								chart.toggle([id, id.replace('data', 'mean')]);
 							}
+							fillArea();
 						}
 			}
 		},
@@ -183,13 +184,23 @@ function c3_graph(series, o, cb) {
 	console.log("Chart Properties:", chart_properties);
 	var chart = c3.generate(chart_properties);
 	
-	mean_data.forEach(function (item, index) {
-		d3.selectAll('.c3-circles-mean' + index + ' circle').style('opacity', null).classed("circle-mean", true); //allows for external styling
-	});
+	for (let i = 0; i < mean_data.length; i++) {
+		d3.selectAll('.c3-circles-mean' + i + ' circle').style('opacity', null).classed("circle-mean", true); //allows for external styling
+	}
 	fillArea();
 
 	function fillArea () {
 		distribution_data.forEach(function (item, index) {
+			d3.select('g.c3-chart #dist' + index).remove();
+			//if a plot has been toggled off, do not draw its distribution
+			var data_legend_element = d3.select('.c3-legend-item-data' + Math.floor(index/3));
+			if (!data_legend_element.empty()) {
+				if (data_legend_element.classed('c3-legend-item-hidden')) return;
+			} else {
+				var mean_legend_element = d3.select('.c3-legend-item-mean' + Math.floor(index/3));
+				if(!mean_legend_element.empty() && mean_legend_element.classed('c3-legend-item-hidden')) return;
+			}
+			//draw distribution
 			var indices = d3.range(item.data.length); 
 			var xscale = chart.internal.x;
 			var yscale = chart.internal.y;
@@ -199,7 +210,6 @@ function c3_graph(series, o, cb) {
 				.y0(function (d) { return yscale( y_log ? Math.log(item.data[d][1]) : item.data[d][1] ); })
 				.y1(function (d) { return yscale( y_log ? Math.log(item.data[d][2]) : item.data[d][2] ); })
 				.curve($('#line_type').val() === "spline" ? d3.curveMonotoneX : d3.curveLinear);
-			d3.select('g.c3-chart #dist' + index).remove();
 			d3.select('g.c3-chart').append('path')
 				.datum(indices)
 				.attr('class', 'area')
