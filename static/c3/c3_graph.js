@@ -55,25 +55,7 @@ function c3_graph(series, o, cb) {
 		//set displayed name (will have label property if show_points=false)
 		chart_data.names['mean' + index] = item.label || item.tooltiplabel;
 	});
-	//add the necessary data to chart_data to plot average graph points
-	/*distribution_data.forEach(function (item, index) {
-		//format of names: dist(which plot)_(which pair)_(which value in pair)
-		var dist_name_part = 'dist' + Math.floor(index/3) + '_' + index % 3;
-		chart_data.xs[dist_name_part + '_0'] = 'x_dist' + index;
-		chart_data.xs[dist_name_part + '_1'] = 'x_dist' + index;
-		var x_values = item.data.map(function (triple) {
-			return triple[0];
-		});
-		var y1_values = item.data.map(function (triple) {
-			return triple[1];
-		});
-		var y2_values = item.data.map(function (triple) {
-			return triple[2];
-		});
-		chart_data.columns.push(['x_dist' + index].concat(x_values));
-		chart_data.columns.push([dist_name_part + '_0'].concat(y1_values));
-		chart_data.columns.push([dist_name_part + '_1'].concat(y2_values));
-	});*/
+
 	//for measuring time taken
 	var start = new Date();
 	var finished_rendering = function () {
@@ -209,8 +191,7 @@ function c3_graph(series, o, cb) {
 				.attr('class', 'area')
 				.attr('id', 'dist' + index)
 				.attr('d', area)
-				.style('fill', color)
-				.style('opacity', 0.2);
+				.style('fill', color);
 		});
 	}
 }

@@ -30,6 +30,12 @@
   fill: #fff;
   font-size: 13px; }
 
+/*-- Distribution Areas --*/
+.c3-chart path.area {
+  pointer-events: none;
+  opacity: 0.2;
+}
+
 /*-- Axis --*/
 .c3-axis-x-label, .c3-axis-y-label {
   font: 12px sans-serif; }
