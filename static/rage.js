@@ -51,13 +51,21 @@ var specific_graph_options = {
 		rescale_y: {
 			label: "Autorescale Y:",
 			type: "checkbox"
+		},
+		zoom_enabled: {
+			label: "Zoom enabled:",
+			type: "checkbox"
+		},
+		legend_show: {
+			label: "Show legend:",
+			type: "checkbox"
 		}
 	}
 };
 var specific_graph_options_defaults = {
 	flot: { legend_position: "ne", symbol: "Circle" },
 	d3: {},
-	c3: { line_type: "line", rescale_y: false }
+	c3: { line_type: "line", rescale_y: false, zoom_enabled: true, legend_show: true }
 };
 var graph_only_fields = [
   "#xaxis", "#yaxis", "#show_points", "#show_avgs", "#show_dist",
@@ -260,7 +268,7 @@ function specific_graph_options_init () {
 		continue;
 	}
 	for (option in graph_type_defaults) {
-		if (!selected_graph_options[graph_type][option]) {
+		if (!(option in selected_graph_options[graph_type])) {
 			selected_graph_options[graph_type][option] = graph_type_defaults[option]; //no deep copy (not object)
 		}
 	}

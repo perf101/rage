@@ -71,7 +71,7 @@ function c3_graph(series, o, cb) {
 		bindto: '#graph2',
 		data: chart_data,
 		zoom: {
-			enabled: true,
+			enabled: $('#zoom_enabled').is(':checked'),
 			rescale: $('#rescale_y').is(':checked'),
 			onzoom: fillArea
 		},
@@ -79,7 +79,7 @@ function c3_graph(series, o, cb) {
 			//hide legend elements for average plots
 			hide: 	(function () {
 					//if only one plot, return true (hide legend completely)
-					if (series.length === 1) return true;
+					if (series.length === 1 || !$('#legend_show').is(':checked')) return true;
 					//if show_points=false, show mean curve legend elements (all elements)
 					if (series.length === 0 && mean_data.length !== 1) return false;
 					//otherwise return ['mean0', 'mean1', 'mean2', ...]
