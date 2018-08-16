@@ -195,6 +195,28 @@ function c3_graph(series, o, cb) {
 	//set distribution paths
 	fillArea();
 
+	//persist tooltip
+	(function () {
+		var keep_tooltip = false;
+		d3.select('.c3-event-rect').on('click', function() {
+			if (d3.select('.c3-tooltip-container').style('display') !== 'none') {
+				keep_tooltip = !keep_tooltip;
+			}
+		});
+
+		var internal_showTooltip = chart.internal.showTooltip;
+		chart.internal.showTooltip = function (selectedData) {
+			console.log("selectedData:", selectedData);
+			if (!keep_tooltip) internal_showTooltip.apply(this, arguments);
+		}
+		
+		var internal_hideTooltip = chart.internal.hideTooltip;
+		chart.internal.hideTooltip = function () {
+			if (!keep_tooltip) internal_hideTooltip.apply(this, arguments);
+		}
+		
+	})();
+
 	function fillArea () {
 		distribution_data.forEach(function (item, index) {
 			var dist_element = d3.select('.c3-chart #dist' + index);
