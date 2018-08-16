@@ -183,39 +183,48 @@ function c3_graph(series, o, cb) {
 
 	console.log("Chart Properties:", chart_properties);
 	var chart = c3.generate(chart_properties);
-	
+	//style mean lines
 	for (let i = 0; i < mean_data.length; i++) {
 		d3.selectAll('.c3-circles-mean' + i + ' circle').style('opacity', null).classed("circle-mean", true); //allows for external styling
 	}
+	//create all the distribution path elements
+	for (let i = 0; i < distribution_data.length; i++) {
+		var color = colors_obj['data' + Math.floor(i / 3)] || colors_obj['mean' + Math.floor(i / 3)];
+		d3.select('.c3-chart').append('path').attr('class', 'area').attr('id', 'dist' + i).style('fill', color);
+	}
+	//set distribution paths
 	fillArea();
 
 	function fillArea () {
 		distribution_data.forEach(function (item, index) {
-			d3.select('g.c3-chart #dist' + index).remove();
+			var dist_element = d3.select('.c3-chart #dist' + index);
 			//if a plot has been toggled off, do not draw its distribution
 			var data_legend_element = d3.select('.c3-legend-item-data' + Math.floor(index/3));
 			if (!data_legend_element.empty()) {
-				if (data_legend_element.classed('c3-legend-item-hidden')) return;
+				if (data_legend_element.classed('c3-legend-item-hidden')) {
+					dist_element.style('display', 'none');
+					return;
+				}
 			} else {
 				var mean_legend_element = d3.select('.c3-legend-item-mean' + Math.floor(index/3));
-				if(!mean_legend_element.empty() && mean_legend_element.classed('c3-legend-item-hidden')) return;
+				if(!mean_legend_element.empty() && mean_legend_element.classed('c3-legend-item-hidden')) {
+					dist_element.style('display', 'none');
+					return;
+				}
 			}
 			//draw distribution
 			var indices = d3.range(item.data.length); 
 			var xscale = chart.internal.x;
 			var yscale = chart.internal.y;
-			var color = colors_obj['data' + Math.floor(index/3)] || colors_obj['mean' + Math.floor(index/3)];
 			var area = d3.area()
 				.x(function (d) { return xscale( x_log ? Math.log(item.data[d][0]) : item.data[d][0] ); })
 				.y0(function (d) { return yscale( y_log ? Math.log(item.data[d][1]) : item.data[d][1] ); })
 				.y1(function (d) { return yscale( y_log ? Math.log(item.data[d][2]) : item.data[d][2] ); })
 				.curve($('#line_type').val() === "spline" ? d3.curveMonotoneX : d3.curveLinear);
-			d3.select('g.c3-chart').append('path')
+			dist_element
 				.datum(indices)
-				.attr('class', 'area')
-				.attr('id', 'dist' + index)
 				.attr('d', area)
-				.style('fill', color);
+				.style('display', 'initial');
 		});
 	}
 }
