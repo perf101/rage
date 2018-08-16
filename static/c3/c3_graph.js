@@ -185,7 +185,7 @@ function c3_graph(series, o, cb) {
 	var chart = c3.generate(chart_properties);
 	//style mean lines
 	for (let i = 0; i < mean_data.length; i++) {
-		d3.selectAll('.c3-circles-mean' + i + ' circle').style('opacity', null).classed("circle-mean", true); //allows for external styling
+		d3.selectAll('.c3-circles-mean' + i + ' circle').classed("circle-mean", true); //allows for external styling
 	}
 	//create all the distribution path elements
 	for (let i = 0; i < distribution_data.length; i++) {

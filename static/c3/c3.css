@@ -39,11 +39,11 @@
 
 /*-- Average Curves --*/
 .c3-chart .circle-mean {
-  opacity: 0;
+  opacity: 0 !important;
 }
 
 .c3-chart .circle-mean._expanded_ {
-  opacity: 0.5;
+  opacity: 0.5 !important;
 }
 /*-- Axis --*/
 .c3-axis-x-label, .c3-axis-y-label {
