@@ -73,7 +73,12 @@ function c3_graph(series, o, cb) {
 		zoom: {
 			enabled: $('#zoom_enabled').is(':checked'),
 			rescale: $('#rescale_y').is(':checked'),
-			onzoom: fillArea
+			onzoom: function () {
+					fillArea();
+					//remove persistent tooltips
+					$('circle.persistent').remove();
+					$('.c3-tooltip-container.persistent').remove();
+				}
 		},
 		legend: {
 			//hide legend elements for average plots
@@ -203,7 +208,7 @@ function c3_graph(series, o, cb) {
 			if (main_tooltip.css('display') !== 'none') {
 				//add highlighting element
 				var highlighting_element = $('.c3-circles-' + last_id + ' .c3-circle-' + last_index).clone().appendTo('.c3-chart')
-					.removeAttr('class') 
+					.attr('class', 'persistent') 
 					.css('pointer-events', 'none')
 					.attr('r', '5');
 				//add tooltip
