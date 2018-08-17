@@ -195,26 +195,40 @@ function c3_graph(series, o, cb) {
 	//set distribution paths
 	fillArea();
 
-	//persist tooltip
+	//persist tooltip on click
 	(function () {
-		var keep_tooltip = false;
-		d3.select('.c3-event-rect').on('click', function() {
-			if (d3.select('.c3-tooltip-container').style('display') !== 'none') {
-				keep_tooltip = !keep_tooltip;
+		$('.c3-event-rect').click(function() {
+			//if the main tooltip is visible when we click
+			var main_tooltip = $('.c3-tooltip-container').eq(0);
+			if (main_tooltip.css('display') !== 'none') {
+				//add highlighting element
+				var highlighting_element = $('.c3-circles-' + last_id + ' .c3-circle-' + last_index).clone().appendTo('.c3-chart')
+					.removeAttr('class') 
+					.css('pointer-events', 'none')
+					.attr('r', '5');
+				//add tooltip
+				var persistent_tooltip = main_tooltip.clone().appendTo('#graph2')
+					.addClass('persistent', true)
+					.css("pointer-events", "auto");
+				//add close button to tooltip
+				$('<img src="/close.png">').appendTo(persistent_tooltip.find('th'))
+					.click(function () {
+						highlighting_element.remove();
+						persistent_tooltip.remove();
+					})
+					.css({"float": "right", "height": "20px", "cursor": "pointer"});
 			}
 		});
 
+		//get information whenever tooltip is shown
 		var internal_showTooltip = chart.internal.showTooltip;
+		var last_id;
+		var last_index;
 		chart.internal.showTooltip = function (selectedData) {
-			console.log("selectedData:", selectedData);
-			if (!keep_tooltip) internal_showTooltip.apply(this, arguments);
+			last_id = selectedData[0].id;
+			last_index = selectedData[0].index;
+			internal_showTooltip.apply(this, arguments);
 		}
-		
-		var internal_hideTooltip = chart.internal.hideTooltip;
-		chart.internal.hideTooltip = function () {
-			if (!keep_tooltip) internal_hideTooltip.apply(this, arguments);
-		}
-		
 	})();
 
 	function fillArea () {

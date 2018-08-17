@@ -123,6 +123,19 @@
   font: 14px sans-serif; }
 
 /*-- Tooltip --*/
+.c3-tooltip-container.persistent {
+  opacity: 0.9;
+  z-index: 9;
+}
+
+.c3-tooltip-container.persistent:hover {
+  opacity: 1;
+  transition: opacity 0.1s ease;
+  -moz-transition: opacity 0.1s ease;
+  -webkit-transition: opacity 0.1s ease;
+  z-index: 10;
+}
+
 .c3-tooltip-container {
   z-index: 10; }
 
