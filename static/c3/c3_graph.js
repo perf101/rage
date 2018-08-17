@@ -64,7 +64,10 @@ function c3_graph(series, o, cb) {
 	//for measuring time taken
 	var start = new Date();
 	var finished_rendering = function () {
-		if (typeof(cb) === "function") cb(new Date() - start);
+		if (typeof(cb) === "function") {
+			start ? cb(new Date() - start) : cb();
+			start = null;
+		}
 	}
 
 	var chart_properties = {
