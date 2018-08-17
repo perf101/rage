@@ -163,10 +163,11 @@ function c3_graph(series, o, cb) {
 				let is_mean_series = /mean/.test(d.id);
 				//set header to series label
 				let title_value = (is_mean_series ? mean_data : series)[d.id.replace(/mean|data/,'')][is_mean_series ? 'tooltiplabel' : 'label'];
-				let x_value = o.x_labels ? o.x_labels[d.x] : d.x;
-				//round to 2 decimal places
-				let decimal_format = d3.format('.2f');
-				let y_value = decimal_format(d.value);
+				var x = x_log ? Math.exp(d.x) : d.x;
+				let x_value = o.x_labels ? o.x_labels[x.toFixed(0)] : x.toFixed(0);
+				var y = y_log ? Math.exp(d.value) : d.value;
+				let y_value = o.y_labels ? o.y_labels[y.toFixed(0)] : y.toFixed(2);
+				//let y_value = decimal_format(d.value);
 				let point_data = is_mean_series ? {} : series[d.id.replace('data','')].data[d.index][2];
 				other_data = '';
 				Object.keys(point_data).forEach(function (key) {
