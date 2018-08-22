@@ -146,8 +146,10 @@ let t ~args = object (self)
     checkbox "auto_redraw" "Auto Redraw";
     printf "<br />\n";
     printf "</td></tr>\n</table>\n";
+    printf "<div class='filter_table_container'>";
     self#write_filter_table job_ids builds job_attributes config_columns tc_config_tbl
       som_configs_opt machines;
+    printf "</div>";
     printf "</form>\n";
     printf "<div id='graph_title'></div>\n";
     printf "<div id='graph_options'>\n";

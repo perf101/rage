@@ -37,7 +37,7 @@ html {
   margin: 0;
 }
 #graph_title ul li {
-  padding: 5px 5px 5px 5px;
+  padding: 5px;
   margin: 5px 0px 5px 5px;
   background-color:white;
   color:#3572b0;
@@ -68,16 +68,27 @@ form[name="optionsForm"] option:checked {
   display:inline-block;
   vertical-align:middle;
 }
+.filter_table_container {
+  display: flex;
+  display: -webkit-flex;
+  flex-flow: row wrap;
+  -webkit-flex-flow: row wrap;
+}
 .filter_table {
+  flex: 1 1 auto;
   table-layout: fixed;
   display:inline-block;
-  margin: 0px 0px 0px 0px;
+  margin: 2px;
   padding: 0px 5px 0px 5px;
   background-color:#3572b0;
   border:0;
   border-collapse: separate;
   border-spacing: 0px 5px;
   border-radius: 5px;
+}
+.filter_table tbody {
+  display: table;
+  width: 100%;
 }
 .filter_table th, .filter_table td {
   border: 0;
@@ -90,6 +101,7 @@ form[name="optionsForm"] option:checked {
 .filterselect {
   display: block;
   margin: auto;
+  width: 100%;
 }
 .multiselect {
   width: 100%;
