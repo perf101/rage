@@ -31,6 +31,9 @@
   font-size: 13px; }
 
 /*-- Axis --*/
+.c3-axis-x-label, .c3-axis-y-label {
+  font: 12px sans-serif; }
+
 /*-- Grid --*/
 .c3-grid line {
   stroke: #aaa; }
