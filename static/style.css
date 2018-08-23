@@ -195,15 +195,14 @@ a {
   margin-top:25px;
   margin-bottom:20px;
 }
-.title h1 {
-  font-size:50px;
-  margin:0;
-  min-height:50px;
-  width:100%;
-  font-weight:lighter;
-  display:inline-block;
+.title object {
+  height: 50px;
+  margin-top: 30px;
+  margin-bottom: 20px;
+  pointer-events: none;
 }
 .title h3 {
+  font-weight: normal;
   width: 100%;
   margin:0;
   display:inline-block;
