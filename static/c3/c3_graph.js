@@ -1,8 +1,4 @@
-$(function () {
-	$("#graph2").css("background-color", "white");
-});
-
-function c3_graph(series, options, o) {
+function c3_graph(series, o, cb) {
 	// keep only the elements that hold the average points
 	mean_data = series.filter(function (x) {return ('lines' in x)});
 	// keep only elements that contain graph points (remove average points)
@@ -55,6 +51,12 @@ function c3_graph(series, options, o) {
 		//set displayed name
 		chart_data.names['mean' + index] = item.tooltiplabel;
 	});
+	
+	//for measuring time taken
+	var start = new Date();
+	var finished_rendering = function () {
+		if (typeof(cb) === "function") cb(new Date() - start);
+	}
 
 	var chart_properties = {
 		bindto: '#graph2',
@@ -141,9 +143,9 @@ function c3_graph(series, options, o) {
 					'<tr class="y"><td class="name">y:</td><td class="value">' + y_value + '</td></tr>' +
 					other_data + '</tbody></table>';
 			}
-		}
+		},
+		onrendered: finished_rendering
 	};
-
 	console.log("Chart Properties:", chart_properties);
 	var chart = c3.generate(chart_properties);
 }

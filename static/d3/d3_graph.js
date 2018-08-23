@@ -1,12 +1,8 @@
-$( window ).load(function() {
-  $("#graph1").css("background-color", "white");
-});
-
 function zip(a, b) {
 
-return a.map(function (e, i) {
-    return [e, b[e]];
-});
+	return a.map(function (e, i) {
+    		return [e, b[e]];
+	});
 
 
 }
@@ -14,28 +10,28 @@ return a.map(function (e, i) {
 
 function get_max_xy(series) {
 
-  max_x = Math.max.apply(null, series.map(function(x) {return Math.max.apply(null, x.data.map(function(y){return y[0];   })); }));
+	max_x = Math.max.apply(null, series.map(function(x) {return Math.max.apply(null, x.data.map(function(y){ return y[0]; })); }));
  
-  max_y = Math.max.apply(null, series.map(function(x) {return Math.max.apply(null, x.data.map(function(y){return y[1];
-})); })); 
- 
-  var xy = [max_x, max_y]; 
-  return xy; 
+	max_y = Math.max.apply(null, series.map(function(x) {return Math.max.apply(null, x.data.map(function(y){ return y[1]; })); })); 
 
+	var xy = [max_x, max_y]; 
+	return xy;
 }
 
 function get_xs(series, args=null) {
 
-var my_set = new Set( 
-([].concat.apply([], series.map(function (d) { return d.data; }))).map(function(xy) {return xy[0]; } 
-)); 
-return my_set; 
+	var my_set = new Set(([].concat.apply([], series.map(function (d) {
+		return d.data;
+	}))).map(function(xy) {
+		return xy[0];
+	}));
 
+	return my_set;
 }
 
-function d3_graph(graph, series, options, o, name="default") {
+function d3_graph(series, o, cb, name="default") {
 
-xaxis_label = options.xaxis.axisLabel;  
+xaxis_label = o.xaxis;  
 yaxis_label = $("span[class='som_name']").text();
 $("[name_d3graph='default']").remove(); //remove the old svgs
 $("[class='tooltip']").remove();  
@@ -49,13 +45,13 @@ xyz = get_max_xy(series); //get max x and max y in the xyz array
 
 
 
- graph = new SimpleGraph("graph1",name, {
-          "xmax": xyz[0], "xmin": 0,
-          "ymax": xyz[1], "ymin": 0, 
-          "title": "Simple Graph1",
-          "xlabel": xaxis_label, 
-        "ylabel": yaxis_label  
-        }, series, o);
+var graph = new SimpleGraph("graph1",name, {
+	"xmax": xyz[0], "xmin": 0,
+	"ymax": xyz[1], "ymin": 0, 
+	"title": "Simple Graph1",
+	"xlabel": xaxis_label, 
+	"ylabel": yaxis_label  
+	}, series, o, cb);
 }; 
 
 registerKeyboardHandler = function(callback) {
@@ -63,7 +59,7 @@ registerKeyboardHandler = function(callback) {
   d3.select(window).on("keydown", callback);  
 };
 
-SimpleGraph = function(elemid, name, options, series, o) {
+SimpleGraph = function(elemid, name, options, series, o, cb) {
 
 
   if ($("#graph1").is(":hidden")) {     //if you click on the btn "redraw" while #graph1 is hidden, it won't redraw #graph1. Then if redraw is called while #graph1 
@@ -74,6 +70,7 @@ SimpleGraph = function(elemid, name, options, series, o) {
 } 
 
   var self = this;
+  this.cb = cb;
   this.o = o; 
   this.color = colors(series.length);
   this.series = series; 
@@ -426,6 +423,9 @@ SimpleGraph.prototype.redraw = function() {
 
   var will_hide = 0; 
 
+  //for measuring time taken
+  var start = new Date();
+
   var self = this;
   
   $("[class='tooltip']").remove();
@@ -566,7 +566,8 @@ SimpleGraph.prototype.redraw = function() {
     gy.exit().remove();
 
     self.update();
-  
+
+    if (typeof(self.cb) === "function") self.cb(new Date() - start);
 }
 
 SimpleGraph.prototype.xaxis_drag = function() {
