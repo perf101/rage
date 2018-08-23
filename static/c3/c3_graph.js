@@ -1,3 +1,8 @@
+//style div
+$(function () {
+	$('#graph2').css({'margin-right':'auto', 'margin-left':'auto', 'margin-top':'40px', 'margin-bottom':'60px'});
+});
+
 function c3_graph(series, o, cb) {
 	// keep the elements that hold the average points and distribution points
 	var mean_data = series.filter(function (x) {return ('tooltiplabel' in x)});
