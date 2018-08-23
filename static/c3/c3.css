@@ -30,6 +30,21 @@
   fill: #fff;
   font-size: 13px; }
 
+/*-- Distribution Areas --*/
+.c3-chart path.area {
+  pointer-events: none;
+  opacity: 0.2;
+  stroke: transparent;
+}
+
+/*-- Average Curves --*/
+.c3-chart .circle-mean {
+  opacity: 0 !important;
+}
+
+.c3-chart .circle-mean._expanded_ {
+  opacity: 0.5 !important;
+}
 /*-- Axis --*/
 .c3-axis-x-label, .c3-axis-y-label {
   font: 12px sans-serif; }
@@ -51,7 +66,7 @@
 
 /*-- Line --*/
 .c3-line {
-  stroke-width: 1px; }
+  stroke-width: 2px; }
 
 /*-- Point --*/
 .c3-circle._expanded_ {
@@ -108,6 +123,19 @@
   font: 14px sans-serif; }
 
 /*-- Tooltip --*/
+.c3-tooltip-container.persistent {
+  opacity: 0.9;
+  z-index: 9;
+}
+
+.c3-tooltip-container.persistent:hover {
+  opacity: 1;
+  transition: opacity 0.1s ease;
+  -moz-transition: opacity 0.1s ease;
+  -webkit-transition: opacity 0.1s ease;
+  z-index: 10;
+}
+
 .c3-tooltip-container {
   z-index: 10; }
 
