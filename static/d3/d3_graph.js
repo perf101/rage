@@ -1,5 +1,4 @@
 $( window ).load(function() {
-  $("#graph1").hide();
   $("#graph1").css("background-color", "white");
 });
 
@@ -100,16 +99,15 @@ SimpleGraph = function(elemid, name, options, series, o) {
   };
 
   // x-scale
-  this.x = d3.scale.linear()
+  this.x = d3.scaleLinear()
       .domain([this.options.xmin, this.options.xmax])
       .range([0, this.size.width]);
   // drag x-axis logic
   this.downx = Math.NaN;
 
   // y-scale (inverted domain)
-  this.y = d3.scale.linear()
+  this.y = d3.scaleLinear()
       .domain([this.options.ymax, this.options.ymin])
-      .nice()
       .range([0, this.size.height])
       .nice();
 
@@ -117,10 +115,6 @@ SimpleGraph = function(elemid, name, options, series, o) {
   this.downy = Math.NaN;
 
   //this.dragged = this.selected = null;
-
-  this.line = d3.svg.line()
-      .x(function(d, i) { return self.x(d[0]); })
-      .y(function(d, i) { return self.y(d[1]); });
 
   var xrange =  (this.options.xmax - this.options.xmin),
       yrange2 = (this.options.ymax - this.options.ymin) / 2,
@@ -134,7 +128,6 @@ SimpleGraph = function(elemid, name, options, series, o) {
       .attr("style", "background-color:white; padding:20px")
       .append("g")
         .attr("transform", "translate(" + this.padding.left + "," + this.padding.top + ")");
-
   this.plot = this.vis.append("rect")
       .attr("id", "graph1_rect")
       .attr("width", this.size.width)
@@ -144,9 +137,11 @@ SimpleGraph = function(elemid, name, options, series, o) {
       //.on("mousedown.drag", self.plot_drag())
       //.on("touchstart.drag", self.plot_drag())
 
+  this.zoom = d3.zoomTransform.bind(null, self.plot.node());
 
-      this.plot.call(d3.behavior.zoom().x(this.x).y(this.y).on("zoom", this.redraw()));
-
+  this.line = d3.line()
+      .x(function(d, i) { return self.zoom().applyX(self.x(d[0])); })
+      .y(function(d, i) { return self.zoom().applyY(self.y(d[1])); });
 
   this.vis.append("svg")
       .attr("top", 0)
@@ -191,7 +186,12 @@ SimpleGraph = function(elemid, name, options, series, o) {
       .on("mouseup.drag",   self.mouseup())
       .on("touchend.drag",  self.mouseup());
 
-  this.redraw()();
+  this.plot.call(d3.zoom().on("zoom", function () {
+	self.redraw();
+  }));
+  this.vis.on("wheel", function() { d3.event.preventDefault(); });
+
+  this.redraw();
 
   if (will_hide == 1) 
   $("#graph1").hide(); 
@@ -224,20 +224,16 @@ SimpleGraph.prototype.update = function() {
         return d.data.map(function(pos){ pos[3] = d.color; return pos;});
       })))
 
-  circle.enter().append("circle")
-      .attr("class", function(d) { return d === self.selected ? "selected" : null; })
-      .attr("cx",    function(d) { return self.x(d[0]); })
-      .attr("cy",    function(d) { return self.y(d[1]); })
-      .attr("r", 5.0)
-      .style("cursor", "ns-resize")
-      .style("fill", function(d) { return self.color[d[3]]; });
-	
   var is_img = 0; 
 
-  circle
+  circle.enter().append("circle")
+      .attr("r", 5.0)
+      .style("cursor", "ns-resize")
+      .style("fill", function(d) { return self.color[d[3]]; })
+  .merge(circle) //merge to include the circles we just added (if any)
       .attr("class", function(d) { return d === self.selected ? "selected" : null; })
-      .attr("cx",    function(d) { return self.x(d[0]); })
-      .attr("cy",    function(d) { return self.y(d[1]); })
+      .attr("cx",    function(d) { return self.zoom().applyX(self.x(d[0])); })
+      .attr("cy",    function(d) { return self.zoom().applyY(self.y(d[1])); })
       .on("mouseover", function(d) {
  		tt_div.transition()
                    .duration(100)
@@ -360,7 +356,7 @@ SimpleGraph.prototype.datapoint_drag = function(index) { //update points positio
 SimpleGraph.prototype.mousemove = function(index) {
   var self = this;
   return function() {
-    var p = d3.svg.mouse(self.vis[0][0]),
+    var p = d3.mouse(self.vis.node()),
         t = d3.event.changedTouches;
     
     if (self.dragged) {
@@ -378,7 +374,7 @@ SimpleGraph.prototype.mousemove = function(index) {
         changex = self.downx / rupx;
         new_domain = [xaxis1, xaxis1 + (xextent * changex)];
         self.x.domain(new_domain);
-        self.redraw()();
+        self.redraw();
       }
       d3.event.preventDefault();
       d3.event.stopPropagation();
@@ -394,7 +390,7 @@ SimpleGraph.prototype.mousemove = function(index) {
         changey = self.downy / rupy;
         new_domain = [yaxis1 + (yextent * changey), yaxis1];
         self.y.domain(new_domain);
-        self.redraw()();
+        self.redraw();
       }
       d3.event.preventDefault();
       d3.event.stopPropagation();
@@ -409,13 +405,13 @@ SimpleGraph.prototype.mouseup = function() {
     d3.select('body').style("cursor", "auto");
     d3.select('body').style("cursor", "auto");
     if (!isNaN(self.downx)) {
-      self.redraw()();
+      self.redraw();
       self.downx = Math.NaN;
       d3.event.preventDefault();
       d3.event.stopPropagation();
     };
     if (!isNaN(self.downy)) {
-      self.redraw()();
+      self.redraw();
       self.downy = Math.NaN;
       d3.event.preventDefault();
       d3.event.stopPropagation();
@@ -440,7 +436,7 @@ SimpleGraph.prototype.redraw = function() {
 	.append("div")
 	.attr("id", "legend_container")
 	.attr("width", "200px")
-	.attr("height", "50px")
+	.attr("height", "50px");
 
   d3.select("#legend_container")
 	.append("table")
@@ -449,27 +445,26 @@ SimpleGraph.prototype.redraw = function() {
 
   for (var i=0; i < self.series.length; i++) {	
 		
-		var table_tr = d3.select("#legend_table").append("tr");  
-		table_tr.append("td").attr("style", function(d) {return "background-color:" + self.color[self.series[i].color] + ";";}).append("div").attr("style", "width:2em");
+	var table_tr = d3.select("#legend_table").append("tr");  
+	table_tr.append("td").attr("style", function(d) {return "background-color:" + self.color[self.series[i].color] + ";";}).append("div").attr("style", "width:2em");
 
-		table_tr.append("td").attr("class", "a30x100").append("div")
+	table_tr.append("td").attr("class", "a30x100").append("div")
+		.attr("style", "width:960px; white-space: initial;overflow: hidden;text-overflow: ellipsis; word-wrap:break-word")
+		.html(function(d) {
+			var coma_split = self.series[i].label.split(",");
+			var equal_split = coma_split.map(function(n) {return n.split("=");});
+			var html = "";
+			for (var j=0; j < equal_split.length; ++j) {
 
-			.attr("style", "width:960px; white-space: initial;overflow: hidden;text-overflow: ellipsis; word-wrap:break-word")
-			.html(function(d) {
-				var coma_split = self.series[i].label.split(",");
-				var equal_split = coma_split.map(function(n) {return n.split("=");});
-				var html = "";
-				for (var j=0; j < equal_split.length; ++j) {
+				html += "<strong>" + equal_split[j][0] + "</strong>" + "=" + equal_split[j][1] + ", ";
 
-					html += "<strong>" + equal_split[j][0] + "</strong>" + "=" + equal_split[j][1] + ", ";
-
-				}
-				return html;
-			});
-}
+			}
+			return html;
+		});
+  }
   if (typeof(this.o.x_labels) != "undefined") {
 
-    var fx_label = function(d) { return d[1]; };
+ 	 var fx_label = function(d) { return d[1]; };
 
   } else {
 
@@ -477,34 +472,39 @@ SimpleGraph.prototype.redraw = function() {
 
   }
 
-  return function() {
+  if (will_hide == 1) { 
+	$("#graph1").hide(); 
+	will_hide = 0;
+  }
+
     var tx = function(d) {
-      return "translate(" + self.x(d[0]) +  ",0)"; 
+      return "translate(" + self.zoom().applyX(self.x(d[0])) +  ",0)"; 
     },
     ty = function(d) { 
-      return "translate(0," + self.y(d) + ")";
+      return "translate(0," + self.zoom().applyY(self.y(d)) + ")";
     },
     stroke = function(d) { 
       return d ? "#ccc" : "#666"; 
     },
-
     fx = fx_label, 
     fy = self.y.tickFormat(10);
 
-	var count = 0; 
+    var count = 0; 
 
     // Regenerate x-ticks…
     var xs = get_xs(self.series);  
     var gx = self.vis.selectAll("g.x")
-        .data(function(d) {
-			xs_ary = Array.from(xs.values());
-			if (typeof(self.o.x_labels) != "undefined")
-				a =  zip(xs_ary,self.o.x_labels);
-			else a = zip(self.x.ticks(xs.size),self.x.ticks(xs.size))
-			return a;
-		}, String)
+    	.data(function(d) {
+		xs_ary = Array.from(xs.values());
+		if (typeof(self.o.x_labels) != "undefined") {
+			a =  zip(xs_ary,self.o.x_labels);
+		} else {
+			a = zip(self.x.ticks(xs.size),self.x.ticks(xs.size));
+		}
+		return a;
+	}, String)
+	.attr("transform", tx);
 
-        .attr("transform", tx);
     gx.select("text")
         .text(fx);
 
@@ -564,16 +564,8 @@ SimpleGraph.prototype.redraw = function() {
         .on("touchstart.drag", self.yaxis_drag());
 
     gy.exit().remove();
-    self.plot.call(d3.behavior.zoom().x(self.x).y(self.y).on("zoom", self.redraw()));
-    self.update();      
-  }
 
-	if (will_hide == 1) {
-
-	$("#graph1").hide();
-	will_hide = 0;
-
-}
+    self.update();
   
 }
 
@@ -581,7 +573,7 @@ SimpleGraph.prototype.xaxis_drag = function() {
   var self = this;
   return function(d) {
     document.onselectstart = function() { return false; };
-    var p = d3.svg.mouse(self.vis[0][0]);
+    var p = d3.mouse(self.vis.node());
     self.downx = self.x.invert(p[0]);
   }
 };
@@ -590,7 +582,7 @@ SimpleGraph.prototype.yaxis_drag = function(d) {
   var self = this;
   return function(d) {
     document.onselectstart = function() { return false; };
-    var p = d3.svg.mouse(self.vis[0][0]);
+    var p = d3.mouse(self.vis.node());
     self.downy = self.y.invert(p[1]);
   }
 
