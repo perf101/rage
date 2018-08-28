@@ -194,6 +194,9 @@ a {
   text-align: center;
   margin-top:25px;
   margin-bottom:20px;
+  user-select: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
 }
 .title object {
   height: 50px;
