@@ -1,7 +1,8 @@
-drop table measurements;
+drop table measurements_2;
 drop table tc_config;
 drop table machines;
 drop table jobs;
+drop table soms_jobs;
 drop table builds;
 drop table soms;
 drop table test_cases;
