@@ -1,13 +1,13 @@
-drop table measurements_2;
-drop table tc_config;
-drop table machines;
-drop table jobs;
-drop table soms_jobs;
-drop table builds;
-drop table soms;
-drop table test_cases;
-drop table tiny_urls;
-drop table briefs;
+drop table measurements_2 cascade;
+drop table tc_config cascade;
+drop table machines cascade;
+drop table jobs cascade;
+drop table soms_jobs cascade;
+drop table builds cascade;
+drop table soms cascade;
+drop table test_cases cascade;
+drop table tiny_urls cascade;
+drop table briefs cascade;
 
 create table briefs (
   brief_id serial,
