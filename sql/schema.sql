@@ -24,6 +24,7 @@ create table builds (
   branch varchar(128) not null,
   build_number integer not null,
   build_tag varchar(128) null,
+  build_date varchar(32) null,
 
   primary key (build_id),
   constraint builds_unique_keys unique (product, branch, build_number, build_tag)
