@@ -168,7 +168,7 @@ create table measurements_2 (
   /* Constraints. */
   constraint measurements_unique_keys unique
     (som_job_id, tc_config_id, som_config_id, result_id),
-  foreign key (som_job_id) references soms_jobs(id),
+  foreign key (som_job_id) references soms_jobs(id)
   /* (Cannot reference tc_config_id, since table is variable.) */
   /* (Cannot reference som_config_id, since table is variable.) */
 );
