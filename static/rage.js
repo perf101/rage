@@ -63,7 +63,7 @@ var specific_graph_options = {
 	}
 };
 var specific_graph_options_defaults = {
-	flot: { legend_position: "ne", symbol: "Circle" },
+	flot: { legend_position: "nw", symbol: "Circle" },
 	d3: {},
 	c3: { line_type: "line", rescale_y: false, zoom_enabled: true, legend_show: true }
 };
