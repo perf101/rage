@@ -1,12 +1,13 @@
-drop table measurements;
-drop table tc_config;
-drop table machines;
-drop table jobs;
-drop table builds;
-drop table soms;
-drop table test_cases;
-drop table tiny_urls;
-drop table briefs;
+drop table measurements_2 cascade;
+drop table tc_config cascade;
+drop table machines cascade;
+drop table jobs cascade;
+drop table soms_jobs cascade;
+drop table builds cascade;
+drop table soms cascade;
+drop table test_cases cascade;
+drop table tiny_urls cascade;
+drop table briefs cascade;
 
 create table briefs (
   brief_id serial,
@@ -23,6 +24,7 @@ create table builds (
   branch varchar(128) not null,
   build_number integer not null,
   build_tag varchar(128) null,
+  build_date varchar(32) null,
 
   primary key (build_id),
   constraint builds_unique_keys unique (product, branch, build_number, build_tag)
@@ -166,7 +168,7 @@ create table measurements_2 (
   /* Constraints. */
   constraint measurements_unique_keys unique
     (som_job_id, tc_config_id, som_config_id, result_id),
-  foreign key (som_job_id) references soms_jobs(id),
+  foreign key (som_job_id) references soms_jobs(id)
   /* (Cannot reference tc_config_id, since table is variable.) */
   /* (Cannot reference som_config_id, since table is variable.) */
 );
