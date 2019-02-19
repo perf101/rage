@@ -558,6 +558,9 @@ let t ~args = object (self)
         let quote_re = Str.regexp "'" in
         Str.global_replace quote_re "" s
       in
+      let has_quotes s =
+        String.contains s '\''
+      in
 
       (* For a row r and current substitions [(x, [0;1]); (y, [a,b])], return [ r[0/x,a/y]; r[0/x,b/y]; r[1/x,a/y]; r[1/x,b/y] ] *)
       let apply_substitions row =
@@ -567,7 +570,12 @@ let t ~args = object (self)
           let sub = List.map sub ~f:(fun (k,v) ->
             let k_split = String.split ~on:',' k in
             let v_split = String.split ~on:',' v in
-            List.mapi k_split ~f:(fun i k' -> let v' = List.nth_exn v_split i |> remove_quotes  in (k', v'))
+            List.mapi k_split ~f:(fun i k' ->
+              let v' = List.nth_exn v_split i in
+              match has_quotes v' with
+              | true  -> v' |> remove_quotes |> fun v' -> [(k', v')]                       (* inside quotes  ': use as it is *)
+              | false -> v' |> String.split ~on:' ' |>  List.map ~f:(fun v'' -> (k', v'')) (* outside quotes ': spaces delimit items *)
+            ) |> List.concat
           ) |> List.concat in
 
           progress (sprintf "current substitions: [%s]" (String.concat ~sep:", " (List.map ~f:(fun (k,v) -> sprintf "(%s, %s)" k v) sub)));
@@ -575,10 +583,11 @@ let t ~args = object (self)
           (* Create a modified row applying this set of substitutions *)
           List.map row ~f:(fun (k,vs) ->
             let new_vs = List.map vs ~f:(fun v ->
-              match List.Assoc.find sub v with
-              | None -> v
-              | Some sub_val -> sub_val
-            ) in
+              match List.filter sub ~f:(fun (v',_)->v'=v) |> List.map ~f:(fun (_,v)->v) with
+              | [] -> [v]
+              | sub_vs -> sub_vs
+            ) |> List.concat
+            in
             (k, new_vs)
           )
         )
