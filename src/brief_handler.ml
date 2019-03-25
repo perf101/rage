@@ -1,6 +1,21 @@
 open Core.Std
 open Utils
 
+let config_file = Sys.argv.(2)
+
+let config =
+  In_channel.(with_file config_file ~f:input_lines)
+  |> List.map ~f:(fun line -> Scanf.sscanf line "%s@=%s" (fun k v -> (k,v)) )
+  |> String.Table.of_alist_exn
+
+let get_config key =
+  match String.Table.find config key with
+  | None -> debug (sprintf "Fatal error: Could not find config key '%s' in %s" key config_file); raise Not_found
+  | Some x -> x
+
+let rage_username = get_config "rage_username"
+let rage_password = get_config "rage_password"
+
 (* types of the url input arguments *)
 type cols_t = (string * string list) list list with sexp
 type rows_t = (string * string list) list list with sexp
@@ -82,6 +97,8 @@ let t ~args = object (self)
           let conn = Curl.init() and write_buff = Buffer.create 16384 in
           Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
           Curl.set_url conn url;
+          Curl.set_username conn rage_username;
+          Curl.set_password conn rage_password;
           Curl.perform conn;
           Curl.global_cleanup();
           Buffer.contents write_buff;
