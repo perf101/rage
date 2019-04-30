@@ -824,8 +824,12 @@ const setPresetBriefReport = () => {
     select('v_build_number', 'ALL');
 
     // Select 'All' build tag
-    unselectAll('v_build_tag');
-    select('v_build_tag', 'ALL');
+    // Disabled: we do want to compare same build with different build tags in rage
+    //
+    // unselectAll('v_build_tag');
+    // select('v_build_tag', 'ALL');
+    // split by build tag
+    select('f_build_tag', 1); // 0=show for, 1=split by
 
     // Select SW legend position, our interesting data is usually NE
     select('legend_position', 'sw');
