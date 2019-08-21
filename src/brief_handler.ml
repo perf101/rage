@@ -15,6 +15,7 @@ let get_config key =
 
 let rage_username = get_config "rage_username"
 let rage_password = get_config "rage_password"
+let product_version = get_config "product_version"
 
 (* types of the url input arguments *)
 type cols_t = (string * string list) list list with sexp
@@ -119,18 +120,56 @@ let t ~args = object (self)
       let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
       (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
     in
-    let fetch_brief_params_from_suite ?(branch="refs/heads/master") id =
+    let fetch_suite id branch =
       let url = sprintf "https://code.citrite.net/projects/XRT/repos/xenrt/raw/suites/%s?at=%s" id (Uri.pct_encode branch) in
       debug (sprintf "Fetching from suite %s" url);
-      let html = html_of_url url in
-      let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
-      (* Look for <!-- RAGE --> comments and concatenate their contents *)
+      html_of_url url, url in
+    let fetch_parameters_from inc ~branch =
+      let b = Buffer.create 80 in
+      let lookup var =
+        debug ("Lookup include variable: " ^ var);
+        match var with
+        | "PRODUCT_VERSION" -> product_version
+        | other -> "_"
+      in
+      Buffer.add_substitute b lookup inc;
+      let inc = Buffer.contents b in
+      let html, _ = fetch_suite inc branch in
+      let pattern = Str.regexp "<param>\\([^=]+\\)=\\([^<]+\\)</param>" in
       let rage_str = ref [] in
-      let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
-      let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
+      let f str = rage_str := (Str.matched_group 1 str, Str.matched_group 2 str) :: !rage_str; "" in
       ignore (Str.global_substitute pattern f html);
-      let rows = List.rev !rage_str |> String.concat ~sep:"\n" in
-      "rows=(" ^ rows ^ ")"
+      List.rev !rage_str
+    in
+    let fetch_brief_params_from_suite ?(branch="refs/heads/master") id =
+      let html, url = fetch_suite id branch in
+      let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
+      let find_matches rex =
+        let rage_str = ref [] in
+        let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
+        ignore (Str.global_substitute rex f html);
+        List.rev !rage_str
+      in
+      (* Look for <!-- RAGE --> comments and concatenate their contents *)
+      let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
+      let rows = find_matches pattern |> String.concat ~sep:"\n" in
+      let include_rex = Str.regexp "<include filename=\"\\([^\"]+\\)\"" in
+      let includes = find_matches include_rex |> List.map ~f:(fetch_parameters_from ~branch) |> List.concat in
+      debug (sprintf "include parameters: %s"
+        (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) includes |> String.concat ~sep:","));
+      let lookup k =
+        if String.uppercase k = k then
+        match List.Assoc.find includes k with
+        | Some v -> v
+        | None ->
+            failwith (Printf.sprintf "Cannot resolve variable '%s' in %s" k url)
+        else "$" ^ k
+      in
+      let b = Buffer.create (String.length rows) in
+      Buffer.add_string b "rows=(";
+      Buffer.add_substitute b lookup rows;
+      Buffer.add_string b ")";
+      Buffer.contents b
     in
     let fetch_brief_params_from id =
       let xs = if is_digit id then fetch_brief_params_from_db id
