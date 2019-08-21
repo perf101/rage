@@ -324,10 +324,12 @@ let t ~args = object (self)
       let query = sprintf "select som_id from soms where tc_fqn='%s'" tc_fqn in
       Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
     in
+    let soms_of_tc = Memo.general soms_of_tc in
     let rec_of_som som_id =
       let query = sprintf "select som_name,tc_fqn,more_is_better,units,positive from soms where som_id='%s'" som_id in
       (Sql.exec_exn ~conn ~query)#get_all.(0)
     in
+    let rec_of_som = Memo.general rec_of_som in
     let name_of_som som_id = (rec_of_som som_id).(0) in
     let tc_of_som som_id   = (rec_of_som som_id).(1) in
     let more_is_better_of_som som_id = (rec_of_som som_id).(2) in
@@ -336,10 +338,12 @@ let t ~args = object (self)
       let query = sprintf "select table_name from information_schema.tables where table_schema='public' and table_name='%s'" table_name in
       not @@ List.is_empty (Array.to_list (Sql.exec_exn ~conn ~query)#get_all)
     in
+    let has_table = Memo.general has_table in
     let columns_of_table table_name =
       let query = sprintf "select column_name from information_schema.columns where table_name='%s'" table_name in
       Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
     in
+    let columns_of_table = Memo.general columns_of_table in
     let contexts_of_som_id som_id =
       (List.filter
         (columns_of_table (sprintf "som_config_%s" som_id))
