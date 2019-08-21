@@ -101,6 +101,7 @@ let t ~args = object (self)
           Curl.set_username conn rage_username;
           Curl.set_password conn rage_password;
           Curl.perform conn;
+          Curl.cleanup conn;
           Curl.global_cleanup();
           Buffer.contents write_buff;
         with _ -> sprintf "error fetching url %s" url
