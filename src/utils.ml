@@ -216,6 +216,7 @@ let tc_config_fields = [
   "host_pcpus";
   "live_patching";
   "host_type";
+  "bootmode_precedence"
 ]
 
 let build_fields = [
