@@ -6,7 +6,7 @@ let t ~args = object (self)
   method private get_std_xy_choices =
     let machine_field_lst =
       List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
-    "branch" :: "build_number" :: "build_tag" ::
+    "branch" :: "build_number" :: "build_tag" :: "patches_applied" :: "build_is_release" ::
     "dom0_memory_static_max" :: "dom0_memory_target" ::
     "cc_restrictions" :: "redo_log" ::
     machine_field_lst

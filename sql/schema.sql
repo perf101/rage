@@ -23,11 +23,13 @@ create table builds (
   product varchar(128) not null,
   branch varchar(128) not null,
   build_number integer not null,
-  build_tag varchar(128) null,
+  build_tag varchar(2048) null,
   build_date varchar(32) null,
+  build_is_release boolean null,
+  patches_applied varchar(1024) not null,
 
   primary key (build_id),
-  constraint builds_unique_keys unique (product, branch, build_number, build_tag)
+  constraint builds_unique_keys unique (product, branch, build_number, build_tag, build_is_release, patches_applied)
 );
 grant select on builds to "www-data";
 
