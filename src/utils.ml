@@ -225,6 +225,8 @@ let build_fields = [
   "build_number";
   "build_date";
   "build_tag";
+  "patches_applied";
+  "build_is_release"
 ]
 
 let job_fields = [
