@@ -1,4 +1,4 @@
-open! Core
+open Core
 
 let debug msg =
   output_string stderr (msg ^ "\n");
@@ -146,7 +146,7 @@ let get_options_for_field db_result ~data col =
   in
   let compare x y =
     try
-      if Polymorphic_compare.(ftype = Postgresql.INT4)
+      if Poly.(ftype = Postgresql.INT4)
       then compare (int_of_string x) (int_of_string y)
       else String.compare x y
     with _ -> 0

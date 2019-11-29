@@ -1,4 +1,4 @@
-open! Core
+open Core
 open Utils
 
 (** Combines GET and POST parameters. *)

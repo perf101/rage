@@ -1,4 +1,4 @@
-open! Core
+open Core
 open Utils
 
 let jira_hostname = "jira.uk.xensource.com"
