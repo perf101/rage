@@ -1,7 +1,7 @@
 open Core
 open Utils
 
-let config_file = Sys.argv.(2)
+let config_file = Sys.(get_argv ()).(2)
 
 let config =
   In_channel.(with_file config_file ~f:input_lines)
