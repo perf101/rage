@@ -1,4 +1,4 @@
-open Core.Std
+open Core
 open Utils
 
 let config_file = Sys.argv.(2)
@@ -18,14 +18,14 @@ let rage_password = get_config "rage_password"
 let product_version = get_config "product_version"
 
 (* types of the url input arguments *)
-type cols_t = (string * string list) list list with sexp
-type rows_t = (string * string list) list list with sexp
-type base_t = (string * string list) list with sexp
-type baseline_t = int with sexp
-type ctx_t  = (string * string list) list with sexp
-type str_lst_t = string list with sexp
-type out_t  = [`Html | `Wiki] with sexp
-type sort_by_col_t = int with sexp
+type cols_t = (string * string list) list list [@@deriving sexp]
+type rows_t = (string * string list) list list [@@deriving sexp]
+type base_t = (string * string list) list [@@deriving sexp]
+type baseline_t = int [@@deriving sexp]
+type ctx_t  = (string * string list) list [@@deriving sexp]
+type str_lst_t = string list [@@deriving sexp]
+type out_t  = [`Html | `Wiki] [@@deriving sexp]
+type sort_by_col_t = int [@@deriving sexp]
 
 type result_t = Avg of float | Range of float * float * float
 
@@ -44,14 +44,14 @@ let t ~args = object (self)
   method private write_body =
     let page_start_time = Unix.gettimeofday () in
 
-    let show_jobids = try bool_of_string (List.Assoc.find_exn params "show_jobids") with _ -> false in
-    let no_rounding = try bool_of_string (List.Assoc.find_exn params "no_rounding") with _ -> false in
+    let show_jobids = try bool_of_string (List.Assoc.find_exn ~equal:String.equal params "show_jobids") with _ -> false in
+    let no_rounding = try bool_of_string (List.Assoc.find_exn ~equal:String.equal params "no_rounding") with _ -> false in
 
     let progress str = debug str
     in
     (* === input === *)
 
-    let brief_id = try List.Assoc.find_exn params "id" with |_->"" in
+    let brief_id = try List.Assoc.find_exn ~equal:String.equal params "id" with |_->"" in
 
     let url_decode url0 = (* todo: find a more complete version in some lib *)
       let rec loop url_in =
@@ -133,7 +133,7 @@ let t ~args = object (self)
         | "PRODUCT_VERSION" -> product_version
         | other -> "_"
       in
-      Buffer.add_substitute b lookup inc;
+      Caml.Buffer.add_substitute b lookup inc;
       let inc = Buffer.contents b in
       let html, _ = fetch_suite inc branch in
       let pattern = Str.regexp "<param>\\([^=]+\\)=\\([^<]+\\)</param>" in
@@ -159,8 +159,8 @@ let t ~args = object (self)
       debug (sprintf "include parameters: %s"
         (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) includes |> String.concat ~sep:","));
       let lookup k =
-        if String.uppercase k = k then
-        match List.Assoc.find includes k with
+        if String.(uppercase k = k) then
+        match List.Assoc.find ~equal:String.equal includes k with
         | Some v -> v
         | None ->
             failwith (Printf.sprintf "Cannot resolve variable '%s' in %s" k url)
@@ -168,7 +168,7 @@ let t ~args = object (self)
       in
       let b = Buffer.create (String.length rows) in
       Buffer.add_string b "rows=(";
-      Buffer.add_substitute b lookup rows;
+      Caml.Buffer.add_substitute b lookup rows;
       Buffer.add_string b ")";
       Buffer.contents b
     in
@@ -201,13 +201,13 @@ let t ~args = object (self)
 
     let rec get_input_values args =
 
-      let params_cols=(try url_decode (List.Assoc.find_exn args "cols") with |_-> "") in
-      let params_rows=(try url_decode (List.Assoc.find_exn args "rows") with |_-> "") in
-      let params_base=(try url_decode (List.Assoc.find_exn args "base") with |_-> "") in
-      let params_baseline=(try url_decode (List.Assoc.find_exn args "baseline") with |_-> "") in
-      let params_out=(try url_decode (List.Assoc.find_exn args "out") with |_-> "") in
-      let params_sort_by_col=(try url_decode (List.Assoc.find_exn args "sort_by_col") with |_-> "") in
-      let params_add_rows_from=(try url_decode (List.Assoc.find_exn args k_add_rows_from) with |_-> "") in
+      let params_cols=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "cols") with |_-> "") in
+      let params_rows=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "rows") with |_-> "") in
+      let params_base=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "base") with |_-> "") in
+      let params_baseline=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "baseline") with |_-> "") in
+      let params_out=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "out") with |_-> "") in
+      let params_sort_by_col=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "sort_by_col") with |_-> "") in
+      let params_add_rows_from=(try url_decode (List.Assoc.find_exn ~equal:String.equal args k_add_rows_from) with |_-> "") in
 
       let attempt ~f a =
         try f()
@@ -220,7 +220,7 @@ let t ~args = object (self)
 
       (* eg.: input_cols_sexp="(((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1)))((machine_name(xrtuk-08-02 xrtuk-08-04)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(2 3)))((machine_name(xrtuk-08-02 xrtuk-08-04))(active_session_count(1 2 3))(soms(288))))" *)
       let input_cols =
-        if params_cols <> "" then
+        if String.(params_cols <> "") then
           attempt ~f:(fun ()->cols_t_of_sexp (Sexp.of_string params_cols) ) "cols"
         else (*default value *) 
           []
@@ -229,7 +229,7 @@ let t ~args = object (self)
 
       printf "<params_rows %s/>\n" (html_encode params_rows);
       let input_rows =
-        if params_rows <> "" then
+        if String.(params_rows <> "") then
           attempt ~f:(fun ()->rows_t_of_sexp (Sexp.of_string params_rows)) "rows"
         else (*default value *)
           []
@@ -253,7 +253,7 @@ let t ~args = object (self)
         TODO: use intersection between base_context and input_cols and input_rows
        *)
       let input_base_context = 
-        if params_base <> "" then
+        if String.(params_base <> "") then
           attempt ~f:(fun ()->base_t_of_sexp (Sexp.of_string params_base)) "base" 
         else (*default value *)
           []
@@ -261,7 +261,7 @@ let t ~args = object (self)
       printf "<input_base_sexp %s/>\n" (Sexp.to_string (sexp_of_base_t input_base_context));
 
       let baseline_col_idx =
-         if params_baseline <> "" then
+         if String.(params_baseline <> "") then
            attempt ~f:(fun ()->baseline_t_of_sexp (Sexp.of_string params_baseline)) "baseline"
          else (*default value *)
            0
@@ -269,7 +269,7 @@ let t ~args = object (self)
       printf "<input_baseline_col_sexp %s/>\n" (Sexp.to_string (sexp_of_baseline_t baseline_col_idx));
 
       let out =
-         if params_out <> "" then
+         if String.(params_out <> "") then
            attempt ~f:(fun ()->out_t_of_sexp (Sexp.of_string (String.capitalize params_out))) "out"
          else (*default value *)
            `Html 
@@ -277,7 +277,7 @@ let t ~args = object (self)
       printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
 
       let sort_by_col =
-         if params_sort_by_col <> "" then
+         if String.(params_sort_by_col <> "") then
            Some (attempt ~f:(fun ()->sort_by_col_t_of_sexp (Sexp.of_string (String.capitalize params_sort_by_col))) "sort_by_col")
          else (*default value *)
            None
@@ -286,16 +286,16 @@ let t ~args = object (self)
     in
 
     let args =
-      if brief_id = "" then params
+      if String.(brief_id = "") then params
       else
         let replace params default_params=
           List.fold_left (* if params present, use it preferrably over the default params *)
             (parse_url default_params)
             ~init:[]
-            ~f:(fun acc (k,v)->match List.find params ~f:(fun (ko,_)->k=ko) with|None->(k,v)::acc|Some o->o::acc)
+            ~f:(fun acc (k,v)->match List.find params ~f:(fun (ko,_)->String.(k=ko)) with|None->(k,v)::acc|Some o->o::acc)
         in
         List.fold_left params ~init:(replace params (fetch_brief_params_from brief_id)) ~f:(fun acc (k,v)->
-          match List.find acc ~f:(fun (ka,_)->k=ka) with
+          match List.find acc ~f:(fun (ka,_)->String.(k=ka)) with
           |None->(k,v)::acc (* if params contains a k not in the db, add this k to args *)
           |Some _->acc
         )
@@ -333,7 +333,7 @@ let t ~args = object (self)
     let unit_of_som som_id = (rec_of_som som_id).(3) in
     let has_table table_name =
       let query = sprintf "select table_name from information_schema.tables where table_schema='public' and table_name='%s'" table_name in
-      (Array.to_list (Sql.exec_exn ~conn ~query)#get_all) <> []
+      not @@ List.is_empty (Array.to_list (Sql.exec_exn ~conn ~query)#get_all)
     in
     let columns_of_table table_name =
       let query = sprintf "select column_name from information_schema.columns where table_name='%s'" table_name in
@@ -342,19 +342,19 @@ let t ~args = object (self)
     let contexts_of_som_id som_id =
       (List.filter
         (columns_of_table (sprintf "som_config_%s" som_id))
-        ~f:(fun e->e<>"som_config_id")
+        ~f:(fun e->String.(e<>"som_config_id"))
       )
     in
     let contexts_of_tc_fqn tc_fqn =
       (List.filter
         (columns_of_table (sprintf "tc_config_%s" tc_fqn))
-        ~f:(fun e->e<>"tc_config_id")
+        ~f:(fun e->String.(e<>"tc_config_id"))
       )
     in
     let contexts_of_tc =
       (List.filter
         (columns_of_table "tc_config")
-        ~f:(fun e->not (List.mem ["tc_fqn";"tc_config_id";"machine_id"] e))
+        ~f:(fun e->not (List.mem ~equal:String.equal ["tc_fqn";"tc_config_id";"machine_id"] e))
       )
     in
     let url_of_t t =
@@ -366,7 +366,7 @@ let t ~args = object (self)
       let tc_contexts = 
         (List.filter
           (columns_of_table "tc_config")
-          ~f:(fun e->not (List.mem e ["tc_fqn";"tc_config_id";"machine_id"]))
+          ~f:(fun e->not (List.mem ~equal:String.equal e ["tc_fqn";"tc_config_id";"machine_id"]))
         )@
         (List.filter
           (columns_of_table (sprintf "tc_config_%d" tc_fqn))
@@ -378,9 +378,9 @@ let t ~args = object (self)
         ~f:(fun som_contexts->tc_contexts @ som_contexts)
     in
     *)
-    let contexts_of_machine = List.filter (columns_of_table "machines") ~f:(fun e->e<>"machine_id") in
-    let contexts_of_build = List.filter (columns_of_table "builds") ~f:(fun e->e<>"build_id") in
-    let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem cs_f k) in
+    let contexts_of_machine = List.filter (columns_of_table "machines") ~f:(fun e->String.(e<>"machine_id")) in
+    let contexts_of_build = List.filter (columns_of_table "builds") ~f:(fun e->String.(e<>"build_id")) in
+    let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem ~equal:String.equal cs_f k) in
 
 (*
     let latest_build_of_branch branch =
@@ -402,7 +402,7 @@ let t ~args = object (self)
             then raise an error indicating that probably there's a typo in the context element
      *) 
     let measurements_of_cell context = 
-       let get e ctx = match List.find_exn ctx ~f:(fun (k,v)->e=k) with |k,v->v in
+       let get e ctx = match List.find_exn ctx ~f:(fun (k,v)->String.(e=k)) with |k,v->v in
        let measurements_of_som som_id =
          let has_table_som_id som_id = has_table (sprintf "som_config_%s" som_id) in
          let tc_fqn = tc_of_som som_id in 
@@ -469,11 +469,11 @@ let t ~args = object (self)
     let context_of base row col =
       (* we use intersection to obtain the result when the same context is present in more than one input source *)
       List.fold_left (base @ row @ col) ~init:[] ~f:(fun acc (ck,cv)->
-        let x,ys = List.partition_tf ~f:(fun (k,v)->k=ck) acc in
+        let x,ys = List.partition_tf ~f:(fun (k,v)->String.(k=ck)) acc in
         match x with
           |(k,v)::[]->(* context already in acc, intersect the values *)
-            if k<>ck then (failwith (sprintf "k=%s <> ck=%s" k ck));
-            (k, List.filter cv ~f:(fun x->List.mem v x))::ys
+            if String.(k<>ck) then (failwith (sprintf "k=%s <> ck=%s" k ck));
+            (k, List.filter cv ~f:(fun x->List.mem ~equal:String.equal v x))::ys
           |[]->(* context not in acc, just add it *)
             (ck,cv)::ys
           |x->(* error *)
@@ -484,7 +484,7 @@ let t ~args = object (self)
       let k_branch = "branch" in
       let k_build_number = "build_number" in
       let v_latest_in_branch = "latest_in_branch" in
-      match List.find ~f:(fun (k,vs)->k=k_branch) c_kvs with
+      match List.find ~f:(fun (k,vs)->String.(k=k_branch)) c_kvs with
       | None -> [c_kvs]
       | Some (_,branches) ->
       if List.length branches < 1
@@ -498,7 +498,7 @@ let t ~args = object (self)
       *)
 
       let has_v_latest_in_branch =
-        List.exists c_kvs ~f:(fun (k,vs) -> k=k_build_number && List.exists vs ~f:(fun v->v=v_latest_in_branch))
+        List.exists c_kvs ~f:(fun (k,vs) -> String.(k=k_build_number) && List.exists vs ~f:(fun v->String.(v=v_latest_in_branch)))
       in
       (* if 'latest_in_branch' value is present, expand ctx into many ctxs, one for each build; otherwise, return the ctx intact *)
       if not has_v_latest_in_branch then [c_kvs]
@@ -510,9 +510,9 @@ let t ~args = object (self)
 
         List.map builds_of_branches ~f:(fun bs->
         List.map c_kvs ~f:(fun (k,vs) ->
-          if k<>k_build_number then (k,vs)
+          if String.(k<>k_build_number) then (k,vs)
           else k,(List.map vs ~f:(fun v->
-            if v<>v_latest_in_branch then v else bs
+            if String.(v<>v_latest_in_branch) then v else bs
           ))
         )
       ))
@@ -526,18 +526,18 @@ let t ~args = object (self)
         (List.filter items  (*filter special keys*)
           ~f:(fun (k,v)->
             (* starts with "v_" or "som" *)
-            ( k="som" ||
+            ( String.(k="som") ||
             try Str.search_forward (Str.regexp "v_.*") k 0 = 0 with Not_found->false
             )
             && (*and doesn't have 'ALL' as a value*)
-            v<>"ALL"
+            String.(v<>"ALL")
           )
         )
         ~f:(fun (k,v)-> (*apply some mappings to remaining keys and values *)
           (* remove "v_" from beginning of k *)
           let new_key = Str.replace_first (Str.regexp "v_") "" k in
           let new_value = url_decode v in
-          ((if new_key="som" then "soms" else new_key), new_value)
+          ((if String.(new_key="som") then "soms" else new_key), new_value)
         )
       in
 
@@ -557,7 +557,7 @@ let t ~args = object (self)
     in
     let expand_tiny_urls c_kvs =
       let k_tiny_url = "t" in
-      let tiny_url = List.find c_kvs ~f:(fun (k,_) -> k=k_tiny_url) in
+      let tiny_url = List.find c_kvs ~f:(fun (k,_) -> String.(k=k_tiny_url)) in
       let x = match tiny_url with
       | None         -> [c_kvs]
       | Some (_,[t]) ->
@@ -566,7 +566,7 @@ let t ~args = object (self)
           ~init:c_kvs           (* c_kvs kvs have priority over the ones in c_kvs_of_tiny_url *)
           x                     (* obtain url from tiny_url id, parse it and return a c_kvs *)
           ~f:(fun acc (k,vs)->
-            if List.exists c_kvs ~f:(fun(_k,_)->k=_k)
+            if List.exists c_kvs ~f:(fun(_k,_)->String.(k=_k))
             then (*prefer the one already in c_kvs, ie. do not add (k,vs) to acc*)
               acc
             else (*(k,vs) not already in c_kvs, add it *)
@@ -604,7 +604,7 @@ let t ~args = object (self)
       let apply_definitions row =
         List.map row ~f:(fun (k,vs) ->
           let new_vs = List.map vs ~f:(fun v ->
-            match List.Assoc.find !deflists v with
+            match List.Assoc.find ~equal:String.equal!deflists v with
             | None -> [v]
             | Some exp -> exp
           ) |> List.concat in
@@ -640,7 +640,7 @@ let t ~args = object (self)
           (* Create a modified row applying this set of substitutions *)
           List.map row ~f:(fun (k,vs) ->
             let new_vs = List.map vs ~f:(fun v ->
-              match List.filter sub ~f:(fun (v',_)->v'=v) |> List.map ~f:(fun (_,v)->v) with
+              match List.filter sub ~f:(fun (v',_)->String.(v'=v)) |> List.map ~f:(fun (_,v)->v) with
               | [] -> [v]
               | sub_vs -> sub_vs
             ) |> List.concat
@@ -654,23 +654,23 @@ let t ~args = object (self)
       ~f:(fun acc r-> 
        let resolve_keywords_in_row acc r =
 
-        if List.exists r ~f:(fun (k,v)->k="tcs") then (* expand tcs into soms *)
+        if List.exists r ~f:(fun (k,v)->String.(k="tcs")) then (* expand tcs into soms *)
           let r_expanded = List.concat (List.map r 
             ~f:(fun (k,v)->match k with 
-              | _ when k="tcs" -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
+              | _ when String.(k="tcs") -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
               | _ -> (k,v)::[] 
             )
           )
           in
-          let soms,no_soms = List.partition_tf r_expanded ~f:(fun (k,v)->k="soms") in
-          let soms = List.sort soms ~cmp:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
+          let soms,no_soms = List.partition_tf r_expanded ~f:(fun (k,v)->String.(k="soms")) in
+          let soms = List.sort soms ~compare:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
           acc @ (List.map soms ~f:(fun som->[som] @ no_soms))
 
-        else if List.exists r ~f:(fun (k,v)->k="t") then (* expand tiny links into rows kvs *)
+        else if List.exists r ~f:(fun (k,v)->String.(k="t")) then (* expand tiny links into rows kvs *)
           List.hd_exn (expand_tiny_urls r) :: acc
 
-        else if List.exists r ~f:(fun (k,_)->k=k_add_rows_from) then (* add rows from other brief ids *)
-          let bs = List.filter r ~f:(fun (k,_)->k=k_add_rows_from) in (* use all references. TODO: what to do with non-references in the same row??? *)
+        else if List.exists r ~f:(fun (k,_)->String.(k=k_add_rows_from)) then (* add rows from other brief ids *)
+          let bs = List.filter r ~f:(fun (k,_)->String.(k=k_add_rows_from)) in (* use all references. TODO: what to do with non-references in the same row??? *)
           acc @ List.concat (
             List.map bs ~f:(fun (k,vs)-> (* map one r into many potential rows *)
               List.concat (
@@ -686,9 +686,9 @@ let t ~args = object (self)
             )
           )
 
-        else if List.exists r ~f:(fun (k,_)->k=k_for) then (* it's a for-loop! *)
+        else if List.exists r ~f:(fun (k,_)->String.(k=k_for)) then (* it's a for-loop! *)
           begin
-            let bs = List.filter r ~f:(fun (k,_)->k=k_for) in
+            let bs = List.filter r ~f:(fun (k,_)->String.(k=k_for)) in
             List.iter bs ~f:(fun (_,v) ->
               let key = List.hd_exn v in
               let values = List.tl_exn v in
@@ -698,9 +698,9 @@ let t ~args = object (self)
             acc
           end
 
-        else if List.exists r ~f:(fun (k,_)->k=k_endfor) then (* it's the end of a for-loop! *)
+        else if List.exists r ~f:(fun (k,_)->String.(k=k_endfor)) then (* it's the end of a for-loop! *)
           begin
-            let bs =  List.filter r ~f:(fun (k,_)->k=k_endfor) in
+            let bs =  List.filter r ~f:(fun (k,_)->String.(k=k_endfor)) in
             List.iter bs ~f:(fun (_,v) ->
               substitions := match v with
                 | [] ->
@@ -715,7 +715,7 @@ let t ~args = object (self)
                     begin
                       progress (sprintf "unmapping '%s'" v);
                       match !substitions with
-                      | (hk,hvs)::tl -> if hk=v then tl else failwith (sprintf "tried to pop variable '%s' but top of stack was '%s'" v hk)
+                      | (hk,hvs)::tl -> if String.(hk=v) then tl else failwith (sprintf "tried to pop variable '%s' but top of stack was '%s'" v hk)
                       | _ -> failwith (sprintf "tried to pop variable '%s' from empty stack" v)
                       (* check the most recent 'for' variable has this name and pop it *)
                     end
@@ -725,14 +725,14 @@ let t ~args = object (self)
             acc
           end
 
-        else if List.exists r ~f:(fun (k,_)->k=k_deflist) then (* it's a deflist *)
+        else if List.exists r ~f:(fun (k,_)->String.(k=k_deflist)) then (* it's a deflist *)
           begin
-            let bs = List.filter r ~f:(fun (k,_)->k=k_deflist) in
+            let bs = List.filter r ~f:(fun (k,_)->String.(k=k_deflist)) in
             List.iter bs ~f:(fun (_,v) ->
               let key = List.hd_exn v in
               let values = List.tl_exn v in
               progress (sprintf "definition: name '%s' means array [%s]" key (String.concat ~sep:", " values));
-              deflists := List.Assoc.add !deflists key values
+              deflists := List.Assoc.add ~equal:String.equal !deflists key values
             );
             acc
           end
@@ -748,7 +748,7 @@ let t ~args = object (self)
     progress (sprintf "table: %d lines: " (List.length rs));
     let ctx_and_measurements_of_1st_cell_with_data expand_f ctx =
       let ctxs = expand_f ctx in
-      let measurements_of_cells = List.find_map ctxs ~f:(fun c->let ms=measurements_of_cell c in if ms=[] then None else (Some (c,ms))) in
+      let measurements_of_cells = List.find_map ctxs ~f:(fun c->let ms=measurements_of_cell c in if List.is_empty ms then None else (Some (c,ms))) in
       match measurements_of_cells with None->ctx,[]|Some (c,ms)->c,ms
     in
     let measurements_of_table = 
@@ -787,13 +787,13 @@ let t ~args = object (self)
 
     (* round value f to the optimal decimal place according to magnitude of its stddev *)
     let round f stddev =
-      if Float.abs (Float.(/) stddev f) < 0.00000001 (* stddev = 0.0 doesn't work because of rounding errors in the float representation *)
+      if Float.(abs (Float.(/) stddev f) < 0.00000001) (* stddev = 0.0 doesn't work because of rounding errors in the float representation *)
       then (sprintf "%f" f), f
       else
       (* 0. compute magnitude of stddev relative to f *)
       let f_abs = Float.abs f in
       let magnitude = (log stddev) /. (log 10.0) in
-      let newdotpos = (if is_valid magnitude then Float.to_int (if magnitude < 0.0 then Float.round_down (magnitude) else (Float.round_down magnitude) +. 1.0) else 1) in
+      let newdotpos = (if is_valid magnitude then Float.to_int (if Float.(magnitude < 0.0) then Float.round_down (magnitude) else (Float.round_down magnitude) +. 1.0) else 1) in
       let f_str = sprintf "%f" f_abs in
       let dotpos = (String.index_exn f_str '.') in
       let cutpos = (dotpos - newdotpos) in
@@ -804,7 +804,7 @@ let t ~args = object (self)
         let dig_from s pos = (String.sub s ~pos:(pos+1) ~len:1) in
         let dig=dig_from f_str cutpos in
         let rounddigit,roundpos = (* round last significant value using the next digit value *) 
-          if dig="."
+          if String.(dig=".")
             then (int_of_string (dig_from f_str (cutpos+1)),newdotpos-1)
             else (int_of_string dig,if newdotpos<0 then newdotpos else newdotpos-1)
         in
@@ -812,7 +812,7 @@ let t ~args = object (self)
         (* 2. print only significant digits *)
         let f_result = (
          let f_str_rounded = sprintf "%f" f_rounded in
-         let f_abs_str_rounded = (if (f_rounded<1.0) 
+         let f_abs_str_rounded = (if Float.(f_rounded<1.0) 
           then (* print the rounded value up to its last significant digit *)
             String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)
           else (* print the rounded value up to its last significant digit and fill the rest with 0s *)
@@ -821,7 +821,7 @@ let t ~args = object (self)
               (String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)) 
               (if dotposr-(cutpos+1)>0 then (String.make (dotposr-(cutpos+1)) '0') else "")
           ) in
-          (sprintf "%s%s" (if f<0.0 then if f_abs_str_rounded <> "0" then "-" else "" else "") f_abs_str_rounded)
+          (sprintf "%s%s" (if Float.(f<0.0) then if String.(f_abs_str_rounded <> "0") then "-" else "" else "") f_abs_str_rounded)
         )
         in
         (
@@ -836,9 +836,9 @@ let t ~args = object (self)
       else
       let lower = avg -. 2.0 *. stddev in (* 2-sigma = 95% confidence assuming normal distribution *)
       let upper = avg +. 2.0 *. stddev in
-      if (Float.abs avg) < Float.min_value
+      if Float.(abs avg < min_value)
       then f0 ()
-      else if stddev /. avg < 0.05 (* see if the relative std error is <5% *)
+      else if Float.(stddev /. avg < 0.05) (* see if the relative std error is <5% *)
         then f1 (round avg stddev)                                           (* 95% confidence *)
         else f2 (round lower stddev) (round avg stddev) (round upper stddev) (* 95% confidence *)
     in
@@ -860,16 +860,16 @@ let t ~args = object (self)
     let is_green baseline value more_is_better =
       if more_is_better then
         match baseline, value with
-        |Avg b, Avg v-> (v>=b)
-        |Avg b, Range (vl, va, vu)-> (va>=b)
-        |Range (bl, ba, bu), Avg v-> (v>=ba)
-        |Range (bl, ba, bu), Range (vl,va,vu)-> (va>=ba)
+        |Avg b, Avg v-> Float.(v>=b)
+        |Avg b, Range (vl, va, vu)-> Float.(va>=b)
+        |Range (bl, ba, bu), Avg v-> Float.(v>=ba)
+        |Range (bl, ba, bu), Range (vl,va,vu)-> Float.(va>=ba)
      else (* less is better *)
         match baseline, value with
-        |Avg b, Avg v-> (v<=b)
-        |Avg b, Range (vl, va, vu)-> (va<=b)
-        |Range (bl, ba, bu), Avg v-> (v<=ba)
-        |Range (bl, ba, bu), Range (vl,va,vu)-> (va<=ba)
+        |Avg b, Avg v-> Float.(v<=b)
+        |Avg b, Range (vl, va, vu)-> Float.(va<=b)
+        |Range (bl, ba, bu), Avg v-> Float.(v<=ba)
+        |Range (bl, ba, bu), Range (vl,va,vu)-> Float.(va<=ba)
     in
     let delta baseline value more_is_better =
       match baseline, value with
@@ -910,14 +910,14 @@ let t ~args = object (self)
           )
         in
         List.sort (mt_xs)  (* rows with at least one measurement *)
-          ~cmp:(fun (r1,cs1) (r2,cs2) ->
+          ~compare:(fun (r1,cs1) (r2,cs2) ->
           let ms cs =
             let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
             let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
             proportion (val_stddev_of (vals_of_ms base_ms)) (val_stddev_of (vals_of_ms cmp_ms)) None
           in
           let ms1, ms2 = (Float.abs (ms cs1)),(Float.abs (ms cs2)) in
-          if ms1 > ms2 then -1 else if ms2 > ms1 then 1 else 0 (* decreasing order *)
+          if Float.(ms1 > ms2) then -1 else if Float.(ms2 > ms1) then 1 else 0 (* decreasing order *)
         ) @ mt_0s (* rows with no measurements stay at the end *)
     in
 
@@ -927,11 +927,11 @@ let t ~args = object (self)
     (* eg.: http://perf/?som=41&xaxis=numvms&show_dist=on&f_branch=1&v_build_tag=&v_dom0_memory_static_max=752&v_dom0_memory_target=(NULL)&v_cc_restrictions=f&v_memsize=256&v_vmtype=dom0 *)
     let link_ctx_of_row ctxs =
       List.fold_left ctxs ~init:[] ~f:(fun acc (ck,cv)->
-        let x,ys = List.partition_tf ~f:(fun (k,v)->k=ck) acc in
+        let x,ys = List.partition_tf ~f:(fun (k,v)->String.(k=ck)) acc in
         match x with
           |(k,v)::[]->(* context already in acc, union the values *)
-            if k<>ck then (failwith (sprintf "link: k=%s <> ck=%s" k ck));
-            (k, List.dedup (cv @ v))::ys
+            if String.(k<>ck) then (failwith (sprintf "link: k=%s <> ck=%s" k ck));
+            (k, List.dedup_and_sort ~compare:String.compare (cv @ v))::ys
           |[]->(* context not in acc, just add it *)
             (ck,cv)::ys
           |x->(* error *)
@@ -939,8 +939,8 @@ let t ~args = object (self)
       )
     in
     let link_ctxs = (List.map (sort_table measurements_of_table) ~f:(fun (r,cs)->link_ctx_of_row (List.concat (List.map cs ~f:(fun (_,_,ctx,_)->ctx))))) in
-    let link_xaxis = List.dedup (List.concat (List.map cs ~f:(fun c-> List.map c ~f:(fun (x,_)->x)))) in
-    let link_xaxis = List.filter link_xaxis ~f:(fun x -> x <> "label") in
+    let link_xaxis = List.dedup_and_sort ~compare:String.compare (List.concat (List.map cs ~f:(fun c-> List.map c ~f:(fun (x,_)->x)))) in
+    let link_xaxis = List.filter link_xaxis ~f:(fun x -> String.(x <> "label")) in
 
 
     (* writers *)
@@ -956,7 +956,7 @@ let t ~args = object (self)
 
     let html_writer table =
 
-      let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if acc="" then "\""^v^"\"" else acc^", \""^v^"\"") in
+      let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if String.(acc="") then "\""^v^"\"" else acc^", \""^v^"\"") in
       let str_of_ctxs ?(txtonly=false) kvs = 
         List.fold_left kvs ~init:"" ~f:(fun acc (k,v)->
           (sprintf "%s %s=(%s)%s\n" acc k (str_of_values v) (if txtonly then "" else "<br>") )
@@ -964,10 +964,10 @@ let t ~args = object (self)
       in
       let str_desc_of_ctxs kvs =
         List.fold_left kvs ~init:"" ~f:(fun acc (k,vs)->
-          if k<>"soms" then acc else
+          if String.(k<>"soms") then acc else
           (sprintf "%s %s<br>\n" acc (List.fold_left vs ~init:"" ~f:(fun acc2 som->
-              let s=sprintf "%s: <b>%s</b> (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if u="" then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
-              if acc="" then s else acc^","^s
+            let s=sprintf "%s: <b>%s</b> (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if String.(u="") then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"))  in
+              if String.(acc="") then s else acc^","^s
             ))
           )
         )
@@ -976,7 +976,7 @@ let t ~args = object (self)
           (* link *)
           (
           (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
-          let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
+          let som_id=match List.find_exn ctx ~f:(fun (k,_)->String.(k="soms")) with |(k,v)->List.hd_exn v in
           (sprintf "<a href='http://%s/?som=%s&show_dist=on%s%s&#brief_report_analysis'>graph</a>" (Utils.server_name ()) som_id
             (* xaxis *)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
@@ -988,18 +988,18 @@ let t ~args = object (self)
           ))
           in
       let is_more_is_better ctx =
-        match List.find ctx ~f:(fun (k,_)->k="soms") with
+        match List.find ctx ~f:(fun (k,_)->String.(k="soms")) with
         |None->None
         |Some (k,_vs)->(
           let rec is_mb acc vs = (match vs with
-          |[]->if acc=None then None else acc
+          |[]->if Option.is_none acc then None else acc
           |v::vs->(let mb = more_is_better_of_som v in
-            if mb="" then is_mb acc vs (* ignore more_is_better if not defined in db *)
+            if String.(mb="") then is_mb acc vs (* ignore more_is_better if not defined in db *)
             else
-              let mbtf = match mb with m when m="f"->false|_->true in
+              let mbtf = match mb with m when String.(m="f")->false|_->true in
               match acc with
               |None->is_mb (Some mbtf) vs
-              |Some _mbtf->if _mbtf=mbtf
+              |Some _mbtf->if Bool.(_mbtf=mbtf)
               then is_mb (Some mbtf) vs  (* more_is_better values agree between soms *)
               else None                  (* more_is_better values disagree between soms *)
             )
@@ -1046,7 +1046,7 @@ let t ~args = object (self)
               let number = List.length ms in
               let number_str = if show_jobids
                 then
-                  sprintf "<sub>[%s]</sub>" (String.concat ~sep:"; " (List.map ~f:string_of_int (List.dedup (jobs_of_ms ms))))
+                  sprintf "<sub>[%s]</sub>" (String.concat ~sep:"; " (List.map ~f:string_of_int (List.dedup_and_sort ~compare:Int.compare (jobs_of_ms ms))))
                 else
                   sprintf "<sub>(%d)</sub>" number
               in
@@ -1106,7 +1106,7 @@ let t ~args = object (self)
 
     let wiki_writer table =
 
-      let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if acc="" then "\""^v^"\"" else acc^", \""^v^"\"") in
+      let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if String.(acc="") then "\""^v^"\"" else acc^", \""^v^"\"") in
       let str_of_ctxs ?(txtonly=false) kvs = 
         List.fold_left kvs ~init:"" ~f:(fun acc (k,v)->
           (sprintf "%s %s=(%s)%s " acc k (str_of_values v) (if txtonly then "" else "\\\\") )
@@ -1114,10 +1114,10 @@ let t ~args = object (self)
       in
       let str_desc_of_ctxs kvs =
         List.fold_left kvs ~init:"" ~f:(fun acc (k,vs)->
-          if k<>"soms" then acc else
+          if String.(k<>"soms") then acc else
           (sprintf "%s %s \\\\" acc (List.fold_left vs ~init:"" ~f:(fun acc2 som->
-              let s=sprintf "%s: *%s* (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if u="" then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if mb="" then "none" else if mb="f" then "less" else "more"))  in
-              if acc="" then s else acc^","^s
+              let s=sprintf "%s: *%s* (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if String.(u="") then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"))  in
+              if String.(acc="") then s else acc^","^s
             ))
           )
         )
@@ -1126,7 +1126,7 @@ let t ~args = object (self)
           (* link *)
           (
           (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
-          let som_id=match List.find_exn ctx ~f:(fun (k,_)->k="soms") with |(k,v)->List.hd_exn v in
+          let som_id=match List.find_exn ctx ~f:(fun (k,_)->String.(k="soms")) with |(k,v)->List.hd_exn v in
           (sprintf "[graph|http://%s/?som=%s&show_dist=on%s%s]" (Utils.server_name ()) som_id
             (* xaxis *)
             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
@@ -1138,18 +1138,18 @@ let t ~args = object (self)
           ))
           in
       let is_more_is_better ctx =
-        match List.find ctx ~f:(fun (k,_)->k="soms") with
+        match List.find ctx ~f:(fun (k,_)->String.(k="soms")) with
         |None->None
         |Some (k,_vs)->(
           let rec is_mb acc vs = (match vs with
-          |[]->if acc=None then None else acc
+          |[]->if Option.is_none acc then None else acc
           |v::vs->(let mb = more_is_better_of_som v in
-            if mb="" then is_mb acc vs (* ignore more_is_better if not defined in db *)
+            if String.(mb="") then is_mb acc vs (* ignore more_is_better if not defined in db *)
             else
-              let mbtf = match mb with m when m="f"->false|_->true in
+              let mbtf = match mb with m when String.(m="f")->false|_->true in
               match acc with
               |None->is_mb (Some mbtf) vs
-              |Some _mbtf->if _mbtf=mbtf
+              |Some _mbtf->if Bool.(_mbtf=mbtf)
               then is_mb (Some mbtf) vs  (* more_is_better values agree between soms *)
               else None                  (* more_is_better values disagree between soms *)
             )
@@ -1215,7 +1215,7 @@ let t ~args = object (self)
       in
       printf "%s" "<pre>";
       printf "%s" "h1. Brief Rage Report\n\n";
-      printf "- [live html version, with parameters %s |http://%s/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else if acc="" then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (Utils.server_name ()) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if k="out" then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
+      printf "- [live html version, with parameters %s |http://%s/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if String.(k="out") then acc else if String.(acc="") then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (Utils.server_name ()) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if String.(k="out") then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
       printf "%s" "- Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "- \\(x) indicates number of samples\n";
       printf "%s" "- \\(x%) indicates difference with baseline column\n";
