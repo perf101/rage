@@ -1,4 +1,4 @@
-open! Core.Std
+open Core
 open Utils
 
 let jira_hostname = "jira.uk.xensource.com"
@@ -74,7 +74,7 @@ let t ~args = object (self)
     List.iter ~f:print_table_for (List.zip_exn labels options_lst)
 
   method private write_body =
-    let som_id = int_of_string (List.Assoc.find_exn params "som") in
+    let som_id = int_of_string (List.Assoc.find_exn ~equal:String.equal params "som") in
     let _, tc_config_tbl = get_tc_config_tbl_name conn som_id in
     let query =
       sprintf "SELECT * FROM soms WHERE som_id=%d" som_id in

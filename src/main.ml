@@ -1,11 +1,11 @@
-open! Core.Std
+open Core
 open Utils
 
 (** Combines GET and POST parameters. *)
 let get_params_of_request () =
   let get_req = Sys.getenv_exn "QUERY_STRING" in
   let post_req = In_channel.input_all In_channel.stdin in
-  let req = get_req ^ (if post_req = "" then "" else "&" ^ post_req) in
+  let req = get_req ^ (if String.(post_req = "") then "" else "&" ^ post_req) in
   let parts = String.split req ~on:'&' in
   let opt_split part =
     Option.value ~default:(part, "") (String.lsplit2 part ~on:'=') in
@@ -16,6 +16,7 @@ let get_params_of_request () =
 let place_of_params ~params =
   let open List.Assoc in
   let open Place in
+  let find = find ~equal:String.equal in
   match find params "p" with Some p -> Place.of_string p | None ->
   match find params "t" with Some _ -> RedirectTinyUrl | None ->
   match find params "som" with Some _ -> SomPage | None ->

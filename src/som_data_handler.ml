@@ -1,4 +1,4 @@
-open! Core.Std
+open Core
 open Fn
 open Utils
 
@@ -14,15 +14,15 @@ let t ~args = object (self)
 
   method private values_for_key ?(default=[]) key =
     let xs = List.fold params ~init:[]
-      ~f:(fun acc (k, v) -> if k = key then v::acc else acc) in
-    if xs = [] then default else xs
+      ~f:(fun acc (k, v) -> if String.(k = key) then v::acc else acc) in
+    if List.is_empty xs then default else xs
 
   method private get_first_val k d =
     Option.value ~default:d (List.hd (self#values_for_key k))
 
   method private select_params ?(value=None) prefix =
     List.filter_map params ~f:(fun (k, v) ->
-      if String.is_prefix k ~prefix && (Option.is_none value || Some v = value)
+      if String.is_prefix k ~prefix && (Option.is_none value || Option.equal String.equal (Some v) value)
       then String.chop_prefix k ~prefix else None
     )
 
@@ -52,16 +52,16 @@ let t ~args = object (self)
         try
           compare (int_of_string a) (int_of_string b)
         with Failure _ ->
-          compare a b
+          String.compare a b
       else
-        compare a b
+        String.compare a b
     in
 
     if not (self#should_sort_alphabetically col_types col_name force_as_seq force_as_num)
     then None else
     let col_data = Array.to_list (Array.map ~f:(fun row -> row.(col)) rows) in
-    let uniques = List.dedup col_data in
-    let sorted = List.sort ~cmp:sort_seq_numeric uniques in
+    let uniques = List.dedup_and_sort ~compare:String.compare col_data in
+    let sorted = List.sort ~compare:sort_seq_numeric uniques in
     Some (List.mapi sorted ~f:(fun i x -> (i+1, x)))
 
   method private strings_to_numbers rows col col_name col_types label
@@ -74,7 +74,7 @@ let t ~args = object (self)
     printf "\"%s\":{%s}," label mapping_str;
     let i_to_string_map = List.Assoc.inverse mapping in
     let i_from_string row =
-      match List.Assoc.find i_to_string_map row.(col) with
+      match List.Assoc.find ~equal:String.equal i_to_string_map row.(col) with
       | None -> failwith ("NOT IN TRANSLATION MAP: " ^ row.(col) ^ "\n")
       | Some i -> row.(col) <- string_of_int i
     in Array.iter rows ~f:i_from_string
@@ -96,7 +96,7 @@ let t ~args = object (self)
     let yaxis = self#get_first_val "yaxis" "result" in
     let compose_keys ~xaxis ~yaxis ~rest =
       let deduped = List.stable_dedup rest in
-      let filter_cond = non (List.mem (yaxis::xaxis)) in
+      let filter_cond = non (List.mem ~equal:String.equal (yaxis::xaxis)) in
       List.filter ~f:filter_cond deduped
     in
     let restkeys =
@@ -115,14 +115,14 @@ let t ~args = object (self)
     (* obtain SOM meta-data *)
     let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
     let metadata = Sql.exec_exn ~conn ~query in
-    let positive = (Sql.get_first_entry_exn ~result:metadata) = "t" in
+    let positive = String.(Sql.get_first_entry_exn ~result:metadata = "t") in
     (* obtain data from database *)
     let query =
       "SELECT " ^
       (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
       yaxisfqns ^ ", " ^ (* y-axis *)
       (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
-      (if restfqns = [] then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
+      (if List.is_empty restfqns then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
       (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
       (sprintf "WHERE measurements_2.tc_config_id=%s.tc_config_id "
                tc_config_tbl) ^
@@ -167,9 +167,9 @@ let t ~args = object (self)
     printf "\"part\":%s," (self#get_first_val "part" "1");
     printf "\"xaxis\":\"%s\"," xaxis_str;
     printf "\"yaxis\":\"%s\"," yaxis;
-    let x_as_seq = ("on" = self#get_first_val "x_as_seq" "off") in
-    let y_as_seq = ("on" = self#get_first_val "y_as_seq" "off") in
-    let x_as_num = ("on" = self#get_first_val "x_as_num" "off") in
+    let x_as_seq = String.("on" = self#get_first_val "x_as_seq" "off") in
+    let y_as_seq = String.("on" = self#get_first_val "y_as_seq" "off") in
+    let x_as_num = String.("on" = self#get_first_val "x_as_num" "off") in
     self#strings_to_numbers rows 0 xaxis col_types "x_labels" x_as_seq x_as_num;
     self#strings_to_numbers rows 1 [yaxis] col_types "y_labels" y_as_seq false;
     let num_other_keys = List.length keys - 2 in

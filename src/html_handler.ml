@@ -1,4 +1,4 @@
-open! Core.Std
+open Core
 
 class t = fun ~args ->
 object (self)

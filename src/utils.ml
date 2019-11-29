@@ -1,4 +1,4 @@
-open! Core.Std
+open Core
 
 let debug msg =
   output_string stderr (msg ^ "\n");
@@ -7,7 +7,7 @@ let debug msg =
 let index l x =
   let rec aux i = function
     | [] -> failwith "index []"
-    | x'::xs -> if x = x' then i else aux (i+1) xs
+    | x'::xs -> if String.(x = x') then i else aux (i+1) xs
   in aux 0 l
 
 let concat ?(sep = ",") l =
@@ -29,7 +29,7 @@ let concat_array ?(sep = ",") a =
 let merge_table_into src dst =
   String.Table.merge_into ~src ~dst
     ~f:(fun ~key:_ src_v dst_v_opt ->
-      match dst_v_opt with None -> Some src_v | vo -> vo)
+      match dst_v_opt with None -> Set_to src_v | Some vo -> Set_to vo)
 
 let cat filename =
   print_string (In_channel.with_file ~f:In_channel.input_all filename)
@@ -54,7 +54,7 @@ let get_column_fqns conn tbl =
   let nameToFqn = String.Table.create () in
   let process_column name =
     let fqn = tbl ^ "." ^ name in
-    String.Table.replace nameToFqn ~key:name ~data:fqn
+    String.Table.set nameToFqn ~key:name ~data:fqn
   in List.iter col_names ~f:process_column;
   nameToFqn
 
@@ -89,7 +89,7 @@ let extract_filter col_fqns col_types params key_prefix =
   let update_m v vs_opt =
     let vs = Option.value vs_opt ~default:[] in Some (v::vs) in
   let filter_insert (k, v) =
-    if v = "ALL" then () else
+    if String.equal v "ALL" then () else
     if String.is_prefix k ~prefix:key_prefix then begin
       let k2 = String.chop_prefix_exn k ~prefix:key_prefix in
       String.Table.change m k2 (update_m v)
@@ -99,8 +99,8 @@ let extract_filter col_fqns col_types params key_prefix =
   let conds = List.map l
     ~f:(fun (k, vs) ->
       let vs = List.map vs ~f:decode_html in
-      let has_null = List.mem vs "(NULL)" in
-      let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
+      let has_null = List.mem ~equal:String.equal vs "(NULL)" in
+      let vs = if has_null then List.filter vs ~f:(String.(<>) "(NULL)") else vs in
       let ty = String.Table.find_exn col_types k in
       let quote = Sql.Type.is_quoted ty in
       let vs_oq =
@@ -119,13 +119,13 @@ let extract_filter col_fqns col_types params key_prefix =
 
 let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   if td then printf "<td>\n";
-  if label <> "" then printf "<b>%s</b>:\n" label;
+  if String.(label <> "") then printf "<b>%s</b>:\n" label;
   printf "<select";
   List.iter attrs ~f:(fun (k, v) -> printf " %s='%s'" k v);
   printf ">\n";
   let print_option (l, v) =
     printf "<option value='%s'" v;
-    if List.mem selected l then printf " selected='selected'";
+    if List.mem ~equal:String.equal selected l then printf " selected='selected'";
     printf ">%s</option>\n" l
   in List.iter options ~f:print_option;
   printf "</select>\n";
@@ -144,14 +144,14 @@ let get_options_for_field db_result ~data col =
         if db_result#getisnull i col then "(NULL)" else data.(i).(col)
       in aux (elem::acc) (i-1)
   in
-  let cmp x y =
+  let compare x y =
     try
-      if ftype = Postgresql.INT4
+      if Poly.(ftype = Postgresql.INT4)
       then compare (int_of_string x) (int_of_string y)
-      else compare x y
+      else String.compare x y
     with _ -> 0
   in
-  List.sort ~cmp (List.dedup (aux [] nRows))
+  List.sort ~compare (List.dedup_and_sort ~compare (aux [] nRows))
 
 let get_options_for_field_once db_result col =
   let data = db_result#get_all in
@@ -159,7 +159,7 @@ let get_options_for_field_once db_result col =
 
 let get_options_for_field_once_byname db_result col_name =
   let col_names = db_result#get_fnames_lst in
-  let col = match List.findi ~f:(fun _ c -> c = col_name) col_names with
+  let col = match List.findi ~f:(fun _ c -> String.(c = col_name)) col_names with
       | Some (i, _) -> i
       | _ -> failwith (sprintf "could not find column '%s' amongst [%s]" col_name (String.concat ~sep:"; " col_names))
   in
