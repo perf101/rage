@@ -23,7 +23,7 @@ let import_job job_ids =
   begin
   try
     while true do
-      let input = input_line ic in
+      let input = In_channel.input_line ic in
       Printf.printf "%s\n" input;
       Printf.eprintf "[import_jobs_handler|%s] %s\n" job_ids input
     done

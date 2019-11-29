@@ -12,7 +12,7 @@ object (self)
   val params = args.params
 
   val base_path : string =
-    let exe = Sys.argv.(0) in
+    let exe = (Sys.get_argv ()).(0) in
     String.sub exe ~pos:0 ~len:((String.rindex_exn exe '/') + 1)
 
   val mutable html_header_written : bool = false

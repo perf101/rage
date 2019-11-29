@@ -1,8 +1,8 @@
 open Core
 
 let debug msg =
-  output_string stderr (msg ^ "\n");
-  flush stderr
+  Out_channel.output_string stderr (msg ^ "\n");
+  Out_channel.flush stderr
 
 let index l x =
   let rec aux i = function
@@ -92,7 +92,7 @@ let extract_filter col_fqns col_types params key_prefix =
     if String.equal v "ALL" then () else
     if String.is_prefix k ~prefix:key_prefix then begin
       let k2 = String.chop_prefix_exn k ~prefix:key_prefix in
-      String.Table.change m k2 (update_m v)
+      String.Table.change m k2 ~f:(update_m v)
     end in
   List.iter params ~f:filter_insert;
   let l = String.Table.to_alist m in
@@ -255,10 +255,10 @@ let print_axis_choice ?(multiselect=false) label id choices =
   print_select_list ~label ~attrs:attrs choices;
   printf "</div>\n"
 
-let print_empty_x_axis_choice ~conn =
+let print_empty_x_axis_choice ~conn:_ =
   print_axis_choice "X axis" "xaxis" [] ~multiselect:true
 
-let print_empty_y_axis_choice ~conn =
+let print_empty_y_axis_choice ~conn:_ =
   print_axis_choice "Y axis" "yaxis" []
 
 let print_x_axis_choice ~conn configs som_configs_opt =

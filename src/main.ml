@@ -26,7 +26,7 @@ let handle_request () =
   let start_time = Unix.gettimeofday () in
   let params = get_params_of_request () in
   let place = place_of_params ~params in
-  let conn = new Postgresql.connection ~conninfo:Sys.argv.(1) () in
+  let conn = new Postgresql.connection ~conninfo:Sys.(get_argv()).(1) () in
   let args = let open Handler in {conn; params} in
   let open Place in
   let handler = begin match place with
