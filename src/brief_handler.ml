@@ -64,6 +64,7 @@ let t ~args = object (self)
            ("%25","%");("+"," ");    ("%3E",">"); ("%3C","<");
            ("%3A",":");("&amp;","&");("&quot;","\"");
            ("&gt;",">");("&lt;","<");
+           ("&45;","-")
           ]
           ~init:url_in
           ~f:(fun acc (f,t)->(Str.global_replace (Str.regexp f) t acc)) (* f->t *)
