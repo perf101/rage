@@ -63,3 +63,6 @@ let destroy_pool = Lazy_pooled_resource.destroy
 let exec_exn ~conn ~query =
   Lazy_pooled_resource.with_ conn ~f:(fun conn -> exec_exn ~conn ~query)
   |> Deferred.Or_error.ok_exn
+
+let exec_exn_get_all ~conn ~query =
+  exec_exn ~conn ~query >>| fun r -> r#get_all
