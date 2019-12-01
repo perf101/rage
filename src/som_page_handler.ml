@@ -43,7 +43,7 @@ let t ~args = object (self)
 
     let machine_options_lst = options_lst_of_dbresult machines in
 
-    let%map config_options_lst = Deferred.List.map config_column_names ~f:(fun config_name ->
+    let%map config_options_lst = Deferred.List.map ~how:`Parallel config_column_names ~f:(fun config_name ->
       let query = sprintf "SELECT DISTINCT %s FROM %s ORDER BY %s" config_name tc_config_tbl config_name in
       let%map configs = Postgresql_async.exec_exn ~conn ~query in
       get_options_for_field_once configs 0
@@ -76,41 +76,46 @@ let t ~args = object (self)
 
   method private write_body =
     let som_id = int_of_string (List.Assoc.find_exn ~equal:String.equal params "som") in
-    let%bind _, tc_config_tbl = get_tc_config_tbl_name conn som_id in
-    let query =
-      sprintf "SELECT * FROM soms WHERE som_id=%d" som_id in
-    let%bind som_info =
-      Postgresql_async.exec_exn ~conn ~query in
-    let query = "SELECT * FROM " ^ tc_config_tbl ^ " LIMIT 0" in
-    let%bind config_columns = Postgresql_async.exec_exn ~conn ~query in
-    let job_fields = String.concat ~sep:", " Utils.job_fields in
-    let query = "SELECT DISTINCT " ^ job_fields ^ " FROM soms_jobs WHERE " ^
+    let%bind _, tc_config_tbl = get_tc_config_tbl_name conn som_id
+    and som_info =
+      let query =
+        sprintf "SELECT * FROM soms WHERE som_id=%d" som_id in
+      Postgresql_async.exec_exn ~conn ~query
+    and job_ids =
+      let job_fields = String.concat ~sep:", " Utils.job_fields in
+      let query = "SELECT DISTINCT " ^ job_fields ^ " FROM soms_jobs WHERE " ^
       (sprintf "som_id=%d" som_id) in
-    let%bind job_ids = Postgresql_async.exec_exn ~conn ~query in
-    let build_fields = String.concat ~sep:", " Utils.build_fields in
-    let query =
-      "SELECT DISTINCT " ^ build_fields ^ " " ^
+      Postgresql_async.exec_exn ~conn ~query
+    and builds =
+      let build_fields = String.concat ~sep:", " Utils.build_fields in
+      let query =
+        "SELECT DISTINCT " ^ build_fields ^ " " ^
       (sprintf "FROM builds AS b, jobs AS j, (select distinct job_id from soms_jobs where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.build_id=b.build_id "
-    in
-    let%bind builds = Postgresql_async.exec_exn ~conn ~query in
-    let query = "SELECT DISTINCT " ^ (String.concat ~sep:", " Utils.tc_config_fields) ^ " " ^
+      in
+      Postgresql_async.exec_exn ~conn ~query
+    and job_attributes =
+      let query = "SELECT DISTINCT " ^ (String.concat ~sep:", " Utils.tc_config_fields) ^ " " ^
       (sprintf "FROM tc_config AS c, jobs AS j, (select distinct job_id from soms_jobs where som_id=%d) AS m " som_id) ^
       "WHERE m.job_id=j.job_id AND j.job_id=c.job_id "
-    in
-    let%bind job_attributes = Postgresql_async.exec_exn ~conn ~query in
-    let%bind som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
+      in
+      Postgresql_async.exec_exn ~conn ~query
+    and som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id
+    and machines =
+      let query =
+        "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
+      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from soms_jobs where som_id=%d) AS mr " som_id) ^
+      "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
+      in
+      Postgresql_async.exec_exn ~conn ~query in
     let%bind som_configs_opt =
       if not som_tbl_exists then return None else
       let query = sprintf "SELECT * FROM %s" som_config_tbl in
       let%map r = Postgresql_async.exec_exn ~conn ~query in Some r
+    and config_columns =
+      let query = "SELECT * FROM " ^ tc_config_tbl ^ " LIMIT 0" in
+      Postgresql_async.exec_exn ~conn ~query
     in
-    let query =
-      "SELECT DISTINCT machine_name, machine_type, cpu_model, number_of_cpus " ^
-      (sprintf "FROM machines AS mn, tc_config AS c, (select distinct job_id from soms_jobs where som_id=%d) AS mr " som_id) ^
-      "WHERE mn.machine_id=c.machine_id AND c.job_id=mr.job_id "
-    in
-    let%bind machines = Postgresql_async.exec_exn ~conn ~query in
     printf "<form name='optionsForm'>\n";
     printf "<table width=\"100%%\" border=\"0\">\n<tr><td>\n";
     self#write_som_info som_info;

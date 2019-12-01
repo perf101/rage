@@ -133,8 +133,8 @@ let t ~args = object (self)
       let rage_str = ref [] in
       let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
       ignore (Str.global_substitute rex f html);
-        List.rev !rage_str
-      in
+      List.rev !rage_str
+    in
     let rec fetch_parameters_from inc ~branch =
       let b = Buffer.create 80 in
       let lookup var =
@@ -153,7 +153,7 @@ let t ~args = object (self)
       List.rev !rage_str |> List.append includes
     and includes html ~branch =
       let r = find_matches html include_rex |> List.map ~f:(fetch_parameters_from ~branch) |>
-      List.concat in
+              List.concat in
       debug (sprintf "include parameters: %s"
                (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) r |> String.concat ~sep:","));
       r
@@ -245,7 +245,7 @@ let t ~args = object (self)
       printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
       let%map extra_input_rows_from = (* list of rows_t *)
         let ids = Str.split (Str.regexp ",") params_add_rows_from in
-        Deferred.List.map ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
+        Deferred.List.map ~how:`Parallel ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
       in
         (*
       printf "<input_extra_rows_sexp %s/>\n" (html_encode (List.fold_left extra_input_rows_from ~init:"" ~f:(fun extra_input_row->(Sexp.to_string (sexp_of_rows_t extra_input_row)))));
@@ -369,38 +369,20 @@ let t ~args = object (self)
          ~f:(fun e->String.(e<>"tc_config_id"))
       )
     in
+    let url_of_t t =
+      let query = sprintf "select url from tiny_urls where key=%s" t in
+      let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0).(0)
+    in
     let%bind contexts_of_tc =
       let%map cols = unstage(columns_of_table) "tc_config" in
       (List.filter cols
          ~f:(fun e->not (List.mem ~equal:String.equal ["tc_fqn";"tc_config_id";"machine_id"] e))
       )
-    in
-    let url_of_t t =
-      let query = sprintf "select url from tiny_urls where key=%s" t in
-      let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0).(0)
-    in
-    (*
-    let all_contexts_of_tc tc_fqn =
-      let tc_contexts = 
-        (List.filter
-          (columns_of_table "tc_config")
-          ~f:(fun e->not (List.mem ~equal:String.equal e ["tc_fqn";"tc_config_id";"machine_id"]))
-        )@
-        (List.filter
-          (columns_of_table (sprintf "tc_config_%d" tc_fqn))
-          ~f:(fun e->e<>"tc_config_id")
-        )
-    in
-      List.map
-        (List.map (soms_of_tc tc_id) ~f:contexts_of_som)
-        ~f:(fun som_contexts->tc_contexts @ som_contexts)
-in
-    *)
-    let%bind contexts_of_machine =
+    and contexts_of_machine =
       let%map cols = unstage(columns_of_table) "machines" in
       List.filter cols
-        ~f:(fun e->String.(e<>"machine_id")) in
-    let%bind contexts_of_build =
+        ~f:(fun e->String.(e<>"machine_id"))
+    and contexts_of_build =
       let%map cols = unstage(columns_of_table) "builds" in
       List.filter cols
         ~f:(fun e->String.(e<>"build_id")) in
@@ -429,9 +411,9 @@ in
     let measurements_of_cell context = 
       let get e ctx = List.Assoc.find ~equal:String.equal ctx e in
       let measurements_of_som som_id =
-        let%bind has_table_som_id = unstage(has_table) (sprintf "som_config_%s" som_id) in
-        let%bind tc_fqn = tc_of_som som_id in
-        let%bind contexts_of_this_som_id = contexts_of_som_id som_id in
+        let%bind has_table_som_id = unstage(has_table) (sprintf "som_config_%s" som_id)
+        and tc_fqn = tc_of_som som_id
+        and contexts_of_this_som_id = contexts_of_som_id som_id in
         let%bind contexts_of_this_tc_fqn = contexts_of_tc_fqn tc_fqn in
         let query = "select sj.job_id, m.result from measurements_2 m join soms_jobs sj on m.som_job_id=sj.id "
                     ^(sprintf "join tc_config_%s on m.tc_config_id=tc_config_%s.tc_config_id " tc_fqn tc_fqn)
@@ -490,8 +472,7 @@ in
       (* add measurements for each one of the soms in the cell *)
       match get "soms" context with
       | Some som ->
-        let%map r = Deferred.List.map ~f:measurements_of_som som in
-        List.concat r
+        Deferred.List.concat_map ~how:`Parallel ~f:measurements_of_som som
       | None ->
         failwith (sprintf "Could not find 'soms' in context; keys are [%s]" (List.map ~f:fst context |> String.concat ~sep:", "));
     in
@@ -709,11 +690,7 @@ in
                 let%map r = Deferred.List.concat_map bs ~f:(fun (k,vs)-> (* map one r into many potential rows *)
                     Deferred.List.concat_map vs ~f:(fun v->  (* map one vs into many potential rows *)
                         let%bind xs = get_input_rows_from_id v get_input_values in (* resolve each new row recursively if necessary *)
-                        let%map ys = resolve_keywords xs in
-            (*
-                 printf "<br>v=%s <br>xs=%s <br>r=%s <br>acc=%s <br>ys=%s" v  (Sexp.to_string (sexp_of_rows_t xs)) (Sexp.to_string (sexp_of_ctx_t r)) (Sexp.to_string (sexp_of_cols_t acc)) (Sexp.to_string (sexp_of_rows_t ys));
-                 *)
-                        ys
+                        resolve_keywords xs
                       )
                   ) in
                 acc @ r
@@ -785,9 +762,9 @@ in
     in
     let%bind measurements_of_table =
       let rs_len = List.length rs in
-      Deferred.List.mapi rs ~f:(fun i r->
+      Deferred.List.mapi ~how:`Parallel rs ~f:(fun i r->
           progress (sprintf "row %d of %d..." i rs_len);
-          let%map csr = Deferred.List.map cs ~f:(fun c->
+          let%map csr = Deferred.List.map ~how:`Parallel cs ~f:(fun c->
               let%map ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
               (r, c, ctx,  ms)
             ) in r, csr
@@ -998,10 +975,10 @@ in
         Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
             if String.(k<>"soms") then return acc else
               let%map r = Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
-                  let%bind tc = tc_of_som som in
-                  let%bind u = unit_of_som som in
-                  let%bind mb = more_is_better_of_som som in
-                  let%map name = name_of_som som in
+                  let%map tc = tc_of_som som
+                  and u = unit_of_som som
+                  and mb = more_is_better_of_som som
+                  and name = name_of_som som in
                   let s=sprintf "%s: <b>%s</b> (%s%s)" tc name (if String.(u="") then u else u^", ") (sprintf "%s is better" (if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"))  in
                   if String.(acc="") then s else acc^","^s
                 ) in
@@ -1045,9 +1022,9 @@ in
       in
       let num_columns = (List.length cs) + 3 in
       let%bind cells = List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
-          let%bind str_desc = str_desc_of_ctxs r in
-          let%map lst =
-            Deferred.List.mapi cs ~f:(fun i (r,c,ctx,ms)->
+          let%map str_desc = str_desc_of_ctxs r
+          and lst =
+            Deferred.List.mapi ~how:`Parallel cs ~f:(fun i (r,c,ctx,ms)->
                 let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
                 let debug_r = Sexp.to_string (sexp_of_ctx_t r)
                 and debug_c = Sexp.to_string (sexp_of_ctx_t c)
@@ -1155,10 +1132,10 @@ in
             if String.(k<>"soms") then return acc else
               let%map r =
                 Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
-                    let%bind tc = tc_of_som som in
-                    let%bind name = name_of_som som in
-                    let%bind u = unit_of_som som in
-                    let%map mbstr =
+                    let%map tc = tc_of_som som
+                    and name = name_of_som som
+                    and u = unit_of_som som
+                    and mbstr =
                       let%map mb=more_is_better_of_som som in if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"
                     in
                     let s=sprintf "%s: *%s* (%s%s)" tc name (if String.(u="") then u else u^", ") (sprintf "%s is better" mbstr) in
@@ -1207,7 +1184,7 @@ in
         (List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
              let%bind str_desc = str_desc_of_ctxs r in
              let%map cells =
-               Deferred.List.mapi cs ~f:(fun i (r,c,ctx,ms)->
+               Deferred.List.mapi ~how:`Parallel cs ~f:(fun i (r,c,ctx,ms)->
                    let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
                    let%map is_mb = is_more_is_better ctx in
               (*

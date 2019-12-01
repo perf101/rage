@@ -1,5 +1,4 @@
 open Core
-open Async
 open Utils
 
 let importer = "/usr/groups/perfeng/bin/importer-xenrt"
