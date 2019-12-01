@@ -20,8 +20,8 @@ let t ~args = object (self)
     "result" :: r
 
   method private write_body =
-    let%bind std_x_axes = self#get_std_x_choices in
-    let%bind std_y_axes = self#get_std_y_choices in
+    let%bind std_x_axes = self#get_std_x_choices
+    and std_y_axes = self#get_std_y_choices in
     let string_of_axes choices =
       let quoted = List.map ~f:(fun c -> "\"" ^ c ^ "\"") choices in
       sprintf "[%s]" (String.concat ~sep:"," quoted)

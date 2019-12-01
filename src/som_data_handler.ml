@@ -82,14 +82,14 @@ let t ~args = object (self)
 
   method private write_body =
     let som_id = int_of_string (self#get_param_exn "id") in
-    let%bind tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
-    let%bind som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
+    let%bind tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id
+    and som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
     (* determine filter columns and their types *)
     let tbls = ["measurements_2"; "soms_jobs"; "jobs"; "builds"; "tc_config"; "machines";
       tc_config_tbl] @
       (if som_tbl_exists then [som_config_tbl] else []) in
-    let%bind col_fqns = get_column_fqns_many conn tbls in
-    let%bind col_types = get_column_types_many conn tbls in
+    let%bind col_fqns = get_column_fqns_many conn tbls
+    and col_types = get_column_types_many conn tbls in
     (* Get axes selections. xaxis may be multi-valued; yaxis is single value. *)
     let xaxis = self#values_for_key "xaxis" ~default:["branch"] in
     (* xaxis could be ["one"; "two"] or ["one%2Ctwo"] -- both are equivalent *)
@@ -113,38 +113,40 @@ let t ~args = object (self)
     let xaxis_str = String.concat ~sep:"," xaxis in
     let keys = xaxis_str :: [yaxis] @ xaxis @ restkeys in
     let filter = extract_filter col_fqns col_types params values_prefix in
-    (* obtain SOM meta-data *)
-    let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
-    let%bind metadata = Postgresql_async.exec_exn ~conn ~query in
-    let positive = String.(Sql.get_first_entry_exn ~result:metadata = "t") in
-    (* obtain data from database *)
-    let query =
-      "SELECT " ^
-      (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
-      yaxisfqns ^ ", " ^ (* y-axis *)
-      (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
-      (if List.is_empty restfqns then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
-      (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
-      (sprintf "WHERE measurements_2.tc_config_id=%s.tc_config_id "
-               tc_config_tbl) ^
-      (sprintf "AND soms_jobs.som_id=%d " som_id) ^
-      "AND soms_jobs.job_id=jobs.job_id " ^
-      "AND measurements_2.som_job_id=soms_jobs.id "^
-      "AND jobs.build_id=builds.build_id " ^
-      "AND tc_config.job_id=jobs.job_id " ^
-      (sprintf "AND tc_config.tc_fqn='%s' " tc_fqn) ^
-      "AND tc_config.tc_config_id=measurements_2.tc_config_id " ^
-      "AND tc_config.machine_id=machines.machine_id" ^
-      (if som_tbl_exists
-       then sprintf " AND measurements_2.som_config_id=%s.som_config_id"
-            som_config_tbl else "") ^
-      (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
-      (sprintf " LIMIT %d" limit_rows)
-    in
-    let%bind data = Postgresql_async.exec_exn ~conn ~query in
+    let%bind metadata =
+      (* obtain SOM meta-data *)
+      let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
+      Postgresql_async.exec_exn ~conn ~query
+    and data =
+      (* obtain data from database *)
+      let query =
+        "SELECT " ^
+        (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
+        yaxisfqns ^ ", " ^ (* y-axis *)
+        (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
+        (if List.is_empty restfqns then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
+        (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
+        (sprintf "WHERE measurements_2.tc_config_id=%s.tc_config_id "
+           tc_config_tbl) ^
+        (sprintf "AND soms_jobs.som_id=%d " som_id) ^
+        "AND soms_jobs.job_id=jobs.job_id " ^
+        "AND measurements_2.som_job_id=soms_jobs.id "^
+        "AND jobs.build_id=builds.build_id " ^
+        "AND tc_config.job_id=jobs.job_id " ^
+        (sprintf "AND tc_config.tc_fqn='%s' " tc_fqn) ^
+        "AND tc_config.tc_config_id=measurements_2.tc_config_id " ^
+        "AND tc_config.machine_id=machines.machine_id" ^
+        (if som_tbl_exists
+         then sprintf " AND measurements_2.som_config_id=%s.som_config_id"
+             som_config_tbl else "") ^
+        (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
+        (sprintf " LIMIT %d" limit_rows)
+      in
+      Postgresql_async.exec_exn ~conn ~query in
     let rows = data#get_all in
     debug (sprintf "The query returned %d rows" (Array.length rows));
     (if Array.length rows = limit_rows then debug (sprintf "WARNING: truncation of data -- we are only returning the first %d rows" limit_rows));
+    let positive = String.(Sql.get_first_entry_exn ~result:metadata = "t") in
     (* filter data into groups based on "SPLIT BY"-s *)
     let split_bys =
       self#select_params filter_prefix ~value:(Some filter_by_value) in
