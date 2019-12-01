@@ -974,15 +974,13 @@ in
       let str_desc_of_ctxs kvs =
         Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
             if String.(k<>"soms") then return acc else
-              let%map r = Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
+              let%map lst = Deferred.List.map ~how:`Parallel vs ~f:(fun som->
                   let%map tc = tc_of_som som
                   and u = unit_of_som som
                   and mb = more_is_better_of_som som
                   and name = name_of_som som in
-                  let s=sprintf "%s: <b>%s</b> (%s%s)" tc name (if String.(u="") then u else u^", ") (sprintf "%s is better" (if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"))  in
-                  if String.(acc="") then s else acc^","^s
-                ) in
-              (sprintf "%s %s<br>\n" acc r)
+                  sprintf "%s: <b>%s</b> (%s%s)" tc name (if String.(u="") then u else u^", ") (sprintf "%s is better" (if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"))) in
+              (sprintf "%s %s<br>\n" acc (String.concat ~sep:"," lst))
           )
       in
       let link ctx =
