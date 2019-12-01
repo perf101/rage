@@ -1,4 +1,5 @@
 open Core
+open Async
 open Utils
 
 let importer = "/usr/groups/perfeng/bin/importer-xenrt"
@@ -18,14 +19,14 @@ let import_job job_ids =
   if not (Str.string_match (Str.regexp "^[0-9,\\-]*$") job_ids 0) then failwith (sprintf "expected '&lt;n&gt;' or '&lt;n&gt;-&lt;n&gt;' or '&lt;n&gt;,&lt;n&gt;,...'; got '%s'" job_ids);
 
   let cmd = Printf.sprintf "%s -jobs %s -ignoreseenjobs 2>&1" importer job_ids in
-  Printf.printf "<!-- %s -->" cmd;
+  printf "<!-- %s -->" cmd;
   let ic = Unix.open_process_in cmd in
   In_channel.iter_lines ic ~f:(fun input ->
-      Printf.printf "%s\n" input;
-      Printf.eprintf "[import_jobs_handler|%s] %s\n" job_ids input);
-  Printf.eprintf "[import_jobs_handler|%s] EOF\n" job_ids;
+      printf "%s\n" input;
+      eprintf "[import_jobs_handler|%s] %s\n" job_ids input);
+  eprintf "[import_jobs_handler|%s] EOF\n" job_ids;
   ignore (Unix.close_process_in ic);
-  Printf.eprintf "[import_jobs_handler|%s] Finished\n" job_ids
+  eprintf "[import_jobs_handler|%s] Finished\n" job_ids
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
