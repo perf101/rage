@@ -2,6 +2,12 @@ open Core
 open Async
 open Utils
 
+let () = Ssl_threads.init ()
+let () =
+  Shutdown.at_shutdown (fun () ->
+      Curl.global_cleanup();
+      return ())
+
 let config_file = Sys.(get_argv ()).(2)
 
 let config =
@@ -96,21 +102,21 @@ let t ~args = object (self)
     (* extra input from urls *)
     let is_digit id =  Str.string_match (Str.regexp "[0-9]+") id 0 in
     let html_of_url url =
-      try
-        let conn = Curl.init() and write_buff = Buffer.create 16384 in
-        Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
-        Curl.set_url conn url;
-        Curl.set_username conn rage_username;
-        Curl.set_password conn rage_password;
-        Curl.perform conn;
-        Curl.cleanup conn;
-        Curl.global_cleanup();
-        Buffer.contents write_buff;
-      with _ -> sprintf "error fetching url %s" url
+      In_thread.run ~name:"Fetch url" (fun () ->
+          try
+            let conn = Curl.init() and write_buff = Buffer.create 16384 in
+            Curl.set_writefunction conn (fun x->Buffer.add_string write_buff x; String.length x);
+            Curl.set_url conn url;
+            Curl.set_username conn rage_username;
+            Curl.set_password conn rage_password;
+            Curl.perform conn;
+            Curl.cleanup conn;
+            Buffer.contents write_buff;
+          with _ -> sprintf "error fetching url %s" url)
     in
     let fetch_brief_params_from_url url =
       (* simple fetch using confluence page with brief_params inside the "code block" macro in the page *)
-      let html = html_of_url url in
+      let%map html = html_of_url url in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let has_match = Str.string_match (Str.regexp ".*<pre class=\"syntaxhighlighter-pre\"[^>]*>\\([^<]+\\)<") html 0 in (*find the "code block" in the page*)
       if not has_match
@@ -126,7 +132,7 @@ let t ~args = object (self)
     let fetch_suite id branch =
       let url = sprintf "https://code.citrite.net/projects/XRT/repos/xenrt/raw/suites/%s?at=%s" id (Uri.pct_encode branch) in
       debug (sprintf "Fetching from suite %s" url);
-      html_of_url url, url in
+      let%map r = html_of_url url in r, url in
     let pattern = Str.regexp "<param>\\([^=]+\\)=\\([^<]+\\)</param>" in
     let include_rex = Str.regexp "<include filename=\"\\([^\"]+\\)\"" in
     let find_matches html rex =
@@ -145,27 +151,27 @@ let t ~args = object (self)
       in
       Caml.Buffer.add_substitute b lookup inc;
       let inc = Buffer.contents b in
-      let html, _ = fetch_suite inc branch in
-      let includes = includes html ~branch in
+      let%bind html, _ = fetch_suite inc branch in
+      let%map includes = includes html ~branch in
       let rage_str = ref [] in
       let f str = rage_str := (Str.matched_group 1 str, Str.matched_group 2 str) :: !rage_str; "" in
       ignore (Str.global_substitute pattern f html);
       List.rev !rage_str |> List.append includes
     and includes html ~branch =
-      let r = find_matches html include_rex |> List.map ~f:(fetch_parameters_from ~branch) |>
-              List.concat in
+      let%map r = find_matches html include_rex
+                  |> Deferred.List.concat_map ~how:`Parallel ~f:(fetch_parameters_from ~branch) in
       debug (sprintf "include parameters: %s"
                (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) r |> String.concat ~sep:","));
       r
     in
     let fetch_brief_params_from_suite ?(branch="refs/heads/master") id =
-      let html, url = fetch_suite id branch in
+      let%bind html, url = fetch_suite id branch in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let find_matches = find_matches html in
       (* Look for <!-- RAGE --> comments and concatenate their contents *)
       let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
       let rows = find_matches pattern |> String.concat ~sep:"\n" in
-      let includes = includes html ~branch in
+      let%map includes = includes html ~branch in
       let lookup k =
         if String.(uppercase k = k) then
           match List.Assoc.find ~equal:String.equal includes k with
@@ -182,12 +188,12 @@ let t ~args = object (self)
     in
     let fetch_brief_params_from id =
       let xs = if is_digit id then fetch_brief_params_from_db id
-        else return @@ if String.is_prefix id ~prefix:"TC-" then (
-            match String.split ~on:'#' id with
-            | [id; branch] -> fetch_brief_params_from_suite ~branch id
-            | [id] -> fetch_brief_params_from_suite id
-            | _ -> failwith (sprintf "unparseable id '%s'" id)
-          ) else fetch_brief_params_from_url id
+        else if String.is_prefix id ~prefix:"TC-" then (
+          match String.split ~on:'#' id with
+          | [id; branch] -> fetch_brief_params_from_suite ~branch id
+          | [id] -> fetch_brief_params_from_suite id
+          | _ -> failwith (sprintf "unparseable id '%s'" id)
+        ) else fetch_brief_params_from_url id
       in
       (*printf "<html>fetch_brief_params_from %s =<br> %s</html>" id xs;*)
       xs
@@ -593,8 +599,7 @@ in
     let expand ctx = (*expand cell context into all possible context after expanding ctx templates into values*)
       Deferred.List.fold ~init:[ctx]
         ~f:(fun rets expand_fn ->
-            Deferred.List.fold rets ~init:[] ~f:(fun acc ret->
-                let%map r = expand_fn ret in acc@r))
+            Deferred.List.concat_map rets ~how:`Parallel ~f:expand_fn)
         [
           expand_latest_build_of_branch; (* 1. value template: latest_in_branch *)
           (* expand_tiny_urls;*)         (* 2. key template: t -- to use a tiny link value -- already expanded in row *)
