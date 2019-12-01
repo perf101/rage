@@ -1,4 +1,5 @@
 open Core
+open Async
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
@@ -14,5 +15,6 @@ let t ~args = object (self)
     printf "<input type='submit' name='submit' value='Import now'/>\n";
     printf "</form>";
     printf "</div>";
+    return ()
 
 end

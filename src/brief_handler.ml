@@ -1,4 +1,5 @@
 open Core
+open Async.Deferred.Let_syntax
 open Utils
 
 let config_file = Sys.(get_argv ()).(2)
@@ -120,7 +121,7 @@ let t ~args = object (self)
     in
     let fetch_brief_params_from_db id =
       let query = sprintf "select brief_params from briefs where brief_id='%s'" id in
-      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0).(0)
     in
     let fetch_suite id branch =
       let url = sprintf "https://code.citrite.net/projects/XRT/repos/xenrt/raw/suites/%s?at=%s" id (Uri.pct_encode branch) in
@@ -175,7 +176,7 @@ let t ~args = object (self)
     in
     let fetch_brief_params_from id =
       let xs = if is_digit id then fetch_brief_params_from_db id
-        else if String.is_prefix id ~prefix:"TC-" then (
+        else return @@ if String.is_prefix id ~prefix:"TC-" then (
           match String.split ~on:'#' id with
           | [id; branch] -> fetch_brief_params_from_suite ~branch id
           | [id] -> fetch_brief_params_from_suite id
@@ -188,15 +189,15 @@ let t ~args = object (self)
     let title_of_id id =
       if is_digit id then
         let query = sprintf "select brief_desc from briefs where brief_id='%s'" id in
-        (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+        let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0).(0)
       else
-        ""
+        return ""
     in
 
     let get_input_rows_from_id id fn =
-      let brief_params_from = fetch_brief_params_from id in
+      let%bind brief_params_from = fetch_brief_params_from id in
       let args = parse_url brief_params_from in
-      let _,_input_rows,_,_,_,_ = fn args in
+      let%map _,_input_rows,_,_,_,_ = fn args in
       _input_rows
     in
 
@@ -236,9 +237,9 @@ let t ~args = object (self)
           []
       in
       printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
-      let extra_input_rows_from = (* list of rows_t *)
+      let%map extra_input_rows_from = (* list of rows_t *)
         let ids = Str.split (Str.regexp ",") params_add_rows_from in
-        List.map ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
+        Async.Deferred.List.map ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
       in
 (*
       printf "<input_extra_rows_sexp %s/>\n" (html_encode (List.fold_left extra_input_rows_from ~init:"" ~f:(fun extra_input_row->(Sexp.to_string (sexp_of_rows_t extra_input_row)))));
@@ -286,8 +287,8 @@ let t ~args = object (self)
       (input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col)
     in
 
-    let args =
-      if String.(brief_id = "") then params
+    let%bind args =
+      if String.(brief_id = "") then return params
       else
         let replace params default_params=
           List.fold_left (* if params present, use it preferrably over the default params *)
@@ -295,7 +296,8 @@ let t ~args = object (self)
             ~init:[]
             ~f:(fun acc (k,v)->match List.find params ~f:(fun (ko,_)->String.(k=ko)) with|None->(k,v)::acc|Some o->o::acc)
         in
-        List.fold_left params ~init:(replace params (fetch_brief_params_from brief_id)) ~f:(fun acc (k,v)->
+        let%map brief_params = fetch_brief_params_from brief_id in
+        List.fold_left params ~init:(replace params brief_params) ~f:(fun acc (k,v)->
           match List.find acc ~f:(fun (ka,_)->String.(k=ka)) with
           |None->(k,v)::acc (* if params contains a k not in the db, add this k to args *)
           |Some _->acc
@@ -303,7 +305,7 @@ let t ~args = object (self)
     in
 
     (* === process === *)
-    let input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col =
+    let%bind input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col =
       get_input_values args
     in
 
@@ -322,49 +324,54 @@ let t ~args = object (self)
 
     let soms_of_tc tc_fqn =
       let query = sprintf "select som_id from soms where tc_fqn='%s'" tc_fqn in
-      Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
+      let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
+      Array.to_list (Array.map a ~f:(fun x->x.(0)))
     in
-    let soms_of_tc = Memo.general soms_of_tc in
+    let soms_of_tc = Async.Deferred.Memo.general (module String) soms_of_tc in
     let rec_of_som som_id =
       let query = sprintf "select som_name,tc_fqn,more_is_better,units,positive from soms where som_id='%s'" som_id in
-      (Sql.exec_exn ~conn ~query)#get_all.(0)
+      let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0)
     in
-    let rec_of_som = Memo.general rec_of_som in
-    let name_of_som som_id = (rec_of_som som_id).(0) in
-    let tc_of_som som_id   = (rec_of_som som_id).(1) in
-    let more_is_better_of_som som_id = (rec_of_som som_id).(2) in
-    let unit_of_som som_id = (rec_of_som som_id).(3) in
+    let rec_of_som = Async.Deferred.Memo.general (module String) rec_of_som in
+    let rec_of_som_id_n som_id n =
+      let%map r = unstage(rec_of_som) som_id in r.(n) in
+    let name_of_som som_id = rec_of_som_id_n som_id 0 in
+    let tc_of_som som_id   = rec_of_som_id_n som_id 1 in
+    let more_is_better_of_som som_id = rec_of_som_id_n som_id 2 in
+    let unit_of_som som_id = rec_of_som_id_n som_id 3 in
     let has_table table_name =
       let query = sprintf "select table_name from information_schema.tables where table_schema='public' and table_name='%s'" table_name in
-      not @@ List.is_empty (Array.to_list (Sql.exec_exn ~conn ~query)#get_all)
+      let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
+      not @@ List.is_empty (Array.to_list a)
     in
-    let has_table = Memo.general has_table in
+    let has_table = Async.Deferred.Memo.general (module String) has_table in
     let columns_of_table table_name =
       let query = sprintf "select column_name from information_schema.columns where table_name='%s'" table_name in
-      Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->x.(0)))
+      let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
+      Array.to_list (Array.map a ~f:(fun x->x.(0)))
     in
-    let columns_of_table = Memo.general columns_of_table in
+    let columns_of_table = Async.Deferred.Memo.general (module String) columns_of_table in
     let contexts_of_som_id som_id =
-      (List.filter
-        (columns_of_table (sprintf "som_config_%s" som_id))
+      let%map cols = unstage(columns_of_table) (sprintf "som_config_%s" som_id) in
+      (List.filter cols
         ~f:(fun e->String.(e<>"som_config_id"))
       )
     in
     let contexts_of_tc_fqn tc_fqn =
-      (List.filter
-        (columns_of_table (sprintf "tc_config_%s" tc_fqn))
+      let%map cols = unstage(columns_of_table) (sprintf "tc_config_%s" tc_fqn) in
+      (List.filter cols
         ~f:(fun e->String.(e<>"tc_config_id"))
       )
     in
-    let contexts_of_tc =
-      (List.filter
-        (columns_of_table "tc_config")
+    let%bind contexts_of_tc =
+      let%map cols = unstage(columns_of_table) "tc_config" in
+      (List.filter cols
         ~f:(fun e->not (List.mem ~equal:String.equal ["tc_fqn";"tc_config_id";"machine_id"] e))
       )
     in
     let url_of_t t =
       let query = sprintf "select url from tiny_urls where key=%s" t in
-      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0).(0)
     in
     (*
     let all_contexts_of_tc tc_fqn =
@@ -383,37 +390,46 @@ let t ~args = object (self)
         ~f:(fun som_contexts->tc_contexts @ som_contexts)
     in
     *)
-    let contexts_of_machine = List.filter (columns_of_table "machines") ~f:(fun e->String.(e<>"machine_id")) in
-    let contexts_of_build = List.filter (columns_of_table "builds") ~f:(fun e->String.(e<>"build_id")) in
+    let%bind contexts_of_machine =
+      let%map cols = unstage(columns_of_table) "machines" in
+      List.filter cols
+      ~f:(fun e->String.(e<>"machine_id")) in
+    let%bind contexts_of_build =
+      let%map cols = unstage(columns_of_table) "builds" in
+      List.filter cols
+      ~f:(fun e->String.(e<>"build_id")) in
     let values_of cs ~at:cs_f = List.filter cs ~f:(fun (k,v)->List.mem ~equal:String.equal cs_f k) in
 
 (*
     let latest_build_of_branch branch =
       let query = sprintf "select max(build_number) from builds where branch='%s'" branch in
-      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      (Postgresql_async.exec_exn_get_all ~conn ~query).(0).(0)
     in
 *)
     let builds_of_branch branch =
       let query = sprintf "select distinct build_number from builds where branch='%s' order by build_number desc" branch in
-      List.map (Array.to_list ((Sql.exec_exn ~conn ~query)#get_all)) ~f:(fun x->x.(0))
+      let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
+      List.map (Array.to_list a) ~f:(fun x->x.(0))
     in
 (*  this query is better than builds_of_branch but it is too slow so cannot be used 
     let latest_build_in_branch branch =
       let query = sprintf "select max(build_number) from builds,measurements,jobs where branch='%s' and measurements.job_id = jobs.job_id and jobs.build_id = builds.build_id" branch in
-      (Sql.exec_exn ~conn ~query)#get_all.(0).(0)
+      (Postgresql_async.exec_exn_get_all ~conn ~query).(0).(0)
     in
 *)
     (*TODO: touch each element of the context when it is used; if an element is not used at the end of this function,
             then raise an error indicating that probably there's a typo in the context element
      *) 
     let measurements_of_cell context = 
-       let get e ctx = match List.find_exn ctx ~f:(fun (k,v)->String.(e=k)) with |k,v->v in
+       let get e ctx = List.Assoc.find ~equal:String.equal ctx e in
        let measurements_of_som som_id =
-         let has_table_som_id som_id = has_table (sprintf "som_config_%s" som_id) in
-         let tc_fqn = tc_of_som som_id in 
+         let%bind has_table_som_id = unstage(has_table) (sprintf "som_config_%s" som_id) in
+         let%bind tc_fqn = tc_of_som som_id in
+         let%bind contexts_of_this_som_id = contexts_of_som_id som_id in
+         let%bind contexts_of_this_tc_fqn = contexts_of_tc_fqn tc_fqn in
          let query = "select sj.job_id, m.result from measurements_2 m join soms_jobs sj on m.som_job_id=sj.id "
            ^(sprintf "join tc_config_%s on m.tc_config_id=tc_config_%s.tc_config_id " tc_fqn tc_fqn)
-           ^(if has_table_som_id som_id then
+           ^(if has_table_som_id then
               (sprintf "join som_config_%s on m.som_config_id=som_config_%s.som_config_id " som_id som_id)
              else ""
             )
@@ -430,8 +446,8 @@ let t ~args = object (self)
                 sprintf "%s%smachines.%s='%s' " acc2 (match acc2 with |""->""|_->"or ") k v
               ))
             ))
-           ^(if has_table_som_id som_id then
-             (List.fold_left (values_of context ~at:(contexts_of_som_id som_id)) ~init:"" ~f:(fun acc (k,vs)->
+           ^(if has_table_som_id then
+             (List.fold_left (values_of context ~at:contexts_of_this_som_id) ~init:"" ~f:(fun acc (k,vs)->
               match vs with []->acc|_->
               sprintf "%s and (%s) " acc 
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
@@ -440,7 +456,7 @@ let t ~args = object (self)
             ))
              else ""
             )
-           ^(List.fold_left (values_of context ~at:(contexts_of_tc_fqn tc_fqn)) ~init:"" ~f:(fun acc (k,vs)->
+           ^(List.fold_left (values_of context ~at:contexts_of_this_tc_fqn) ~init:"" ~f:(fun acc (k,vs)->
               match vs with []->acc|_->
               sprintf "%s and (%s) " acc
               (List.fold_left vs ~init:"" ~f:(fun acc2 v->
@@ -462,12 +478,15 @@ let t ~args = object (self)
               ))
             ))
           in
-          Array.to_list (Array.map (Sql.exec_exn ~conn ~query)#get_all ~f:(fun x->{job=int_of_string x.(0); value=x.(1)}))
+          let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
+          Array.to_list (Array.map a ~f:(fun x->{job=int_of_string x.(0); value=x.(1)}))
         in
         (* add measurements for each one of the soms in the cell *)
-        try
-          List.concat (List.map ~f:measurements_of_som (get "soms" context))
-        with Not_found ->
+        match get "soms" context with
+        | Some som ->
+          let%map r = Async.Deferred.List.map ~f:measurements_of_som som in
+          List.concat r
+        | None ->
           failwith (sprintf "Could not find 'soms' in context; keys are [%s]" (List.map ~f:fst context |> String.concat ~sep:", "));
     in
 
@@ -490,11 +509,11 @@ let t ~args = object (self)
       let k_build_number = "build_number" in
       let v_latest_in_branch = "latest_in_branch" in
       match List.find ~f:(fun (k,vs)->String.(k=k_branch)) c_kvs with
-      | None -> [c_kvs]
+      | None -> return [c_kvs]
       | Some (_,branches) ->
       if List.length branches < 1
       then
-          [] (* no branches provided, no results *)
+          return [] (* no branches provided, no results *)
       else
       (* list of all builds in all branches provided *)
 
@@ -506,10 +525,10 @@ let t ~args = object (self)
         List.exists c_kvs ~f:(fun (k,vs) -> String.(k=k_build_number) && List.exists vs ~f:(fun v->String.(v=v_latest_in_branch)))
       in
       (* if 'latest_in_branch' value is present, expand ctx into many ctxs, one for each build; otherwise, return the ctx intact *)
-      if not has_v_latest_in_branch then [c_kvs]
+      if not has_v_latest_in_branch then return [c_kvs]
       else (
         (* brute-force way to find the max build with measurements, to work around the slowness in the query in latest_build_in_branch *)
-        let builds = builds_of_branch (List.nth_exn branches 0) in (*TODO: handle >1 branch in context*)
+        let%map builds = builds_of_branch (List.nth_exn branches 0) in (*TODO: handle >1 branch in context*)
         let builds_of_branches = List.slice builds 0 (min 100 (List.length builds)) in (* take up to 100 elements in the list *)
         debug (sprintf "builds_of_branches=%s" (List.fold_left ~init:"" builds_of_branches ~f:(fun acc b->acc ^","^b)));
 
@@ -523,7 +542,8 @@ let t ~args = object (self)
       ))
     in
     let c_kvs_of_tiny_url t =
-      let url = url_decode (url_of_t t) in
+      let%map url = url_of_t t in
+      let url = url_decode url in
       debug (sprintf "expanded tiny url t=%s => %s" t url);
       (* parse and add "v_"k=value patterns in url *)
       let items = parse_url url in
@@ -564,9 +584,9 @@ let t ~args = object (self)
       let k_tiny_url = "t" in
       let tiny_url = List.find c_kvs ~f:(fun (k,_) -> String.(k=k_tiny_url)) in
       let x = match tiny_url with
-      | None         -> [c_kvs]
+      | None         -> return [c_kvs]
       | Some (_,[t]) ->
-        let x = c_kvs_of_tiny_url t in
+        let%map x = c_kvs_of_tiny_url t in
         [List.fold_left
           ~init:c_kvs           (* c_kvs kvs have priority over the ones in c_kvs_of_tiny_url *)
           x                     (* obtain url from tiny_url id, parse it and return a c_kvs *)
@@ -660,12 +680,13 @@ let t ~args = object (self)
        let resolve_keywords_in_row acc r =
 
         if List.exists r ~f:(fun (k,v)->String.(k="tcs")) then (* expand tcs into soms *)
-          let r_expanded = List.concat (List.map r 
+          let%map r_expanded = Async.Deferred.List.concat_map r 
             ~f:(fun (k,v)->match k with 
-              | _ when String.(k="tcs") -> List.concat (List.map v ~f:(fun tc->List.map (soms_of_tc tc) ~f:(fun som->("soms",[som]))))
-              | _ -> (k,v)::[] 
+              | _ when String.(k="tcs") -> (Async.Deferred.List.concat_map v ~f:(fun tc->
+                  let%map r = unstage(soms_of_tc) tc in
+                  List.map r ~f:(fun som->("soms",[som]))))
+              | _ -> (k,v)::[] |> return
             )
-          )
           in
           let soms,no_soms = List.partition_tf r_expanded ~f:(fun (k,v)->String.(k="soms")) in
           let soms = List.sort soms ~compare:(fun (xk,xv) (yk,yv)->(int_of_string(List.hd_exn xv)) - (int_of_string(List.hd_exn yv))) in
@@ -753,17 +774,17 @@ let t ~args = object (self)
     progress (sprintf "table: %d lines: " (List.length rs));
     let ctx_and_measurements_of_1st_cell_with_data expand_f ctx =
       let ctxs = expand_f ctx in
-      let measurements_of_cells = List.find_map ctxs ~f:(fun c->let ms=measurements_of_cell c in if List.is_empty ms then None else (Some (c,ms))) in
-      match measurements_of_cells with None->ctx,[]|Some (c,ms)->c,ms
+      let measurements_of_cells = Async.Deferred.List.find_map ctxs ~f:(fun c->let%map ms=measurements_of_cell c in if List.is_empty ms then None else (Some (c,ms))) in
+      match%map measurements_of_cells with None->ctx,[]|Some (c,ms)->c,ms
     in
-    let measurements_of_table = 
+    let%bind measurements_of_table = 
       let rs_len = List.length rs in
-      List.mapi rs ~f:(fun i r->
+      Async.Deferred.List.mapi rs ~f:(fun i r->
         progress (sprintf "row %d of %d..." i rs_len);
-        r, (List.map cs ~f:(fun c->
-          let ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
+        let%map csr = Async.Deferred.List.map cs ~f:(fun c->
+          let%map ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
           (r, c, ctx,  ms)
-        ))
+        ) in r, csr
       )
     in
 
@@ -994,11 +1015,11 @@ let t ~args = object (self)
           in
       let is_more_is_better ctx =
         match List.find ctx ~f:(fun (k,_)->String.(k="soms")) with
-        |None->None
+        |None->return None
         |Some (k,_vs)->(
           let rec is_mb acc vs = (match vs with
-          |[]->if Option.is_none acc then None else acc
-          |v::vs->(let mb = more_is_better_of_som v in
+          |[]-> return @@ if Option.is_none acc then None else acc
+          |v::vs->(let%bind mb = more_is_better_of_som v in
             if String.(mb="") then is_mb acc vs (* ignore more_is_better if not defined in db *)
             else
               let mbtf = match mb with m when String.(m="f")->false|_->true in
@@ -1006,7 +1027,7 @@ let t ~args = object (self)
               |None->is_mb (Some mbtf) vs
               |Some _mbtf->if Bool.(_mbtf=mbtf)
               then is_mb (Some mbtf) vs  (* more_is_better values agree between soms *)
-              else None                  (* more_is_better values disagree between soms *)
+              else return None                  (* more_is_better values disagree between soms *)
             )
           ) in
           is_mb None _vs
@@ -1055,18 +1076,18 @@ let t ~args = object (self)
                 else
                   sprintf "<sub>(%d)</sub>" number
               in
-              let colour = 
-                (if number = 0 || baseline_col_idx = i then "" else
-                 match is_more_is_better ctx with
+              let%bind colour = 
+                (if number = 0 || baseline_col_idx = i then return "" else
+                 match%map is_more_is_better ctx with
                  |None->""
                  |Some mb->
                      if (List.length baseline_ms) < 1 then "black" else
                      if is_green (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb then "green" else "red"
                 ) in
               let avg = str_stddev_of (vals_of_ms ms) in
-              let diff = 
-                (if number = 0 || baseline_col_idx = i || (List.length baseline_ms < 1) then "" else
-                 match is_more_is_better ctx with
+              let%map diff = 
+                (if number = 0 || baseline_col_idx = i || (List.length baseline_ms < 1) then return "" else
+                 match%map is_more_is_better ctx with
                  |None->""
                  |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
                 ) in
@@ -1078,7 +1099,8 @@ let t ~args = object (self)
       )
       in
       let brief_name = if is_digit brief_id then "jim #"^brief_id else sprintf "from <a href='%s'>%s</a>" brief_id brief_id in
-      printf "<p>Brief RAGE Report %s: <b>%s</b></p>\n" brief_name (title_of_id brief_id);
+      let%map title = title_of_id brief_id in
+      printf "<p>Brief RAGE Report %s: <b>%s</b></p>\n" brief_name title;
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
@@ -1121,7 +1143,10 @@ let t ~args = object (self)
         List.fold_left kvs ~init:"" ~f:(fun acc (k,vs)->
           if String.(k<>"soms") then acc else
           (sprintf "%s %s \\\\" acc (List.fold_left vs ~init:"" ~f:(fun acc2 som->
-              let s=sprintf "%s: *%s* (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if String.(u="") then u else u^", ") (sprintf "%s is better" (let mb=more_is_better_of_som som in if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"))  in
+              let%map mbstr =
+                let%map mb=more_is_better_of_som som in if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"
+              in
+              let s=sprintf "%s: *%s* (%s%s)" (tc_of_som som) (name_of_som som) (let u=unit_of_som som in if String.(u="") then u else u^", ") (sprintf "%s is better" mbstr) in
               if String.(acc="") then s else acc^","^s
             ))
           )

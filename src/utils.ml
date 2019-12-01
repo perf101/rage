@@ -1,4 +1,5 @@
 open Core
+open Async
 
 let debug msg =
   Out_channel.output_string stderr (msg ^ "\n");
@@ -41,16 +42,19 @@ let get_value r row col null_val =
 
 let combine_maps conn tbls f =
   let m = String.Table.create () in
-  List.iter tbls ~f:(fun t -> merge_table_into (f conn t) m);
+  let%map () = Deferred.List.iter tbls ~f:(fun t ->
+    let%map r = f conn t in
+    merge_table_into r m) in
   m
 
 let get_column_types conn tbl =
-  String.Table.of_alist_exn (Sql.get_col_types_lst ~conn ~tbl)
+  let%map r = Postgresql_async.wrap_sql ~conn (Sql.get_col_types_lst ~tbl) in
+  String.Table.of_alist_exn r
 
 let get_column_types_many conn tbls = combine_maps conn tbls get_column_types
 
 let get_column_fqns conn tbl =
-  let col_names = Sql.get_col_names ~conn ~tbl in
+  let%map col_names = Postgresql_async.wrap_sql ~conn (Sql.get_col_names ~tbl) in
   let nameToFqn = String.Table.create () in
   let process_column name =
     let fqn = tbl ^ "." ^ name in
@@ -185,7 +189,7 @@ let print_options_for_field namespace db_result col =
 
 let print_options_for_fields conn tbl namespace =
   let query = "SELECT * FROM " ^ tbl in
-  let result = Sql.exec_exn ~conn ~query in
+  let%map result = Postgresql_async.exec_exn ~conn ~query in
   List.iter ~f:(print_options_for_field namespace result)
     (List.range 1 result#nfields);
   printf "<br style='clear: both' />\n"
@@ -235,18 +239,22 @@ let job_fields = [
 
 let som_config_tbl_exists ~conn som_id =
   let som_config_tbl = sprintf "som_config_%d" som_id in
-  som_config_tbl, Sql.tbl_exists ~conn ~tbl:som_config_tbl
+  let%map r = Postgresql_async.wrap_sql ~conn (Sql.tbl_exists ~tbl:som_config_tbl) in
+  som_config_tbl, r
 
 let get_std_xy_choices ~conn =
+  let%map colnames = Postgresql_async.wrap_sql ~conn (Sql.get_col_names ~tbl:"machines") in
   let machine_field_lst =
-    List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
+    List.tl_exn colnames in
   job_fields @ build_fields @ tc_config_fields @ machine_field_lst
 
 let get_xy_choices ~conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with
     | None -> []
     | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
-  in get_std_xy_choices ~conn @ configs#get_fnames_lst @ som_configs_lst
+  in
+  let%map r = get_std_xy_choices ~conn in
+  r @ configs#get_fnames_lst @ som_configs_lst
 
 let print_axis_choice ?(multiselect=false) label id choices =
   printf "<div id='%s' style='display: inline-block'>\n" id;
@@ -262,17 +270,18 @@ let print_empty_y_axis_choice ~conn:_ =
   print_axis_choice "Y axis" "yaxis" []
 
 let print_x_axis_choice ~conn configs som_configs_opt =
-  print_axis_choice "X axis" "xaxis" ~multiselect:true
-    (get_xy_choices ~conn configs som_configs_opt)
+  let%map r = get_xy_choices ~conn configs som_configs_opt in
+  print_axis_choice "X axis" "xaxis" ~multiselect:true r
 
 let print_y_axis_choice ~conn configs som_configs_opt =
+  let%map r = get_xy_choices ~conn configs som_configs_opt in
   print_axis_choice "Y axis" "yaxis"
-    ("result" :: (get_xy_choices ~conn configs som_configs_opt))
+    ("result" :: r)
 
 let get_tc_config_tbl_name conn som_id =
   let query = "SELECT tc_fqn FROM soms " ^
               "WHERE som_id = " ^ (string_of_int som_id) in
-  let result = Sql.exec_exn ~conn ~query in
+  let%map result = Postgresql_async.exec_exn ~conn ~query in
   let tc_fqn = String.lowercase (result#getvalue 0 0) in
   (tc_fqn, "tc_config_" ^ tc_fqn)
 
