@@ -1,5 +1,5 @@
 open Core
-open Async.Deferred.Let_syntax
+open Async
 open Utils
 
 let config_file = Sys.(get_argv ()).(2)
@@ -114,7 +114,7 @@ let t ~args = object (self)
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let has_match = Str.string_match (Str.regexp ".*<pre class=\"syntaxhighlighter-pre\"[^>]*>\\([^<]+\\)<") html 0 in (*find the "code block" in the page*)
       if not has_match
-      then (Printf.printf "Error: no '{code}' block found in %s" url; raise Not_found)
+      then (printf "Error: no '{code}' block found in %s" url; raise Not_found)
       else
         try Str.matched_group 1 html
         with Not_found -> (debug "not found"; raise Not_found)
@@ -239,7 +239,7 @@ let t ~args = object (self)
       printf "<input_rows_sexp %s/>\n" (html_encode (Sexp.to_string (sexp_of_rows_t input_rows)));
       let%map extra_input_rows_from = (* list of rows_t *)
         let ids = Str.split (Str.regexp ",") params_add_rows_from in
-        Async.Deferred.List.map ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
+        Deferred.List.map ids ~f:(fun id-> get_input_rows_from_id id get_input_values)
       in
         (*
       printf "<input_extra_rows_sexp %s/>\n" (html_encode (List.fold_left extra_input_rows_from ~init:"" ~f:(fun extra_input_row->(Sexp.to_string (sexp_of_rows_t extra_input_row)))));
@@ -327,12 +327,12 @@ let t ~args = object (self)
       let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
       Array.to_list (Array.map a ~f:(fun x->x.(0)))
     in
-    let soms_of_tc = Async.Deferred.Memo.general (module String) soms_of_tc in
+    let soms_of_tc = Deferred.Memo.general (module String) soms_of_tc in
     let rec_of_som som_id =
       let query = sprintf "select som_name,tc_fqn,more_is_better,units,positive from soms where som_id='%s'" som_id in
       let%map r = Postgresql_async.exec_exn_get_all ~conn ~query in r.(0)
     in
-    let rec_of_som = Async.Deferred.Memo.general (module String) rec_of_som in
+    let rec_of_som = Deferred.Memo.general (module String) rec_of_som in
     let rec_of_som_id_n som_id n =
       let%map r = unstage(rec_of_som) som_id in r.(n) in
     let name_of_som som_id = rec_of_som_id_n som_id 0 in
@@ -344,13 +344,13 @@ let t ~args = object (self)
       let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
       not @@ List.is_empty (Array.to_list a)
     in
-    let has_table = Async.Deferred.Memo.general (module String) has_table in
+    let has_table = Deferred.Memo.general (module String) has_table in
     let columns_of_table table_name =
       let query = sprintf "select column_name from information_schema.columns where table_name='%s'" table_name in
       let%map a = Postgresql_async.exec_exn_get_all ~conn ~query in
       Array.to_list (Array.map a ~f:(fun x->x.(0)))
     in
-    let columns_of_table = Async.Deferred.Memo.general (module String) columns_of_table in
+    let columns_of_table = Deferred.Memo.general (module String) columns_of_table in
     let contexts_of_som_id som_id =
       let%map cols = unstage(columns_of_table) (sprintf "som_config_%s" som_id) in
       (List.filter cols
@@ -484,7 +484,7 @@ in
       (* add measurements for each one of the soms in the cell *)
       match get "soms" context with
       | Some som ->
-        let%map r = Async.Deferred.List.map ~f:measurements_of_som som in
+        let%map r = Deferred.List.map ~f:measurements_of_som som in
         List.concat r
       | None ->
         failwith (sprintf "Could not find 'soms' in context; keys are [%s]" (List.map ~f:fst context |> String.concat ~sep:", "));
@@ -604,9 +604,9 @@ in
       x
     in
     let expand ctx = (*expand cell context into all possible context after expanding ctx templates into values*)
-      Async.Deferred.List.fold ~init:[ctx]
+      Deferred.List.fold ~init:[ctx]
         ~f:(fun rets expand_fn ->
-            Async.Deferred.List.fold rets ~init:[] ~f:(fun acc ret->
+            Deferred.List.fold rets ~init:[] ~f:(fun acc ret->
                 let%map r = expand_fn ret in acc@r))
         [
           expand_latest_build_of_branch; (* 1. value template: latest_in_branch *)
@@ -677,14 +677,14 @@ in
           )
       in
 
-      Async.Deferred.List.fold ~init:[] rows (* expand special row keys *) (*todo: this should also apply to columns *)
+      Deferred.List.fold ~init:[] rows (* expand special row keys *) (*todo: this should also apply to columns *)
         ~f:(fun acc r-> 
             let resolve_keywords_in_row acc r =
 
               if List.exists r ~f:(fun (k,v)->String.(k="tcs")) then (* expand tcs into soms *)
-                let%map r_expanded = Async.Deferred.List.concat_map r 
+                let%map r_expanded = Deferred.List.concat_map r 
                     ~f:(fun (k,v)->match k with 
-                        | _ when String.(k="tcs") -> (Async.Deferred.List.concat_map v ~f:(fun tc->
+                        | _ when String.(k="tcs") -> (Deferred.List.concat_map v ~f:(fun tc->
                             let%map r = unstage(soms_of_tc) tc in
                             List.map r ~f:(fun som->("soms",[som]))))
                         | _ -> (k,v)::[] |> return
@@ -700,8 +700,8 @@ in
 
               else if List.exists r ~f:(fun (k,_)->String.(k=k_add_rows_from)) then (* add rows from other brief ids *)
                 let bs = List.filter r ~f:(fun (k,_)->String.(k=k_add_rows_from)) in (* use all references. TODO: what to do with non-references in the same row??? *)
-                let%map r = Async.Deferred.List.concat_map bs ~f:(fun (k,vs)-> (* map one r into many potential rows *)
-                    Async.Deferred.List.concat_map vs ~f:(fun v->  (* map one vs into many potential rows *)
+                let%map r = Deferred.List.concat_map bs ~f:(fun (k,vs)-> (* map one r into many potential rows *)
+                    Deferred.List.concat_map vs ~f:(fun v->  (* map one vs into many potential rows *)
                         let%bind xs = get_input_rows_from_id v get_input_values in (* resolve each new row recursively if necessary *)
                         let%map ys = resolve_keywords xs in
             (*
@@ -774,14 +774,14 @@ in
     progress (sprintf "table: %d lines: " (List.length rs));
     let ctx_and_measurements_of_1st_cell_with_data expand_f ctx =
       let%bind ctxs = expand_f ctx in
-      let measurements_of_cells = Async.Deferred.List.find_map ctxs ~f:(fun c->let%map ms=measurements_of_cell c in if List.is_empty ms then None else (Some (c,ms))) in
+      let measurements_of_cells = Deferred.List.find_map ctxs ~f:(fun c->let%map ms=measurements_of_cell c in if List.is_empty ms then None else (Some (c,ms))) in
       match%map measurements_of_cells with None->ctx,[]|Some (c,ms)->c,ms
     in
     let%bind measurements_of_table =
       let rs_len = List.length rs in
-      Async.Deferred.List.mapi rs ~f:(fun i r->
+      Deferred.List.mapi rs ~f:(fun i r->
           progress (sprintf "row %d of %d..." i rs_len);
-          let%map csr = Async.Deferred.List.map cs ~f:(fun c->
+          let%map csr = Deferred.List.map cs ~f:(fun c->
               let%map ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
               (r, c, ctx,  ms)
             ) in r, csr
@@ -989,9 +989,9 @@ in
           )
       in
       let str_desc_of_ctxs kvs =
-        Async.Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
+        Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
             if String.(k<>"soms") then return acc else
-              let%map r = Async.Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
+              let%map r = Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
                   let%bind tc = tc_of_som som in
                   let%bind u = unit_of_som som in
                   let%bind mb = more_is_better_of_som som in
@@ -1041,7 +1041,7 @@ in
       let%bind cells = List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
           let%bind str_desc = str_desc_of_ctxs r in
           let%map lst =
-            Async.Deferred.List.mapi cs ~f:(fun i (r,c,ctx,ms)->
+            Deferred.List.mapi cs ~f:(fun i (r,c,ctx,ms)->
                 let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
                 let debug_r = Sexp.to_string (sexp_of_ctx_t r)
                 and debug_c = Sexp.to_string (sexp_of_ctx_t c)
@@ -1082,7 +1082,7 @@ in
             (link lnkctx)
             (* cells to the right *)
             cells
-        ) |> Async.Deferred.List.all in
+        ) |> Deferred.List.all in
       let html_table =
         sprintf "<tr> <td style='background-color:papayawhip;' colspan='%d'>%s</td></tr>\n%s%s%s"
           num_columns
@@ -1145,10 +1145,10 @@ in
           )
       in
       let str_desc_of_ctxs kvs =
-        Async.Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
+        Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
             if String.(k<>"soms") then return acc else
               let%map r =
-                Async.Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
+                Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
                     let%bind tc = tc_of_som som in
                     let%bind name = name_of_som som in
                     let%bind u = unit_of_som som in
@@ -1201,7 +1201,7 @@ in
         (List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
              let%bind str_desc = str_desc_of_ctxs r in
              let%map cells =
-               Async.Deferred.List.mapi cs ~f:(fun i (r,c,ctx,ms)->
+               Deferred.List.mapi cs ~f:(fun i (r,c,ctx,ms)->
                    let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
                    let%map is_mb = is_more_is_better ctx in
               (*
@@ -1235,7 +1235,7 @@ in
                (* cells to the right *)
                (List.fold_left ~init:"" ~f:(fun acc c_ms->(sprintf "%s %s | " acc c_ms)) cells)
            ))
-        |> Async.Deferred.List.all
+        |> Deferred.List.all
       in
       let wiki_table =
         sprintf "| %s|\n%s%s\n%s"
