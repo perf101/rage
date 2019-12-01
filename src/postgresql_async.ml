@@ -12,11 +12,6 @@ let connect ~conninfo =
 let close c =
   in_thread ~name:"Postgresql close connection" (fun () -> c#finish)
 
-let exec_exn ~(conn : Postgresql.connection) ~query =
-  in_thread ~name:"Postgresql query" (fun () ->
-      (* previous invocation might've left the connection in a bad state *)
-      conn#try_reset ; Sql.exec_exn ~conn ~query)
-
 module Lazy_pooled_resource = struct
   type 'a t = 'a Or_error.t Lazy_deferred.t Throttle.t
 
@@ -60,9 +55,15 @@ let connect_pool ~conninfo =
 
 let destroy_pool = Lazy_pooled_resource.destroy
 
+let wrap_sql ~(conn:t) f =
+  Lazy_pooled_resource.with_ conn ~f:(fun conn ->
+    in_thread ~name:"Postgresql query" (fun () ->
+      (* previous invocation might've left the connection in a bad state *)
+      conn#try_reset ; f ~conn))
+        |> Deferred.Or_error.ok_exn
+
 let exec_exn ~conn ~query =
-  Lazy_pooled_resource.with_ conn ~f:(fun conn -> exec_exn ~conn ~query)
-  |> Deferred.Or_error.ok_exn
+  wrap_sql ~conn (Sql.exec_exn ~query)
 
 let exec_exn_get_all ~conn ~query =
   exec_exn ~conn ~query >>| fun r -> r#get_all

@@ -1,4 +1,5 @@
 open Core
+open Async
 open Fn
 open Utils
 
@@ -81,14 +82,14 @@ let t ~args = object (self)
 
   method private write_body =
     let som_id = int_of_string (self#get_param_exn "id") in
-    let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
-    let som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
+    let%bind tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
+    let%bind som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
     (* determine filter columns and their types *)
     let tbls = ["measurements_2"; "soms_jobs"; "jobs"; "builds"; "tc_config"; "machines";
       tc_config_tbl] @
       (if som_tbl_exists then [som_config_tbl] else []) in
-    let col_fqns = get_column_fqns_many conn tbls in
-    let col_types = get_column_types_many conn tbls in
+    let%bind col_fqns = get_column_fqns_many conn tbls in
+    let%bind col_types = get_column_types_many conn tbls in
     (* Get axes selections. xaxis may be multi-valued; yaxis is single value. *)
     let xaxis = self#values_for_key "xaxis" ~default:["branch"] in
     (* xaxis could be ["one"; "two"] or ["one%2Ctwo"] -- both are equivalent *)
@@ -114,7 +115,7 @@ let t ~args = object (self)
     let filter = extract_filter col_fqns col_types params values_prefix in
     (* obtain SOM meta-data *)
     let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
-    let metadata = Sql.exec_exn ~conn ~query in
+    let%bind metadata = Postgresql_async.exec_exn ~conn ~query in
     let positive = String.(Sql.get_first_entry_exn ~result:metadata = "t") in
     (* obtain data from database *)
     let query =
@@ -140,7 +141,7 @@ let t ~args = object (self)
       (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
       (sprintf " LIMIT %d" limit_rows)
     in
-    let data = Sql.exec_exn ~conn ~query in
+    let%bind data = Postgresql_async.exec_exn ~conn ~query in
     let rows = data#get_all in
     debug (sprintf "The query returned %d rows" (Array.length rows));
     (if Array.length rows = limit_rows then debug (sprintf "WARNING: truncation of data -- we are only returning the first %d rows" limit_rows));
@@ -200,5 +201,6 @@ let t ~args = object (self)
       printf "]}"
     in
     List.iteri (Hashtbl.Poly.to_alist all_series) ~f:process_series;
-    printf "]}"
+    printf "]}";
+    return ()
 end

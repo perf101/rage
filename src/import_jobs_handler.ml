@@ -41,6 +41,7 @@ let t ~args = object (self)
     Printf.printf "<pre>";
     import_job job_ids;
     Printf.printf "</pre>";
-    Printf.printf "Finished."
+    Printf.printf "Finished.";
+    Async.return ()
 
 end

@@ -1,8 +1,9 @@
 open Core
+open Async
 open Utils
 
 type args = {
-  conn : Postgresql.connection;
+  conn : Postgresql_async.t;
   params : (string * string) list;
 }
 
@@ -19,13 +20,13 @@ object (self)
 
   method private write_header = ()
 
-  method private write_body = ()
+  method private write_body = return ()
 
   method private write_footer = ()
 
   method handle =
     self#write_header;
-    self#write_body;
+    let%map () = self#write_body in
     self#write_footer
 
   method private write_html_header =
