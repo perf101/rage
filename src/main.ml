@@ -46,7 +46,8 @@ let handle_request () =
   let%bind () = (handler ~args)#handle in
   let%map () = Postgresql_async.destroy_pool conn in
   let elapsed_time = Unix.gettimeofday () -. start_time in
-  debug (sprintf "==========> '%s': %fs." (Place.string_of place) elapsed_time)
+  debug (sprintf "==========> '%s': %fs." (Place.string_of place) elapsed_time);
+  Shutdown.shutdown 0
 
 let bind_modules () =
   Sql.debug_fn := None; (* Some debug; *)
@@ -63,6 +64,7 @@ let () =
     let msg = match e with
     | Failure msg -> msg
     | _ -> Exn.to_string e in
-    printf "<b>%s</b>" msg)
+    printf "<b>%s</b>" msg;
+    Shutdown.shutdown 1)
 
 let () = never_returns (Scheduler.go ())
