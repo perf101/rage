@@ -127,7 +127,15 @@ let t ~args = object (self)
       let url = sprintf "https://code.citrite.net/projects/XRT/repos/xenrt/raw/suites/%s?at=%s" id (Uri.pct_encode branch) in
       debug (sprintf "Fetching from suite %s" url);
       html_of_url url, url in
-    let fetch_parameters_from inc ~branch =
+    let pattern = Str.regexp "<param>\\([^=]+\\)=\\([^<]+\\)</param>" in
+    let include_rex = Str.regexp "<include filename=\"\\([^\"]+\\)\"" in
+    let find_matches html rex =
+      let rage_str = ref [] in
+      let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
+      ignore (Str.global_substitute rex f html);
+        List.rev !rage_str
+      in
+    let rec fetch_parameters_from inc ~branch =
       let b = Buffer.create 80 in
       let lookup var =
         debug ("Lookup include variable: " ^ var);
@@ -138,28 +146,26 @@ let t ~args = object (self)
       Caml.Buffer.add_substitute b lookup inc;
       let inc = Buffer.contents b in
       let html, _ = fetch_suite inc branch in
-      let pattern = Str.regexp "<param>\\([^=]+\\)=\\([^<]+\\)</param>" in
+      let includes = includes html ~branch in
       let rage_str = ref [] in
       let f str = rage_str := (Str.matched_group 1 str, Str.matched_group 2 str) :: !rage_str; "" in
       ignore (Str.global_substitute pattern f html);
-      List.rev !rage_str
+      List.rev !rage_str |> List.append includes
+    and includes html ~branch =
+      let r = find_matches html include_rex |> List.map ~f:(fetch_parameters_from ~branch) |>
+      List.concat in
+      debug (sprintf "include parameters: %s"
+               (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) r |> String.concat ~sep:","));
+      r
     in
     let fetch_brief_params_from_suite ?(branch="refs/heads/master") id =
       let html, url = fetch_suite id branch in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
-      let find_matches rex =
-        let rage_str = ref [] in
-        let f str = rage_str := (Str.matched_group 1 str) :: !rage_str; "" in
-        ignore (Str.global_substitute rex f html);
-        List.rev !rage_str
-      in
+      let find_matches = find_matches html in
       (* Look for <!-- RAGE --> comments and concatenate their contents *)
       let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
       let rows = find_matches pattern |> String.concat ~sep:"\n" in
-      let include_rex = Str.regexp "<include filename=\"\\([^\"]+\\)\"" in
-      let includes = find_matches include_rex |> List.map ~f:(fetch_parameters_from ~branch) |> List.concat in
-      debug (sprintf "include parameters: %s"
-               (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) includes |> String.concat ~sep:","));
+      let includes = includes html ~branch in
       let lookup k =
         if String.(uppercase k = k) then
           match List.Assoc.find ~equal:String.equal includes k with
