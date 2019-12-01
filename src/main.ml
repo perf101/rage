@@ -1,4 +1,5 @@
 open Core
+open Async
 open Utils
 
 (** Combines GET and POST parameters. *)
@@ -26,7 +27,7 @@ let handle_request () =
   let start_time = Unix.gettimeofday () in
   let params = get_params_of_request () in
   let place = place_of_params ~params in
-  let conn = new Postgresql.connection ~conninfo:Sys.(get_argv()).(1) () in
+  let conn = Postgresql_async.connect_pool ~conninfo:Sys.(get_argv()).(1) in
   let args = let open Handler in {conn; params} in
   let open Place in
   let handler = begin match place with
@@ -41,8 +42,9 @@ let handle_request () =
     | Brief -> Brief_handler.t
     | ImportPage -> Import_page_handler.t
     | ImportJobs -> Import_jobs_handler.t
-  end in (handler ~args)#handle;
-  conn#finish;
+  end in
+  let%bind () = (handler ~args)#handle in
+  let%map () = Postgresql_async.destroy_pool conn in
   let elapsed_time = Unix.gettimeofday () -. start_time in
   debug (sprintf "==========> '%s': %fs." (Place.string_of place) elapsed_time)
 
@@ -53,7 +55,14 @@ let bind_modules () =
   Sql.ignore_limit_0 := true;
   Sql.mode := Sql.Live
 
-let _ =
+let () =
   bind_modules ();
-  try handle_request ()
-  with Failure msg -> Printexc.print_backtrace stderr; printf "<b>%s</b>" msg
+  don't_wait_for @@ Monitor.handle_errors handle_request
+  (fun e ->
+    Printexc.print_backtrace stderr;
+    let msg = match e with
+    | Failure msg -> msg
+    | _ -> Exn.to_string e in
+    printf "<b>%s</b>" msg)
+
+let () = never_returns (Scheduler.go ())
