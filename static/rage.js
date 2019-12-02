@@ -571,11 +571,22 @@ function GraphObject() {
 
   function get_distribution_lines(data) {
     // var avgs = [], min_maxs = [], std_devs = [];
-    var medians = [], prc40to60s = [], prc25to75s = [], prc15to85s = [];
+    var medians = [], prc25to75s = [], fences = [];
     var plus = function(acc, x) {return acc + x;};
     var plus_sq = function(acc, x) {return acc + x*x;};
     var min = function(acc, x) {return acc < x ? acc : x;};
     var max = function(acc, x) {return acc < x ? x : acc;};
+    var interpolate = function(ys, n) {
+        var idx = Math.floor(n);
+        var d = n - idx;
+        if (d < Number.EPSILON)
+            return ys[idx];
+        else
+            return (1-d)*ys[idx] + d*ys[idx+1];
+    };
+    var quantile = function(ys, q) {
+        return interpolate(ys, q * ys.length)
+    };
     $.each(group_by_x(data), function(i, x_ys) {
       var x = x_ys[0], ys = x_ys[1];
       numerical_sort(ys);
@@ -585,14 +596,18 @@ function GraphObject() {
       // min_maxs.push([x, ys.reduce(max, -Infinity), ys.reduce(min, Infinity)]);
       // var std_dev = Math.sqrt(ys.reduce(plus_sq) / n - avg*avg);
       // std_devs.push([x, avg + std_dev, avg - std_dev]);
-      medians.push([x, ys[n / 2], ys[n / 2]]);
-      prc40to60s.push([x, ys[Math.floor(n * 0.60)], ys[Math.floor(n * 0.40)]]);
-      prc25to75s.push([x, ys[Math.floor(n * 0.75)], ys[Math.floor(n * 0.25)]]);
-      prc15to85s.push([x, ys[Math.floor(n * 0.85)], ys[Math.floor(n * 0.15)]]);
+      var median = quantile(ys, 0.5);
+      medians.push([x, median, median]);
+      var q1 = quantile(ys, 0.25);
+      var q3 = quantile(ys, 0.75);
+      prc25to75s.push([x, q3, q1]);
+      // Tukey fences
+      var iqr = q3 - q1
+      fences.push([x, q3 + 1.5*iqr, q1-1.5*iqr]);
     });
     return { // min_max: min_maxs, std_dev: std_devs,
-      median: medians, prc40to60: prc40to60s, prc25to75: prc25to75s,
-      prc15to85: prc15to85s};
+      median: medians, prc25to75: prc25to75s, fences: fences
+    };
   }
 
   function draw_graph(o, cb) { //will call callback function and pass in the time that plotting started
@@ -622,9 +637,8 @@ function GraphObject() {
                        label: null, points: {show: false},
                        lines: {show: true, lineWidth: 0, fill: fill}});
         };
-        add_percentile(i, dist.prc15to85, 0.2);
+        add_percentile(i, dist.fences, 0.2);
         add_percentile(i, dist.prc25to75, 0.4);
-        add_percentile(i, dist.prc40to60, 0.6);
         var label_shown = is_checked("show_points") || is_checked("show_avgs");
         series.push({color: point_series[i].color, data: dist.median,
                      label: label_shown ? null : point_series[i].label,
