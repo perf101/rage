@@ -2,7 +2,7 @@
 Invariants (also reflected on server side):
 - Default value for field "xaxis" is "branch".
 - Default value for field "yaxis" is "result".
-- show_points, show_avgs, y_fromto_zero is selected by default.
+- show_points, show_avgs is selected by default.
 - All other checkboxes are not selected by default.
 - "SHOW FOR" is the first (default) option for filters ("f_").
 - "ALL" is the first (default) option for filter values ("v_").
@@ -10,7 +10,7 @@ Invariants (also reflected on server side):
 
 // === GLOBAL VARIABLES --- start ===
 var autofetch = false; // if false, the following triggers have no effect
-var checkboxes_on_by_default = ["show_points", "show_avgs", "y_fromto_zero"];
+var checkboxes_on_by_default = ["show_points", "show_avgs"];
 //defaults for all drop-down selection options above filter boxes
 var graph_selection_defaults = {
 	xaxis: ["branch"], //multiselect defaults of length > 1 will always show up in the url
@@ -843,6 +843,11 @@ const setPresetBriefReport = () => {
 
     // Select SW legend position, our interesting data is usually NE
     select('legend_position', 'sw');
+
+    // Split by build_is_release
+    unselectAll('v_build_is_release');
+    select('v_build_is_release', 'ALL');
+    select('f_build_is_release', 1);
 
     // Enable autodraw - jquery to trigger its jquery change event
     $('input[name=auto_redraw]').prop('checked', true);
