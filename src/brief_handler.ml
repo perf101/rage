@@ -801,49 +801,9 @@ in
     ignore (relative_std_error []);
 
     (* round value f to the optimal decimal place according to magnitude of its stddev *)
-    let round f stddev =
-      if Float.(abs (Float.(/) stddev f) < 0.00000001) (* stddev = 0.0 doesn't work because of rounding errors in the float representation *)
-      then (sprintf "%f" f), f
-      else
-        (* 0. compute magnitude of stddev relative to f *)
-        let f_abs = Float.abs f in
-        let magnitude = (log stddev) /. (log 10.0) in
-        let newdotpos = (if is_valid magnitude then Float.to_int (if Float.(magnitude < 0.0) then Float.round_down (magnitude) else (Float.round_down magnitude) +. 1.0) else 1) in
-        let f_str = sprintf "%f" f_abs in
-        let dotpos = (String.index_exn f_str '.') in
-        let cutpos = (dotpos - newdotpos) in
-        if cutpos < 0
-        then ("0",0.0) (* stddev magnitude is larger then value f *)
-        else 
-          (* 1. round for the computed magnitude of stddev *)
-          let dig_from s pos = (String.sub s ~pos:(pos+1) ~len:1) in
-          let dig=dig_from f_str cutpos in
-          let rounddigit,roundpos = (* round last significant value using the next digit value *) 
-            if String.(dig=".")
-            then (int_of_string (dig_from f_str (cutpos+1)),newdotpos-1)
-            else (int_of_string dig,if newdotpos<0 then newdotpos else newdotpos-1)
-          in
-          let f_rounded = if rounddigit < 5 then f_abs else f_abs +. 10.0 ** (Float.of_int roundpos) in
-          (* 2. print only significant digits *)
-          let f_result = (
-            let f_str_rounded = sprintf "%f" f_rounded in
-            let f_abs_str_rounded = (if Float.(f_rounded<1.0) 
-                                     then (* print the rounded value up to its last significant digit *)
-                                       String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)
-                                     else (* print the rounded value up to its last significant digit and fill the rest with 0s *)
-                                       let dotposr = String.index_exn f_str_rounded '.' in
-                                       sprintf "%s%s" 
-                                         (String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)) 
-                                         (if dotposr-(cutpos+1)>0 then (String.make (dotposr-(cutpos+1)) '0') else "")
-                                    ) in
-            (sprintf "%s%s" (if Float.(f<0.0) then if String.(f_abs_str_rounded <> "0") then "-" else "" else "") f_abs_str_rounded)
-          )
-          in
-          (
-            (*sprintf "f_str=%s stddev=%f magnitude=%f cutpos=%d dotpos=%d newdotpos=%d dig=%s rounddigit=%d roundpos=%d f_rounded=%f f=%f %s" f_str stddev magnitude cutpos dotpos newdotpos dig rounddigit roundpos f_rounded f*)
-            f_result, Float.of_string f_result
-          )
-
+    let round f =
+      let result = Float.round_significant ~significant_digits:4 f in
+      sprintf "%f" result, f
     in
     let of_round avg stddev ~f0 ~f1 ~f2 =
       if no_rounding then
@@ -854,8 +814,8 @@ in
         if Float.(abs avg < min_value)
         then f0 ()
         else if Float.(stddev /. avg < 0.05) (* see if the relative std error is <5% *)
-        then f1 (round avg stddev)                                           (* 95% confidence *)
-        else f2 (round lower stddev) (round avg stddev) (round upper stddev) (* 95% confidence *)
+        then f1 (round avg)                                           (* 95% confidence *)
+        else f2 (round lower) (round avg) (round upper) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
     let str_of_round ?f1_fmt ?f2_fmt avg stddev =
