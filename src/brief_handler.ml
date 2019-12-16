@@ -209,7 +209,7 @@ let t ~args = object (self)
     let get_input_rows_from_id id fn =
       let%bind brief_params_from = fetch_brief_params_from id in
       let args = parse_url brief_params_from in
-      let%map _,_input_rows,_,_,_,_ = fn args in
+      let%map _,_input_rows,_,_,_ = fn args in
       _input_rows
     in
 
@@ -219,7 +219,6 @@ let t ~args = object (self)
       let params_rows=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "rows") with |_-> "") in
       let params_base=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "base") with |_-> "") in
       let params_baseline=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "baseline") with |_-> "") in
-      let params_out=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "out") with |_-> "") in
       let params_sort_by_col=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "sort_by_col") with |_-> "") in
       let params_add_rows_from=(try url_decode (List.Assoc.find_exn ~equal:String.equal args k_add_rows_from) with |_-> "") in
 
@@ -282,21 +281,13 @@ let t ~args = object (self)
       in
       printf "<input_baseline_col_sexp %s/>\n" (Sexp.to_string (sexp_of_baseline_t baseline_col_idx));
 
-      let out =
-        if String.(params_out <> "") then
-          attempt ~f:(fun ()->out_t_of_sexp (Sexp.of_string (String.capitalize params_out))) "out"
-        else (*default value *)
-          `Html 
-      in
-      printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
-
       let sort_by_col =
         if String.(params_sort_by_col <> "") then
           Some (attempt ~f:(fun ()->sort_by_col_t_of_sexp (Sexp.of_string (String.capitalize params_sort_by_col))) "sort_by_col")
         else (*default value *)
           None
       in
-      (input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col)
+      (input_cols, input_rows, input_base_context, baseline_col_idx, sort_by_col)
     in
 
     let%bind args =
@@ -317,7 +308,7 @@ let t ~args = object (self)
     in
 
     (* === process === *)
-    let%bind input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col =
+    let%bind input_cols, input_rows, input_base_context, baseline_col_idx, sort_by_col =
       get_input_values args
     in
 
@@ -855,10 +846,10 @@ in
        |Range (bl, ba, bu)-> Float.abs ba)
     in
     (* pretty print a list of values as average and stddev *) 
-    let str_stddev_of ?f1_fmt ?f2_fmt xs =
+    let str_stddev_of xs =
       try
         if List.length xs < 1 then "-"
-        else str_of_round ?f1_fmt ?f2_fmt (avg xs) (stddev xs)
+        else str_of_round (avg xs) (stddev xs)
       with |e-> sprintf "error %s: %s %f %f " (Exn.to_string e) (Sexp.to_string (sexp_of_str_lst_t xs)) (avg xs) (stddev xs)
     in
     let val_stddev_of xs =
