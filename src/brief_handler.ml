@@ -799,37 +799,33 @@ in
     in
     ignore (relative_std_error []);
 
-    (* round value f to the optimal decimal place according to magnitude of its stddev *)
-    let round f =
-      let result = Float.round_significant ~significant_digits:4 f in
-      sprintf "%f" result, f
-    in
-    let of_round avg stddev ~f0 ~f1 ~f2 =
+    (* round value f to 4 significant digits *)
+    let round ?(significant_digits=4) f =
       if no_rounding then
-        f1 (Float.to_string avg, avg)
+        Float.to_string f, f
       else
-        let lower = avg -. 2.0 *. stddev in (* 2-sigma = 95% confidence assuming normal distribution *)
-        let upper = avg +. 2.0 *. stddev in
-        if Float.(abs avg < min_value)
-        then f0 ()
-        else if Float.(stddev /. avg < 0.05) (* see if the relative std error is <5% *)
-        then f1 (round avg)                                           (* 95% confidence *)
-        else f2 (round lower) (round avg) (round upper) (* 95% confidence *)
+       f |> Float.round_significant ~significant_digits |> Float.to_padded_compact_string, f
+    in
+    let of_round avg stddev ~f0 ~f2 =
+      let delta = 1.96 *. stddev in
+      let lower = avg -. delta in (* 1.96-sigma = 95% confidence assuming normal distribution *)
+      let upper = avg +. delta in
+      let rel = 100.0 *. delta in
+      if Float.(abs avg < min_value)
+      then f0 ()
+      else f2 (round lower) (round avg) (round upper) (round ~significant_digits:2 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
-    let str_of_round ?f1_fmt ?f2_fmt avg stddev =
-      let _f1_fmt = match f1_fmt with None->"%s"|Some x->x in
-      let _f2_fmt = match f2_fmt with None->"[%s, %s, %s]"|Some x->x in
+    let str_of_round avg stddev =
       of_round avg stddev
         ~f0:(fun ()->"0")
-        ~f1:(fun a->sprintf (Scanf.format_from_string _f1_fmt "%s") (fst a) ) 
-        ~f2:(fun l a u->sprintf (Scanf.format_from_string _f2_fmt "%s %s %s") (fst l) (fst a) (fst u))
+        ~f2:(fun (l,_) (a,_) (u,_) (rel,_) ->
+            sprintf "%s±%s%% = [%s, %s]" a rel l u)
     in
     let val_of_round avg stddev =
       of_round avg stddev
         ~f0:(fun ()->Avg 0.0)
-        ~f1:(fun a->Avg (snd a))
-        ~f2:(fun l a u->Range ((snd l),(snd a),(snd u)) )
+        ~f2:(fun l a u _ ->Range ((snd l),(snd a),(snd u)) )
     in
     let is_green baseline value more_is_better =
       if more_is_better then
@@ -1055,7 +1051,7 @@ in
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
-      printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul><br>";
+      printf "%s" "<li> avg±rel%% = [lower, upper] indicates the relative uncertainty (rel=196*stddev/avg) and 95% confidence interval [avg-1.96*stddev, avg+1.96*stddev].</ul><br>";
       printf "<h4 style='margin:5px'>Report Quality</h4>";
       printf "Rows with data in last column: <span style='font-weight:bold' id='report_quality_data_last'></span><br>";
       printf "Rows with data in 2nd-to-last, but not last: <span style='font-weight:bold' id='report_quality_missing_data_last'></span><br><br>";
