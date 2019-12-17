@@ -797,9 +797,21 @@ in
       else
        f |> Float.round_significant ~significant_digits |> Float.to_padded_compact_string, f
     in
-    let of_round avg stddev ~f0 ~f2 =
-      let delta = 1.96 *. stddev in
-      let lower = avg -. delta in (* 1.96-sigma = 95% confidence assuming normal distribution *)
+    let t_95 n =
+      (* For infinitely many values a 95% confidence interval is 1.96 * stddev.
+       * However we typically have fewer values, so use the table *)
+      if n <= 0 then 0.
+      else if n < 30 then
+        [|12.71 ;4.303 ;3.182 ;2.776 ;2.571 ;2.447 ;2.365 ;2.306 ;2.262 ;2.228 ;2.201 ;2.179 ;2.160
+         ;2.145 ;2.131 ;2.120 ;2.110 ;2.101 ;2.093 ;2.086 ;2.080 ;2.074 ;2.069 ;2.064 ;2.060 ;2.056
+         ;2.052 ;2.048 ;2.045|].(n-1)
+      else if n <= 120 then
+        [|2.042; 2.021; 2.009; 2.000; 1.995; 1.990; 1.987; 1.984; 1.982; 1.980|].((n-30)/10)
+      else 1.96
+    in
+    let of_round avg stddev n ~f0 ~f2 =
+      let delta = t_95 (n-1) *. stddev in
+      let lower = avg -. delta in (* 95% confidence assuming normal distribution *)
       let upper = avg +. delta in
       let rel = 100.0 *. delta in
       if Float.(abs avg < min_value)
@@ -807,14 +819,14 @@ in
       else f2 (round lower) (round avg) (round upper) (round ~significant_digits:2 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
-    let str_of_round avg stddev =
-      of_round avg stddev
+    let str_of_round avg stddev n =
+      of_round avg stddev n
         ~f0:(fun ()->"0")
         ~f2:(fun (l,_) (a,_) (u,_) (rel,_) ->
             sprintf "%s±%s%% = [%s, %s]" a rel l u)
     in
-    let val_of_round avg stddev =
-      of_round avg stddev
+    let val_of_round avg stddev n =
+      of_round avg stddev n
         ~f0:(fun ()->Avg 0.0)
         ~f2:(fun l a u _ ->Range ((snd l),(snd a),(snd u)) )
     in
@@ -849,13 +861,13 @@ in
     let str_stddev_of xs =
       try
         if List.length xs < 1 then "-"
-        else str_of_round (avg xs) (stddev xs)
+        else str_of_round (avg xs) (stddev xs) (List.length xs)
       with |e-> sprintf "error %s: %s %f %f " (Exn.to_string e) (Sexp.to_string (sexp_of_str_lst_t xs)) (avg xs) (stddev xs)
     in
     let val_stddev_of xs =
       try
         if List.length xs < 1 then Avg 0.0
-        else val_of_round (avg xs) (stddev xs)
+        else val_of_round (avg xs) (stddev xs) (List.length xs)
       with |_-> Avg (-1000.0)
     in
 
@@ -1042,7 +1054,7 @@ in
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
-      printf "%s" "<li> avg±rel%% = [lower, upper] indicates the relative uncertainty (rel=196*stddev/avg) and 95% confidence interval [avg-1.96*stddev, avg+1.96*stddev].</ul><br>";
+      printf "%s" "<li> avg±rel%% = [lower, upper] indicates the relative uncertainty (rel=100*t(95%,n-1)*stddev/avg) and 95% confidence interval [avg-t(95%,n-1)*stddev, avg+t(95%,n-1)*stddev].</ul><br>";
       printf "<h4 style='margin:5px'>Report Quality</h4>";
       printf "Rows with data in last column: <span style='font-weight:bold' id='report_quality_data_last'></span><br>";
       printf "Rows with data in 2nd-to-last, but not last: <span style='font-weight:bold' id='report_quality_missing_data_last'></span><br><br>";
