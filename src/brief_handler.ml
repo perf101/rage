@@ -982,7 +982,7 @@ in
                      |None->""
                      |Some mb->
                        let (l,ratio,u),speedup = proportion baseline_ms ms mb in
-                       sprintf "<sub>Speedup=%+.1f%%</sub><sub>(%+.1f%%,%+.1f%%)</sub><sub>(%+.0f%%)</sub>" speedup l u ratio
+                       sprintf "<sub>Speedup=%+.0f%%</sub><sub>(%+.0f%%,%+.0f%%)</sub><sub>(%+.0f%%)</sub>" speedup l u ratio
                   ) in
                 let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number_str diff in
                 sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
