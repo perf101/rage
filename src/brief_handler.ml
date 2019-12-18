@@ -784,8 +784,10 @@ in
         f1 (round xs.(0))
       else
       let l, avg, u = Analysis.bootstrap_mean xs in
-      let rel = 100.0 *. Float.abs (Owl_base.Stats.std ~mean:avg xs /. avg) in
-      f2 (round l) (round avg) (round u) (round ~significant_digits:2 rel) (* 95% confidence *)
+      let ravg = round avg in
+      let avg' = snd ravg in
+      let rel = 100.0 *. Float.abs (Owl_base.Stats.std ~mean:avg' xs /. avg') in
+      f2 (round l) ravg (round u) (round ~significant_digits:3 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
     let str_of_round xs =
