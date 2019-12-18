@@ -31,13 +31,14 @@ type base_t = (string * string list) list [@@deriving sexp]
 type baseline_t = int [@@deriving sexp]
 type ctx_t  = (string * string list) list [@@deriving sexp]
 type str_lst_t = string list [@@deriving sexp]
+type float_lst_t = float list [@@deriving sexp]
 type sort_by_col_t = int [@@deriving sexp]
 
 type result_t = Avg of float | Range of float * float * float
 
 type job_and_value = {job: int; value: string}
 let jobs_of_ms = List.map ~f:(fun m -> m.job)
-let vals_of_ms = List.map ~f:(fun m -> m.value)
+let vals_of_ms = List.map ~f:(fun m -> Float.of_string m.value)
 
 let k_add_rows_from = "add_rows_from"
 let k_for = "for"
@@ -769,27 +770,6 @@ in
 
     (* === output === *)
 
-    let n_sum xs = List.fold_left ~init:(0,0.) ~f:(fun (n,sum1) x->succ n, sum1 +. (Float.of_string x)) xs in
-    let avg xs = let n,sum=n_sum xs in sum /. (float n) in
-    let variance xs = (* 2-pass algorithm *)
-      let n,sum1 = n_sum xs in
-      if n<2
-      then 0.0 (* default variance if not enough measurements present to compute it *)
-      else
-        let mean = sum1 /. (float n) in
-        let sum2 = List.fold_left ~init:0. ~f:(fun sum2 x->sum2 +. ((Float.of_string x) -. mean)*.((Float.of_string x) -. mean)) xs in
-        sum2 /. (float (n-1))
-    in
-    let stddev xs = sqrt (variance xs) in
-    let is_valid f = (if Float.is_inf f || Float.is_nan f then false else true) in
-    let relative_std_error xs =
-      let avg = avg xs in let stddev = stddev xs in
-      if (is_valid avg) && (is_valid stddev) then
-        Float.to_int (stddev /. avg *. 100.)
-      else 0
-    in
-    ignore (relative_std_error []);
-
     (* round value f to 4 significant digits *)
     let round ?(significant_digits=4) f =
       if no_rounding then
@@ -797,37 +777,26 @@ in
       else
        f |> Float.round_significant ~significant_digits |> Float.to_padded_compact_string, f
     in
-    let t_95 n =
-      (* For infinitely many values a 95% confidence interval is 1.96 * stddev.
-       * However we typically have fewer values, so use the table *)
-      if n <= 0 then 0.
-      else if n < 30 then
-        [|12.71 ;4.303 ;3.182 ;2.776 ;2.571 ;2.447 ;2.365 ;2.306 ;2.262 ;2.228 ;2.201 ;2.179 ;2.160
-         ;2.145 ;2.131 ;2.120 ;2.110 ;2.101 ;2.093 ;2.086 ;2.080 ;2.074 ;2.069 ;2.064 ;2.060 ;2.056
-         ;2.052 ;2.048 ;2.045|].(n-1)
-      else if n <= 120 then
-        [|2.042; 2.021; 2.009; 2.000; 1.995; 1.990; 1.987; 1.984; 1.982; 1.980|].((n-30)/10)
-      else 1.96
-    in
-    let of_round avg stddev n ~f0 ~f2 =
-      let delta = t_95 (n-1) *. stddev in
-      let lower = avg -. delta in (* 95% confidence assuming normal distribution *)
-      let upper = avg +. delta in
-      let rel = 100.0 *. delta in
-      if Float.(abs avg < min_value)
-      then f0 ()
-      else f2 (round lower) (round avg) (round upper) (round ~significant_digits:2 rel) (* 95% confidence *)
+    let of_round xs ~f1 ~f2 =
+      let open Owl_base in
+      let xs = Array.of_list xs in
+      if Array.length xs = 1 then
+        f1 (round xs.(0))
+      else
+      let l, avg, u = Analysis.bootstrap_mean xs in
+      let rel = 100.0 *. Float.abs (Owl_base.Stats.std ~mean:avg xs /. avg) in
+      f2 (round l) (round avg) (round u) (round ~significant_digits:2 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
-    let str_of_round avg stddev n =
-      of_round avg stddev n
-        ~f0:(fun ()->"0")
+    let str_of_round xs =
+      of_round xs
+        ~f1:(fun x -> fst x)
         ~f2:(fun (l,_) (a,_) (u,_) (rel,_) ->
-            sprintf "%s±%s%% = [%s, %s]" a rel l u)
+            sprintf "Values=%s±%s%%. Mean=[%s, %s]" a rel l u)
     in
-    let val_of_round avg stddev n =
-      of_round avg stddev n
-        ~f0:(fun ()->Avg 0.0)
+    let val_of_round xs =
+      of_round xs
+        ~f1:(fun x -> Avg (snd x))
         ~f2:(fun l a u _ ->Range ((snd l),(snd a),(snd u)) )
     in
     let is_green baseline value more_is_better =
@@ -844,31 +813,27 @@ in
         |Range (bl, ba, bu), Avg v-> Float.(v<=ba)
         |Range (bl, ba, bu), Range (vl,va,vu)-> Float.(va<=ba)
     in
-    let delta baseline value more_is_better =
-      match baseline, value with
-      |Avg b, Avg v-> v -. b
-      |Avg b, Range (vl, va, vu)-> va -. b
-      |Range (bl, ba, bu), Avg v-> v -. ba
-      |Range (bl, ba, bu), Range (vl,va,vu)-> va -. ba
-    in
-    let proportion baseline value more_is_better =
-      (delta baseline value more_is_better) /.
-      (match baseline with
-       |Avg b-> Float.abs b
-       |Range (bl, ba, bu)-> Float.abs ba)
-    in
     (* pretty print a list of values as average and stddev *) 
     let str_stddev_of xs =
-      try
-        if List.length xs < 1 then "-"
-        else str_of_round (avg xs) (stddev xs) (List.length xs)
-      with |e-> sprintf "error %s: %s %f %f " (Exn.to_string e) (Sexp.to_string (sexp_of_str_lst_t xs)) (avg xs) (stddev xs)
+      if List.length xs < 1 then "-"
+      else str_of_round xs
     in
     let val_stddev_of xs =
       try
         if List.length xs < 1 then Avg 0.0
-        else val_of_round (avg xs) (stddev xs) (List.length xs)
+        else val_of_round xs
       with |_-> Avg (-1000.0)
+    in
+    let proportion baseline comparison more_is_better =
+      let convert x = x |> vals_of_ms |> Array.of_list in
+      let baseline = convert baseline in
+      let comparison = convert comparison in
+      let to_percent x = (x -. 1.) *. 100. in
+      let (l,a,u),speedup =
+        Analysis.bootstrap_ratio baseline comparison,
+        Analysis.speedup baseline comparison
+      in
+      (to_percent l, to_percent a, to_percent u), to_percent speedup
     in
 
     let sort_table mt = (* use url option sort_by_col if present *)
@@ -887,10 +852,11 @@ in
               let ms cs =
                 let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
                 let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
-                proportion (val_stddev_of (vals_of_ms base_ms)) (val_stddev_of (vals_of_ms cmp_ms)) None
+                let (_,a,_),s = proportion base_ms cmp_ms None in
+                Float.abs s, Float.abs a
               in
-              let ms1, ms2 = (Float.abs (ms cs1)),(Float.abs (ms cs2)) in
-              if Float.(ms1 > ms2) then -1 else if Float.(ms2 > ms1) then 1 else 0 (* decreasing order *)
+              let ms1, ms2 = ms cs1, ms cs2 in
+              -(Stdlib.compare ms1 ms2) (* decreasing order *)
             ) @ mt_0s (* rows with no measurements stay at the end *)
     in
 
@@ -991,7 +957,7 @@ in
                 let debug_r = Sexp.to_string (sexp_of_ctx_t r)
                 and debug_c = Sexp.to_string (sexp_of_ctx_t c)
                 and context = str_of_ctxs ctx ~txtonly:true
-                and debug_ms = Sexp.to_string (sexp_of_str_lst_t (vals_of_ms ms)) in
+                and debug_ms = Sexp.to_string (sexp_of_float_lst_t (vals_of_ms ms)) in
                 let number = List.length ms in
                 let number_str = if show_jobids
                   then
@@ -1012,7 +978,9 @@ in
                   (if number = 0 || baseline_col_idx = i || (List.length baseline_ms < 1) then return "" else
                      match%map is_more_is_better ctx with
                      |None->""
-                     |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
+                     |Some mb->
+                       let (l,ratio,u),speedup = proportion baseline_ms ms mb in
+                       sprintf "<sub>Speedup=%+.1f%%</sub><sub>(%+.1f%%,%+.1f%%)</sub><sub>(%+.0f%%)</sub>" speedup l u ratio
                   ) in
                 let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number_str diff in
                 sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
