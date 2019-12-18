@@ -771,7 +771,7 @@ in
     (* === output === *)
 
     (* round value f to 4 significant digits *)
-    let round ?(significant_digits=5) f =
+    let round ?(significant_digits=4) f =
       if no_rounding then
         Float.to_string f, f
       else
@@ -787,7 +787,7 @@ in
       let ravg = round avg in
       let avg' = snd ravg in
       let rel = 100.0 *. Float.abs (Owl_base.Stats.std ~mean:avg' xs /. avg') in
-      f2 (round l) ravg (round u) (round rel) (* 95% confidence *)
+      f2 (round l) ravg (round u) (round ~significant_digits:2 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
     let str_of_round xs =
