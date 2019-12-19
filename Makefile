@@ -1,42 +1,32 @@
-SHELL=/bin/bash
-SRC=src
-PROGRAM=rage
 CONFIG=/usr/groups/perfeng/rage/config
 RAGE_DB=$(shell grep "^rage_db=" $(CONFIG) | awk -F '=' '{print $$2}')
 RAGE_HOST=$(shell grep "^rage_host=" $(CONFIG) | awk -F '=' '{print $$2}')
 RAGE_USER=$(shell grep "^rage_user=" $(CONFIG) | awk -F '=' '{print $$2}')
 RAGE_PASS=$(shell grep "^rage_pass=" $(CONFIG) | awk -F '=' '{print $$2}')
-SETTINGS="host=$(RAGE_HOST) user=$(RAGE_USER) password=$(RAGE_PASS) dbname=$(RAGE_DB)"
-RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) "$(SETTINGS)"
+SETTINGS=host=$(RAGE_HOST) user=$(RAGE_USER) password=$(RAGE_PASS) dbname=$(RAGE_DB)
+PROGRAM=rage
+RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) "$(SETTINGS)" /etc/rage_passwd
 WWW_DIR=/var/www
 CGI_SCRIPT=index.cgi
 STATIC_DIR=static
-README=README.markdown
 DISTRO_DIR=distro
 MODE=775
 INSTALL=install -m $(MODE)
 
-.PHONY: readme build distro run install log clean
-.DEFAULT: build
+.PHONY: build clean distro install log
+build:
+	dune build --profile=release @install
 
-.SUBDIRS: $(SRC)
+clean:
+	dune clean
 
 distro: build
-	rsync -avpL $(STATIC_DIR)/ $(SRC)/$(PROGRAM) $(DISTRO_DIR)
-	printf '#!/bin/bash\n\n$(RUN_CMD)' > $(DISTRO_DIR)/$(CGI_SCRIPT)
+	rsync -avpL $(STATIC_DIR)/ _build/install/default/bin/$(PROGRAM) $(DISTRO_DIR)
+	printf '#!/bin/bash\n\n$(RUN_CMD)\n' > $(DISTRO_DIR)/$(CGI_SCRIPT)
 	chmod $(MODE) $(DISTRO_DIR)/$(CGI_SCRIPT)
-
-run: distro
-	$(DISTRO_DIR)/$(RUN_CMD)
 
 install: distro
 	cp $(DISTRO_DIR)/* $(WWW_DIR)
-
-clean:
-	rm -rf $(DISTRO_DIR) *.omc
-
-readme:
-	markdown $(README)
 
 log:
 	sudo tail -F /var/log/apache2/error.log

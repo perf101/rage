@@ -1,4 +1,5 @@
-open! Core.Std
+open Core
+open Async
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
@@ -8,4 +9,5 @@ let t ~args = object (self)
     printf "<li><a href='?p=soms_by_tc'>Scales of Measure</a></li>\n";
     printf "<li><a href='?p=import_page'>Import Jobs</a></li>\n";
     printf "</ul>\n";
+    return ()
 end

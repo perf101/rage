@@ -1,13 +1,14 @@
-open! Core.Std
+open Core
+open Async
 
 let debug msg =
-  output_string stderr (msg ^ "\n");
-  flush stderr
+  Out_channel.output_string stderr (msg ^ "\n");
+  Out_channel.flush stderr
 
 let index l x =
   let rec aux i = function
     | [] -> failwith "index []"
-    | x'::xs -> if x = x' then i else aux (i+1) xs
+    | x'::xs -> if String.(x = x') then i else aux (i+1) xs
   in aux 0 l
 
 let concat ?(sep = ",") l =
@@ -29,7 +30,7 @@ let concat_array ?(sep = ",") a =
 let merge_table_into src dst =
   String.Table.merge_into ~src ~dst
     ~f:(fun ~key:_ src_v dst_v_opt ->
-      match dst_v_opt with None -> Some src_v | vo -> vo)
+      match dst_v_opt with None -> Set_to src_v | Some vo -> Set_to vo)
 
 let cat filename =
   print_string (In_channel.with_file ~f:In_channel.input_all filename)
@@ -41,20 +42,23 @@ let get_value r row col null_val =
 
 let combine_maps conn tbls f =
   let m = String.Table.create () in
-  List.iter tbls ~f:(fun t -> merge_table_into (f conn t) m);
+  let%map () = Deferred.List.iter tbls ~f:(fun t ->
+    let%map r = f conn t in
+    merge_table_into r m) in
   m
 
 let get_column_types conn tbl =
-  String.Table.of_alist_exn (Sql.get_col_types_lst ~conn ~tbl)
+  let%map r = Postgresql_async.wrap_sql ~conn (Sql.get_col_types_lst ~tbl) in
+  String.Table.of_alist_exn r
 
 let get_column_types_many conn tbls = combine_maps conn tbls get_column_types
 
 let get_column_fqns conn tbl =
-  let col_names = Sql.get_col_names ~conn ~tbl in
+  let%map col_names = Postgresql_async.wrap_sql ~conn (Sql.get_col_names ~tbl) in
   let nameToFqn = String.Table.create () in
   let process_column name =
     let fqn = tbl ^ "." ^ name in
-    String.Table.replace nameToFqn ~key:name ~data:fqn
+    String.Table.set nameToFqn ~key:name ~data:fqn
   in List.iter col_names ~f:process_column;
   nameToFqn
 
@@ -89,18 +93,18 @@ let extract_filter col_fqns col_types params key_prefix =
   let update_m v vs_opt =
     let vs = Option.value vs_opt ~default:[] in Some (v::vs) in
   let filter_insert (k, v) =
-    if v = "ALL" then () else
+    if String.equal v "ALL" then () else
     if String.is_prefix k ~prefix:key_prefix then begin
       let k2 = String.chop_prefix_exn k ~prefix:key_prefix in
-      String.Table.change m k2 (update_m v)
+      String.Table.change m k2 ~f:(update_m v)
     end in
   List.iter params ~f:filter_insert;
   let l = String.Table.to_alist m in
   let conds = List.map l
     ~f:(fun (k, vs) ->
       let vs = List.map vs ~f:decode_html in
-      let has_null = List.mem vs "(NULL)" in
-      let vs = if has_null then List.filter vs ~f:((<>) "(NULL)") else vs in
+      let has_null = List.mem ~equal:String.equal vs "(NULL)" in
+      let vs = if has_null then List.filter vs ~f:(String.(<>) "(NULL)") else vs in
       let ty = String.Table.find_exn col_types k in
       let quote = Sql.Type.is_quoted ty in
       let vs_oq =
@@ -119,13 +123,13 @@ let extract_filter col_fqns col_types params key_prefix =
 
 let print_select ?(td=false) ?(label="") ?(selected=[]) ?(attrs=[]) options =
   if td then printf "<td>\n";
-  if label <> "" then printf "<b>%s</b>:\n" label;
+  if String.(label <> "") then printf "<b>%s</b>:\n" label;
   printf "<select";
   List.iter attrs ~f:(fun (k, v) -> printf " %s='%s'" k v);
   printf ">\n";
   let print_option (l, v) =
     printf "<option value='%s'" v;
-    if List.mem selected l then printf " selected='selected'";
+    if List.mem ~equal:String.equal selected l then printf " selected='selected'";
     printf ">%s</option>\n" l
   in List.iter options ~f:print_option;
   printf "</select>\n";
@@ -144,14 +148,14 @@ let get_options_for_field db_result ~data col =
         if db_result#getisnull i col then "(NULL)" else data.(i).(col)
       in aux (elem::acc) (i-1)
   in
-  let cmp x y =
+  let compare x y =
     try
-      if ftype = Postgresql.INT4
+      if Poly.(ftype = Postgresql.INT4)
       then compare (int_of_string x) (int_of_string y)
-      else compare x y
+      else String.compare x y
     with _ -> 0
   in
-  List.sort ~cmp (List.dedup (aux [] nRows))
+  List.sort ~compare (List.dedup_and_sort ~compare (aux [] nRows))
 
 let get_options_for_field_once db_result col =
   let data = db_result#get_all in
@@ -159,7 +163,7 @@ let get_options_for_field_once db_result col =
 
 let get_options_for_field_once_byname db_result col_name =
   let col_names = db_result#get_fnames_lst in
-  let col = match List.findi ~f:(fun _ c -> c = col_name) col_names with
+  let col = match List.findi ~f:(fun _ c -> String.(c = col_name)) col_names with
       | Some (i, _) -> i
       | _ -> failwith (sprintf "could not find column '%s' amongst [%s]" col_name (String.concat ~sep:"; " col_names))
   in
@@ -185,7 +189,7 @@ let print_options_for_field namespace db_result col =
 
 let print_options_for_fields conn tbl namespace =
   let query = "SELECT * FROM " ^ tbl in
-  let result = Sql.exec_exn ~conn ~query in
+  let%map result = Postgresql_async.exec_exn ~conn ~query in
   List.iter ~f:(print_options_for_field namespace result)
     (List.range 1 result#nfields);
   printf "<br style='clear: both' />\n"
@@ -216,6 +220,7 @@ let tc_config_fields = [
   "host_pcpus";
   "live_patching";
   "host_type";
+  "bootmode_precedence"
 ]
 
 let build_fields = [
@@ -224,6 +229,8 @@ let build_fields = [
   "build_number";
   "build_date";
   "build_tag";
+  "patches_applied";
+  "build_is_release"
 ]
 
 let job_fields = [
@@ -232,18 +239,22 @@ let job_fields = [
 
 let som_config_tbl_exists ~conn som_id =
   let som_config_tbl = sprintf "som_config_%d" som_id in
-  som_config_tbl, Sql.tbl_exists ~conn ~tbl:som_config_tbl
+  let%map r = Postgresql_async.wrap_sql ~conn (Sql.tbl_exists ~tbl:som_config_tbl) in
+  som_config_tbl, r
 
 let get_std_xy_choices ~conn =
+  let%map colnames = Postgresql_async.wrap_sql ~conn (Sql.get_col_names ~tbl:"machines") in
   let machine_field_lst =
-    List.tl_exn (Sql.get_col_names ~conn ~tbl:"machines") in
+    List.tl_exn colnames in
   job_fields @ build_fields @ tc_config_fields @ machine_field_lst
 
 let get_xy_choices ~conn configs som_configs_opt =
   let som_configs_lst = match som_configs_opt with
     | None -> []
     | Some som_configs -> List.tl_exn som_configs#get_fnames_lst
-  in get_std_xy_choices ~conn @ configs#get_fnames_lst @ som_configs_lst
+  in
+  let%map r = get_std_xy_choices ~conn in
+  r @ configs#get_fnames_lst @ som_configs_lst
 
 let print_axis_choice ?(multiselect=false) label id choices =
   printf "<div id='%s' style='display: inline-block'>\n" id;
@@ -252,24 +263,25 @@ let print_axis_choice ?(multiselect=false) label id choices =
   print_select_list ~label ~attrs:attrs choices;
   printf "</div>\n"
 
-let print_empty_x_axis_choice ~conn =
+let print_empty_x_axis_choice ~conn:_ =
   print_axis_choice "X axis" "xaxis" [] ~multiselect:true
 
-let print_empty_y_axis_choice ~conn =
+let print_empty_y_axis_choice ~conn:_ =
   print_axis_choice "Y axis" "yaxis" []
 
 let print_x_axis_choice ~conn configs som_configs_opt =
-  print_axis_choice "X axis" "xaxis" ~multiselect:true
-    (get_xy_choices ~conn configs som_configs_opt)
+  let%map r = get_xy_choices ~conn configs som_configs_opt in
+  print_axis_choice "X axis" "xaxis" ~multiselect:true r
 
 let print_y_axis_choice ~conn configs som_configs_opt =
+  let%map r = get_xy_choices ~conn configs som_configs_opt in
   print_axis_choice "Y axis" "yaxis"
-    ("result" :: (get_xy_choices ~conn configs som_configs_opt))
+    ("result" :: r)
 
 let get_tc_config_tbl_name conn som_id =
   let query = "SELECT tc_fqn FROM soms " ^
               "WHERE som_id = " ^ (string_of_int som_id) in
-  let result = Sql.exec_exn ~conn ~query in
+  let%map result = Postgresql_async.exec_exn ~conn ~query in
   let tc_fqn = String.lowercase (result#getvalue 0 0) in
   (tc_fqn, "tc_config_" ^ tc_fqn)
 

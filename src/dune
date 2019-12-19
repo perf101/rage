@@ -1,0 +1,8 @@
+(executable
+ (public_name rage)
+ (name main)
+ (flags
+  (:standard -principal -short-paths))
+ (preprocess
+  (pps ppx_sexp_conv ppx_let))
+ (libraries threads.posix core postgresql curl async sql uri str re ssl))
