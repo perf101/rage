@@ -106,7 +106,13 @@ let t ~args = object (self)
       | _ -> self#get_relevant_params
       in compose_keys ~xaxis ~yaxis ~rest
     in
-    let fully_qualify_col = String.Table.find_exn col_fqns in
+    let fully_qualify_col key =
+      match String.Table.find col_fqns key with
+      | Some v -> v
+      | None ->
+          eprintf "Fully qualified name for column %s not found\n" key;
+          failwith (Printf.sprintf "Fully qualified name for column %s not found" key)
+    in
     let xaxisfqns = List.map xaxis ~f:fully_qualify_col in
     let yaxisfqns = fully_qualify_col yaxis in
     let restfqns = List.map restkeys ~f:fully_qualify_col in
