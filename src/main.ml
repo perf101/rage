@@ -50,7 +50,7 @@ let handle_request () =
   Shutdown.shutdown 0
 
 let bind_modules () =
-  Sql.debug_fn := None; (* Some debug; *)
+  Sql.debug_fn := Some debug;
   Sql.show_sql := true;
   Sql.time_queries := true;
   Sql.ignore_limit_0 := true;

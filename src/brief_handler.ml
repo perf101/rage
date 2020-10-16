@@ -855,7 +855,9 @@ in
                 let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
                 let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
                 let (_,a,_),s = proportion base_ms cmp_ms None in
-                Float.abs s, Float.abs a
+                (* speedup is often 0% if we haven't got enough data, so use
+                 * traditional average for sorting *)
+                Float.abs a, Float.abs s
               in
               let ms1, ms2 = ms cs1, ms cs2 in
               -(Stdlib.compare ms1 ms2) (* decreasing order *)
