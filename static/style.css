@@ -15,11 +15,6 @@ html {
 }
 .graph {
   display: inline-block;
-  transform:translate(-275px);
-  -ms-transform:translate(-275px);
-  -moz-transform:translate(-275px);
-  -webkit-transform:translate(-275px);
-  -o-transform:translate(-275px);
 }
 #graph_title {
   text-align: left;
@@ -160,13 +155,12 @@ form[name="optionsForm"] option:checked {
 }
 .yaxis {
   display: inline-block;
-  width: 550px;
   text-align: center;
   transform:rotate(-90deg);
-  -ms-transform: translateX(-60px) rotate(-90deg); /* IE 9 */
-  -moz-transform: translateX(-60px) rotate(-90deg); /* Firefox */
-  -webkit-transform: translateX(-60px) rotate(-90deg); /* Safari and Chrome */
-  -o-transform: translateX(-60px) rotate(-90deg); /* Opera */
+  -ms-transform: rotate(-90deg); /* IE 9 */
+  -moz-transform: rotate(-90deg); /* Firefox */
+  -webkit-transform: rotate(-90deg); /* Safari and Chrome */
+  -o-transform: rotate(-90deg); /* Opera */
   white-space: normal;
 }
 .specific_graph_options {
@@ -312,8 +306,8 @@ a {
 }
 
 .chart {
-        width: 960px;
-        height: 500px; }
+        width: 1700px;
+        height: 750px; }
 
 circle {
         circle.selected {

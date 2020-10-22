@@ -226,9 +226,9 @@ let tc_config_fields = [
 let build_fields = [
   "product";
   "branch";
+  "build_tag";
   "build_number";
   "build_date";
-  "build_tag";
   "patches_applied";
   "build_is_release"
 ]
@@ -285,9 +285,37 @@ let get_tc_config_tbl_name conn som_id =
   let tc_fqn = String.lowercase (result#getvalue 0 0) in
   (tc_fqn, "tc_config_" ^ tc_fqn)
 
+let compact v =
+  match v with
+  | "all_hotfixes" -> Some "+"
+  | s when String.contains s 'T' && String.is_suffix ~suffix:"Z" s ->
+      (* simplify date *)
+      Some (String.take_while ~f:(function 'T' -> false | _ -> true) s)
+  | s when String.contains s '/' ->
+    (* simplify hotfix URL *)
+    (match String.split ~on:'/' v |> List.rev  with
+    | [] -> None
+    | s :: _ when String.is_suffix ~suffix:".xsupdate" s -> None
+    | iso :: build :: upd :: _
+      when String.for_all ~f:Char.is_digit build
+           && String.is_suffix ~suffix:".iso" iso
+           && String.is_prefix ~prefix:"UPD-" upd ->
+             Some (String.concat ~sep:"/" [String.chop_prefix_exn ~prefix:"UPD-" upd; build])
+    | _ -> Some v)
+  | v -> Some v
+
+let simplify ~max_val_length v =
+  let v = v |> String.split ~on:','
+    |> List.filter_map ~f:compact |> String.concat ~sep:"," in
+  if String.length v > max_val_length then (Str.string_before v max_val_length) ^ "..."
+  else v
+
+
 (* WEBSERVER INTERACTION *)
 
 let server_name () =
   (* We use HTTP_HOST, which comes from the client, rather than SERVER_NAME,
    * which is defined by the webserver, in case it contains a port number *)
   Sys.getenv_exn "HTTP_HOST"
+
+

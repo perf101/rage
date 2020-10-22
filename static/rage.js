@@ -467,7 +467,7 @@ function fetch_data_and_process() {
   $("#progress_img").toggle(true);
   set_graph_title();
   var som_id = url_params.som[0];
-  var request = "/?p=som_data&id=" + som_id;
+  var request = "?p=som_data&id=" + som_id;
   var params = get_minimised_params();
   console.log("Request:", request, params);
   $.ajax({
@@ -823,23 +823,30 @@ const unselectAll = (sel) => {
 };
 
 const setPresetBriefReport = () => {
-    // unselect build tag, select build date
-    unselect('xaxis', 'build_tag');
+    // unselect branch tag, select build date, build tag
+    unselect('xaxis', 'branch');
+    select('xaxis', 'build_tag');
     select('xaxis', 'build_date');
 
     // select master
     select('v_branch', 'master');
 
+    // show build date
+    select('f_build_date', 0); // 0=show for, 1=split by
+
     // split by branch
     select('f_branch', 1); // 0=show for, 1=split by
+
+    // split by build tag
+    select('f_build_tag', 1); // 0=show for, 1=split by
 
     // Select 'All' build number
     unselectAll('v_build_number');
     select('v_build_number', 'ALL');
 
     // Select 'All' build tag
-    unselectAll('v_build_tag');
-    select('v_build_tag', 'ALL');
+    //unselectAll('v_build_tag');
+    //select('v_build_tag', 'ALL');
 
     // Select SW legend position, our interesting data is usually NE
     select('legend_position', 'sw');

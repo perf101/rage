@@ -842,9 +842,21 @@ in
       match sort_by_col with
       |None->mt
       |Some compare_col_idx->
+        let last_nth_exn cs base n =
+          let r = Array.of_list cs in
+          let rec get n =
+            if n = base then List.nth_exn cs n
+            else
+              let _, _, _, ms = r.(n) in
+              if List.is_empty ms then get (n-1)
+              else r.(n)
+          in
+          get n
+        in
+        (* TODO: between baseline and compare col find last one set *)
         let mt_xs, mt_0s = List.partition_tf mt
             ~f:(fun (r,cs)->
-                let _,_,_,cmp_ms=List.nth_exn cs compare_col_idx in
+                let _,_,_,cmp_ms=last_nth_exn cs baseline_col_idx compare_col_idx in
                 let _,_,_,base_ms=List.nth_exn cs baseline_col_idx in
                 (List.length cmp_ms > 0) && (List.length base_ms > 0)
               )
@@ -852,7 +864,7 @@ in
         List.sort (mt_xs)  (* rows with at least one measurement *)
           ~compare:(fun (r1,cs1) (r2,cs2) ->
               let ms cs =
-                let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
+                let _,_,_,cmp_ms = last_nth_exn cs baseline_col_idx compare_col_idx in
                 let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
                 let (_,a,_),s = proportion base_ms cmp_ms None in
                 (* speedup is often 0% if we haven't got enough data, so use

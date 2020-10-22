@@ -6,7 +6,7 @@ RAGE_PASS=$(shell grep "^rage_pass=" $(CONFIG) | awk -F '=' '{print $$2}')
 SETTINGS=host=$(RAGE_HOST) user=$(RAGE_USER) password=$(RAGE_PASS) dbname=$(RAGE_DB)
 PROGRAM=rage
 RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) "$(SETTINGS)" /etc/rage_passwd
-WWW_DIR=/var/www
+WWW_DIR=/var/www/testing
 CGI_SCRIPT=index.cgi
 STATIC_DIR=static
 DISTRO_DIR=distro
@@ -26,7 +26,7 @@ distro: build
 	chmod $(MODE) $(DISTRO_DIR)/$(CGI_SCRIPT)
 
 install: distro
-	cp $(DISTRO_DIR)/* $(WWW_DIR)
+	cp -rv $(DISTRO_DIR)/* $(WWW_DIR)
 
 log:
 	sudo tail -F /var/log/apache2/error.log

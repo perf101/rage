@@ -29,7 +29,9 @@ function flot_graph (series, o, cb) {
             backgroundColor: "white",
             position: $("select[id='legend_position']").val(),
         },
-        points: {show: true, symbol: symbol}
+        series:{
+            points: {show: true, symbol: symbol}
+        }
     };
 
     function is_checked(cb_name) {

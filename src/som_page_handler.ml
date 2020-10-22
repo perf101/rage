@@ -66,10 +66,11 @@ let t ~args = object (self)
         ~attrs:[("name", filter_prefix ^ label); ("class", "filterselect")]
         [("SHOW FOR", show_for_value); ("SPLIT BY", filter_by_value)];
       printf "</tr><tr>\n";
-      print_select_list ~td:true ~selected:["ALL"]
+      print_select ~td:true ~selected:["ALL"]
         ~attrs:[("name", values_prefix ^ label); ("multiple", "multiple");
                 ("size", "3"); ("class", "multiselect")]
-        ("ALL"::options);
+        ~label:""
+        (List.map ~f:(fun x -> Utils.simplify ~max_val_length:100 x, x) ("ALL"::options));
       printf "</tr></table>\n"
     in
     List.iter ~f:print_table_for (List.zip_exn labels options_lst)
@@ -175,12 +176,13 @@ let t ~args = object (self)
     printf "</div>\n";
     printf "<br /><div class='graph_container'>";
     printf "<div class='yaxis'></div>";
-    printf "<div id='graph' style='width: 1000px; height: 600px' class='graph'></div>";
+    printf "<div id='graph' style='width: 1700px; height: 750px' class='graph'></div>";
     printf "<div class='xaxis'></div>";
     printf "</div>";
     printf "<div id='table'></div>";
     printf "<div id='graph1' class='chart'></div>";
     printf "<div id='graph2' class='chart'></div>";
+    printf "<div id='vis' class='chart'></div>";
     self#include_javascript;
     return ()
 end
