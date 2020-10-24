@@ -70,7 +70,7 @@ let t ~args = object (self)
     let mapping_opt =
       self#get_generic_string_mapping rows col col_name col_types force_as_seq force_as_num in
     match mapping_opt with None -> () | Some mapping ->
-    let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i (self#escape_quotes (Utils.simplify ~max_val_length:30 a)) in
+    let process_entry (i, a) = sprintf "\"%d\":\"%s\"" i (self#escape_quotes (Utils.simplify ~max_val_length:40 a)) in
     let mapping_str = concat (List.map mapping ~f:process_entry) in
     printf "\"%s\":{%s}," label mapping_str;
     let i_to_string_map = List.Assoc.inverse mapping in
