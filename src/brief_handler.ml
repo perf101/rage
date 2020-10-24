@@ -861,19 +861,17 @@ in
                 (List.length cmp_ms > 0) && (List.length base_ms > 0)
               )
         in
-        List.sort (mt_xs)  (* rows with at least one measurement *)
-          ~compare:(fun (r1,cs1) (r2,cs2) ->
-              let ms cs =
+        (List.map mt_xs (* rows with at least one measurement *)
+          ~f:(fun (r,cs) ->
                 let _,_,_,cmp_ms = last_nth_exn cs baseline_col_idx compare_col_idx in
                 let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
                 let (_,a,_),s = proportion base_ms cmp_ms None in
                 (* speedup is often 0% if we haven't got enough data, so use
                  * traditional average for sorting *)
-                Float.abs a, Float.abs s
-              in
-              let ms1, ms2 = ms cs1, ms cs2 in
-              -(Stdlib.compare ms1 ms2) (* decreasing order *)
-            ) @ mt_0s (* rows with no measurements stay at the end *)
+                (Float.abs a, Float.abs s), (r, cs))
+        |> List.sort ~compare:(fun (ms1,_) (ms2,_) -> -(Stdlib.compare ms1 ms2))
+        |> List.map ~f:snd)
+        @ mt_0s (* rows with no measurements stay at the end *)
     in
 
     (* compute link to rage graph *)
