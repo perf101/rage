@@ -155,7 +155,8 @@ let get_options_for_field db_result ~data col =
       else String.compare x y
     with _ -> 0
   in
-  List.sort ~compare (List.dedup_and_sort ~compare (aux [] nRows))
+  (*List.sort ~compare (List.dedup_and_sort ~compare (aux [] nRows))*)
+  List.dedup_and_sort ~compare (aux [] nRows)
 
 let get_options_for_field_once db_result col =
   let data = db_result#get_all in
