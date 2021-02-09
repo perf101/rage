@@ -762,7 +762,14 @@ in
       Deferred.List.mapi ~how:`Parallel rs ~f:(fun i r->
           progress (sprintf "row %d of %d..." i rs_len);
           let%map csr = Deferred.List.map ~how:`Parallel cs ~f:(fun c->
-              let%map ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand (context_of b r c) in
+            let ctx = context_of b r c in
+            if List.find ctx ~f:(function (_, []) -> true | _ -> false) |> Option.is_some then
+              (* Intersection resulted in empty set of valid values: remove entire row.
+                 This allows a base= filter to be used to select just a particular distro for example
+               *)
+              return (r, c, ctx, [])
+            else
+              let%map ctx, ms = ctx_and_measurements_of_1st_cell_with_data expand ctx in
               (r, c, ctx,  ms)
             ) in r, csr
         )
