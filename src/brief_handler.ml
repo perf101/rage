@@ -45,6 +45,8 @@ let k_for = "for"
 let k_endfor = "endfor"
 let k_deflist = "deflist"
 
+let v_empty_intersection = ["Φ"]
+
 let t ~args = object (self)
   inherit Html_handler.t ~args
 
@@ -482,7 +484,9 @@ in
           match x with
           |(k,v)::[]->(* context already in acc, intersect the values *)
             if String.(k<>ck) then (failwith (sprintf "k=%s <> ck=%s" k ck));
-            (k, List.filter cv ~f:(fun x->List.mem ~equal:String.equal v x))::ys
+						let vs = List.filter cv ~f:(fun x -> List.mem ~equal:String.equal v x) in
+						let vs = if List.is_empty vs then v_empty_intersection  else vs in
+            (k, vs)::ys
           |[]->(* context not in acc, just add it *)
             (ck,cv)::ys
           |x->(* error *)
@@ -763,7 +767,7 @@ in
           progress (sprintf "row %d of %d..." i rs_len);
           let%map csr = Deferred.List.map ~how:`Parallel cs ~f:(fun c->
             let ctx = context_of b r c in
-            if List.find ctx ~f:(function (_, []) -> true | _ -> false) |> Option.is_some then
+						if List.find ctx ~f:(fun (_, l) -> List.equal String.equal l v_empty_intersection) |> Option.is_some then
               (* Intersection resulted in empty set of valid values: remove entire row.
                  This allows a base= filter to be used to select just a particular distro for example
                *)
