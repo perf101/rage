@@ -786,7 +786,7 @@ in
       if no_rounding then
         Float.to_string f, f
       else
-       f |> Float.round_significant ~significant_digits |> Float.to_padded_compact_string, f
+       f |> Float.round_significant ~significant_digits |> Float.to_string_hum ~strip_zero:true, f
     in
     let of_round xs ~f1 ~f2 =
       let open Owl_base in
