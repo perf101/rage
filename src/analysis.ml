@@ -30,7 +30,7 @@ let hpt_cross ?alpha ~baseline ~comparison =
 
 (** [speedup ?r ?gamma ~baseline ~comparison] computes the speedup of [comparison] over [baseline]
  * at confidence level [r], starting from value [gamma]. *)
-let rec speedup ?r ?(limit = 10.0) ?(gamma = 1.0) baseline comparison =
+let rec speedup ?r ?(limit = 10.0) ~gamma baseline comparison =
   if gamma >= limit then gamma
   else if hpt_uni ?alpha:r ~comparison:(Array.map (fun x -> x /. gamma) comparison) ~baseline then
     (* [a] significantly outperforms [b] [gamma] times *)
@@ -39,6 +39,13 @@ let rec speedup ?r ?(limit = 10.0) ?(gamma = 1.0) baseline comparison =
     (* We cannot prove that [a] outperforms [b] [gamma] times at [r] confidence level.
      * (Although this might just mean that the performance is identical). *)
     gamma
+
+let speedup ?r ?limit ?(gamma = 1.0) baseline comparison =
+	let result = speedup ?r ?limit ~gamma baseline comparison in
+	if result = gamma then
+    (* it is a slowdown, so compute the 'speedup' the other way and then invert *)
+		1. /. (speedup ?r ?limit ~gamma comparison baseline)
+	else result
 
 (** [speedup_cross ?r ?gamma a b] computes the speedup of a over b
  * at confidence level [r], starting from value [gamma].
