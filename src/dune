@@ -1,8 +1,15 @@
+(library
+ (name data)
+ (libraries owl-base owl)
+ (wrapped false)
+ (modules analysis))
+
 (executable
  (public_name rage)
  (name main)
+ (modules :standard \ analysis)
  (flags
   (:standard -principal -short-paths))
  (preprocess
   (pps ppx_sexp_conv ppx_let))
- (libraries threads.posix core postgresql curl async sql uri str re ssl owl-base owl))
+ (libraries data threads.posix core postgresql curl async sql uri str re ssl owl-base owl))
