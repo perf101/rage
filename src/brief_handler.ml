@@ -112,10 +112,12 @@ let t ~args = object (self)
             Curl.set_url conn url;
             Curl.set_username conn rage_username;
             Curl.set_password conn rage_password;
+            Curl.set_verbose conn true;
             Curl.perform conn;
             Curl.cleanup conn;
             Buffer.contents write_buff;
-          with _ -> sprintf "error fetching url %s" url)
+          with e ->
+            sprintf "error fetching url %s: %s" url (Exn.to_string e))
     in
     let fetch_brief_params_from_url url =
       (* simple fetch using confluence page with brief_params inside the "code block" macro in the page *)
@@ -123,7 +125,7 @@ let t ~args = object (self)
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let has_match = Str.string_match (Str.regexp ".*<pre class=\"syntaxhighlighter-pre\"[^>]*>\\([^<]+\\)<") html 0 in (*find the "code block" in the page*)
       if not has_match
-      then (printf "Error: no '{code}' block found in %s: %s" url html; raise Not_found)
+      then (printf "Error: no '{code}' block Found in %s: (%d) %s" url (String.length html) html; raise Not_found)
       else
         try Str.matched_group 1 html
         with Not_found -> (debug "not found"; raise Not_found)

@@ -49,11 +49,17 @@ create table machines (
   machine_type varchar(256) not null,
   cpu_model varchar(128) not null,
   number_of_cpus integer not null,
+  cpu_vendor varchar(16),
+  cpu_family integer,
+  cpu_model_int integer,
+  cpu_stepping integer,
+  cpu_speed float,
 
   primary key (machine_id),
   constraint machine_unique_key unique (machine_name)
 );
 grant select on machines to "www-data";
+create index machines_cpu on machines(cpu_vendor,cpu_family,cpu_model_int,cpu_stepping,cpu_speed);
 
 create table tbljobblacklist (
   jobid integer not null,

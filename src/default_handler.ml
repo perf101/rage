@@ -8,6 +8,7 @@ let t ~args = object (self)
     printf "<ul class=\"link_list home\">\n";
     printf "<li><a href='?p=soms_by_tc'>Scales of Measure</a></li>\n";
     printf "<li><a href='?p=import_page'>Import Jobs</a></li>\n";
+		printf "<li><a href='?p=machines'>Machines</a></li>\n";
     printf "</ul>\n";
     return ()
 end

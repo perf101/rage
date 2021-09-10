@@ -37,6 +37,7 @@ let handle_request () =
     | SomPage -> Som_page_handler.t
     | SomData -> Som_data_handler.t
     | Soms -> Soms_handler.t
+		| Machines -> Machines_handler.t
     | SomsByTc -> Javascript_only_handler.t
     | StdAxes -> Std_axes_handler.t
     | Brief -> Brief_handler.t

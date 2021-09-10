@@ -12,6 +12,7 @@ type t =
   | Brief
   | ImportPage
   | ImportJobs
+	| Machines
 
 let of_string = function
   | "create_tiny_url" -> CreateTinyUrl
@@ -23,6 +24,7 @@ let of_string = function
   | "brief" -> Brief
   | "import_page" -> ImportPage
   | "import_jobs" -> ImportJobs
+	| "machines" -> Machines
   | p -> failwith ("place_of_string: " ^ p)
 
 let string_of = function
@@ -37,3 +39,4 @@ let string_of = function
   | Brief -> "brief"
   | ImportPage -> "import_page"
   | ImportJobs -> "import_jobs"
+	| Machines -> "machines"
