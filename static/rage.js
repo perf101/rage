@@ -830,6 +830,7 @@ const setPresetBriefReport = () => {
 
     // select master
     select('v_branch', 'master');
+    select('v_branch', 'rt-next');
 
     // show build date
     select('f_build_date', 0); // 0=show for, 1=split by
