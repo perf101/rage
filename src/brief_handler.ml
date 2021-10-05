@@ -169,14 +169,15 @@ let t ~args = object (self)
                (List.map ~f:(fun (k,v) -> sprintf "%s=%s" k v) r |> String.concat ~sep:","));
       r
     in
-    let fetch_brief_params_from_suite ?(branch="refs/heads/master") id =
+    let rec fetch_brief_params_from_suite_rows ?(branch="refs/heads/master") id =
       let%bind html, url = fetch_suite id branch in
       let html = Str.global_replace (Str.regexp "\n") "" html in (*remove newlines from html*)
       let find_matches = find_matches html in
       (* Look for <!-- RAGE --> comments and concatenate their contents *)
       let pattern = Str.regexp "<!-- RAGE\\([^>]*\\)-->" in
+      let includesuite_rex = Str.regexp {|<includesuite id="\([^\"]+\)"|} in
       let rows = find_matches pattern |> String.concat ~sep:"\n" in
-      let%map includes = includes html ~branch in
+      let%bind includes = includes html ~branch in
       let lookup k =
         if String.(uppercase k = k) then
           match List.Assoc.find ~equal:String.equal includes k with
@@ -186,8 +187,17 @@ let t ~args = object (self)
         else "$" ^ k
       in
       let b = Buffer.create (String.length rows) in
-      Buffer.add_string b "rows=(";
       Caml.Buffer.add_substitute b lookup rows;
+      let%map suites = find_matches includesuite_rex |>
+        Deferred.List.map ~how:`Parallel ~f:(fetch_brief_params_from_suite_rows ~branch) in
+      List.iter ~f:(Buffer.add_string b) suites;
+      Buffer.contents b
+   in
+   let fetch_brief_params_from_suite ?branch id =
+      let b = Buffer.create 4096 in
+      Buffer.add_string b "rows=(";
+      let%map s = fetch_brief_params_from_suite_rows ?branch id in
+      Buffer.add_string b s;
       Buffer.add_string b ")";
       Buffer.contents b
     in
