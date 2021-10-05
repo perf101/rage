@@ -825,7 +825,7 @@ const unselectAll = (sel) => {
 const setPresetBriefReport = () => {
     // unselect branch tag, select build date, build tag
     unselect('xaxis', 'branch');
-    select('xaxis', 'build_tag');
+    // select('xaxis', 'build_tag');
     select('xaxis', 'build_date');
 
     // select master
@@ -839,7 +839,7 @@ const setPresetBriefReport = () => {
     select('f_branch', 1); // 0=show for, 1=split by
 
     // split by build tag
-    select('f_build_tag', 1); // 0=show for, 1=split by
+    select('f_build_tag', 0); // 0=show for, 1=split by
 
     // Select 'All' build number
     unselectAll('v_build_number');
