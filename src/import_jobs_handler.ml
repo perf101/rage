@@ -33,7 +33,7 @@ let t ~args = object (self)
   method private write_body =
     let job_ids = try
         self#get_param_exn "jobid"
-      with Not_found ->
+      with Not_found_s _ ->
         self#get_param_exn "JOBID"
     in
     let job_ids = decode_html job_ids in
