@@ -32,9 +32,19 @@ let t ~args = object (self)
     in
     let%bind tc_configs =
       som_ids |> Deferred.List.map ~how:`Parallel ~f:(fun som_id ->
-        let%bind tc_fqn, tc_config = get_tc_config_tbl_name conn som_id in
-        let query = Printf.sprintf "SELECT * FROM tc_config INNER JOIN machines ON machines.machine_id=tc_config.machine_id LEFT JOIN %s ON tc_config.tc_config_id=%s.tc_config_id WHERE job_id=%d AND tc_fqn='%s'"
-          tc_config tc_config job tc_fqn in
+        let%bind tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id
+        and som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
+        let columns = Printf.sprintf "tc_config.*, machines.*, %s.*" tc_config_tbl ^ (if som_tbl_exists then "," ^ som_config_tbl ^ ".*" else "") in
+        let joins = [ "tc_config"
+          ; "machines ON tc_config.machine_id=machines.machine_id"
+          ; Printf.sprintf "%s ON %s.tc_config_id=tc_config.tc_config_id" tc_config_tbl tc_config_tbl
+        ] @ (if som_tbl_exists then [
+          Printf.sprintf "soms_jobs ON (soms_jobs.som_id=%d AND soms_jobs.job_id=%d)" som_id job
+          ; Printf.sprintf "measurements_2 ON (measurements_2.som_job_id=soms_jobs.id AND measurements_2.tc_config_id=tc_config.tc_config_id AND measurements_2.tc_config_id=%s.tc_config_id)" tc_config_tbl
+          ; Printf.sprintf "%s ON measurements_2.som_config_id=%s.som_config_id" som_config_tbl som_config_tbl
+        ] else []) in
+        let query = Printf.sprintf "SELECT DISTINCT %s FROM %s WHERE tc_config.job_id=%d AND tc_config.tc_fqn='%s'" columns (String.concat ~sep:" INNER JOIN " joins) job tc_fqn
+        in
         let %map result = Postgresql_async.exec_exn ~conn ~query in
         som_id, result
       )
