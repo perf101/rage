@@ -1,6 +1,11 @@
 open Core
 open Async
 
+let () =
+  Sexplib.Conv.Exn_converter.add ~finalise:false
+  [%extension_constructor Postgresql.Error] @@ function
+  | Postgresql.Error e -> e |> Postgresql.string_of_error |> sexp_of_string
+
 (* [in_thread ~name f] runs the blocking function [f] in a worker thread *)
 let in_thread ~name f =
   In_thread.run ~name (fun () -> Or_error.try_with ~backtrace:true f)
