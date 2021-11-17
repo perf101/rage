@@ -2,6 +2,8 @@
  (name data)
  (libraries owl-base owl)
  (wrapped false)
+ (preprocess
+  (pps ppx_sexp_conv ppx_let))
  (modules analysis))
 
 (executable
