@@ -1,9 +1,21 @@
 open Core
 open Async
 
+let config_file = Sys.(get_argv ()).(1)
+
+let config =
+  In_channel.(with_file config_file ~f:input_lines)
+  |> List.map ~f:(fun line -> Scanf.sscanf line "%s@=%s" (fun k v -> (k,v)) )
+  |> String.Table.of_alist_exn
+
 let debug msg =
   Out_channel.output_string stderr (msg ^ "\n");
   Out_channel.flush stderr
+
+let get_config key =
+  match String.Table.find config key with
+  | None -> debug (sprintf "Fatal error: Could not find config key '%s' in %s" key config_file); raise Not_found
+  | Some x -> x
 
 let index l x =
   let rec aux i = function

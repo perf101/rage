@@ -27,7 +27,13 @@ let handle_request () =
   let start_time = Unix.gettimeofday () in
   let params = get_params_of_request () in
   let place = place_of_params ~params in
-  let conn = Postgresql_async.connect_pool ~conninfo:Sys.(get_argv()).(1) in
+  let conninfo =
+    [ "host", get_config "rage_host"
+    ; "user", get_config "rage_user"
+    ; "password", get_config "rage_pass"
+    ; "dbname", get_config "rage_db"
+    ] |> List.map ~f:(fun (k, v) -> k ^ "=" ^ v) |> String.concat ~sep:" " in
+  let conn = Postgresql_async.connect_pool ~conninfo in
   let args = let open Handler in {conn; params} in
   let open Place in
   let handler = begin match place with

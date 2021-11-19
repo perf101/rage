@@ -1,11 +1,6 @@
 CONFIG=/usr/groups/perfeng/rage/config
-RAGE_DB=$(shell grep "^rage_db=" $(CONFIG) | awk -F '=' '{print $$2}')
-RAGE_HOST=$(shell grep "^rage_host=" $(CONFIG) | awk -F '=' '{print $$2}')
-RAGE_USER=$(shell grep "^rage_user=" $(CONFIG) | awk -F '=' '{print $$2}')
-RAGE_PASS=$(shell grep "^rage_pass=" $(CONFIG) | awk -F '=' '{print $$2}')
-SETTINGS=host=$(RAGE_HOST) user=$(RAGE_USER) password=$(RAGE_PASS) dbname=$(RAGE_DB)
 PROGRAM=rage
-RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) "$(SETTINGS)" /etc/rage_passwd
+RUN_CMD=OCAMLRUNPARAM='b1' ./$(PROGRAM) /etc/rage_passwd
 WWW_DIR=/var/www/testing
 CGI_SCRIPT=index.cgi
 STATIC_DIR=static

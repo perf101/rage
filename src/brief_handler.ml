@@ -8,18 +8,6 @@ let () =
       Curl.global_cleanup();
       return ())
 
-let config_file = Sys.(get_argv ()).(2)
-
-let config =
-  In_channel.(with_file config_file ~f:input_lines)
-  |> List.map ~f:(fun line -> Scanf.sscanf line "%s@=%s" (fun k v -> (k,v)) )
-  |> String.Table.of_alist_exn
-
-let get_config key =
-  match String.Table.find config key with
-  | None -> debug (sprintf "Fatal error: Could not find config key '%s' in %s" key config_file); raise Not_found
-  | Some x -> x
-
 let rage_username = get_config "rage_username"
 let rage_password = get_config "rage_password"
 let product_version = get_config "product_version"
