@@ -221,7 +221,10 @@ let tc_config_fields = [
   "host_pcpus";
   "live_patching";
   "host_type";
-  "bootmode_precedence"
+  "bootmode_precedence";
+  "vm_last_hotfix";
+  "vm_hotfix_count";
+  "vm_windows_build"
 ]
 
 let build_fields = [
