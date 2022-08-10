@@ -117,6 +117,9 @@ create table tc_config (
   host_pcpus integer not null,
   host_type varchar(16) not null,
   bootmode_precedence varchar(32) not null,
+  vm_last_hotfix varchar(64) null,
+  vm_hotfix_count integer null,
+  vm_windows_build integer null,
 
   foreign key (job_id) references jobs(job_id),
   foreign key (tc_fqn) references test_cases(tc_fqn),
