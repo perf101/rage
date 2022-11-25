@@ -9,3 +9,6 @@
 .omakedb.lock
 distro
 rage
+_build
+.merlin
+*.install

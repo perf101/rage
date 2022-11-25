@@ -23,11 +23,13 @@ create table builds (
   product varchar(128) not null,
   branch varchar(128) not null,
   build_number integer not null,
-  build_tag varchar(128) null,
+  build_tag varchar(2048) null,
   build_date varchar(32) null,
+  build_is_release boolean null,
+  patches_applied varchar(1024) not null,
 
   primary key (build_id),
-  constraint builds_unique_keys unique (product, branch, build_number, build_tag)
+  constraint builds_unique_keys unique (product, branch, build_number, build_tag, build_is_release, patches_applied)
 );
 grant select on builds to "www-data";
 
@@ -47,11 +49,17 @@ create table machines (
   machine_type varchar(256) not null,
   cpu_model varchar(128) not null,
   number_of_cpus integer not null,
+  cpu_vendor varchar(16),
+  cpu_family integer,
+  cpu_model_int integer,
+  cpu_stepping integer,
+  cpu_speed float,
 
   primary key (machine_id),
   constraint machine_unique_key unique (machine_name)
 );
 grant select on machines to "www-data";
+create index machines_cpu on machines(cpu_vendor,cpu_family,cpu_model_int,cpu_stepping,cpu_speed);
 
 create table tbljobblacklist (
   jobid integer not null,
@@ -108,6 +116,10 @@ create table tc_config (
   dom0_vcpus integer not null,
   host_pcpus integer not null,
   host_type varchar(16) not null,
+  bootmode_precedence varchar(32) not null,
+  vm_last_hotfix varchar(64) null,
+  vm_hotfix_count integer null,
+  vm_windows_build integer null,
 
   foreign key (job_id) references jobs(job_id),
   foreign key (tc_fqn) references test_cases(tc_fqn),
