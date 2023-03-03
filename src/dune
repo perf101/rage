@@ -1,6 +1,6 @@
 (library
  (name data)
- (libraries owl-base owl)
+ (libraries unix owl-base owl)
  (wrapped false)
  (preprocess
   (pps ppx_sexp_conv ppx_let))
@@ -14,4 +14,4 @@
   (:standard -principal -short-paths))
  (preprocess
   (pps ppx_sexp_conv ppx_let))
- (libraries data threads.posix core postgresql curl async sql uri str re ssl owl-base owl ezjsonm))
+ (libraries data threads.posix core postgresql curl async sql uri str re ssl owl-base owl ezjsonm unix))
