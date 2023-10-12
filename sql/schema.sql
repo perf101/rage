@@ -112,6 +112,7 @@ create table tc_config (
   xenrt_pq_version varchar(64) not null,
   xen_cmdline varchar(128) not null,
   kernel_cmdline varchar(128) not null,
+  turbo_mode boolean null,
   cpufreq_governor varchar(32) not null,
   dom0_vcpus integer not null,
   host_pcpus integer not null,
