@@ -7,10 +7,10 @@
  (name rage)
  (synopsis "RAGE, Results And Graphing Engine")
  (depends
-  (core (>= v0.13))
-  (async (>= v0.13))
+  (core (and (>= v0.13) (< v0.15)))
+  (async (and (>= v0.13) (< v0.15)))
   (postgresql (>= 4.5.2))
-  (ocurl (>= 0.9.0))
+  (ocurl (and (>= 0.9.0) (< 1.0)))
   ezjsonm
   owl
   (ssl (>= 0.5.7))
