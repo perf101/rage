@@ -4,7 +4,17 @@ let () =
   (* use a static seed to keep RAGE's results deterministic *)
   Owl_base_stats_prng.init 42
 
-(* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
+
+(** [hpt_uni ?alpha ~baseline ~comparison] compares the measurements [comparison] against [baseline].
+    
+    See "T. Chen et al. Statistical Performance Comparison of Computers. 2012"
+
+    The NULL hypothesis is: "the performance of [baseline] and [comparison] are equivalent"
+    The alternative hypothesis is "the performance of [comparison] is larger than [baseline]"
+    [alpha] is the significance level and defaults to 0.05 (95% confidence level).
+
+    The caller ([speedup]) will handle the case where we need to compare a slowdown instead.
+ *)
 let hpt_uni ?alpha ~baseline ~comparison =
   let open Owl in
   (* Wilcoxon Rank-Sum Test, a.k.a. Mann-Whitney U-test. *)
@@ -59,6 +69,37 @@ let speedup_cross ?r ?(limit = 10.0) ?(gamma = 1.0) ~baseline ~comparison =
     loop gamma
 
 (* Le Boudec, Jean-Yves. Performance Evaluation of Computer and Communication Systems, 2010 *)
+
+(* Appendix A *)
+let quantiles n =
+    if n <= 5 then None
+    else if n <= 70 then
+        Some
+        [|1,6 ;1,7 ;1,7 ;2,8 ;2,9 ;2,10 ;3,10 ;3,11 ;3,11 ;4,12 ;4,12 ;5,13
+        ;5,14 ;5,15 ;6,15 ;6,16 ;6,16 ;7,17 ;7,17 ;8,18 ;8,19 ;8,20 ;9,20 ;9,21
+        ;10,21 ;10,22 ;10,22 ;11,23 ;11,23 ;12,24 ;12,24 ;13,25 ;13,26 ;13,27
+        ;14,27 ;14,28 ;15,28 ;15,29 ;16,29 ;16,30 ;16,30 ;17,31 ;17,31 ;18,32
+        ;18,32 ;19,33 ;19,34 ;19,35 ;20,35 ;20,36 ;21,36 ;21,37 ;22,37 ;22,38
+        ;23,39 ;23,39 ;24,40 ;24,40 ;24,40 ;25,41 ;25,41 ;26,42 ;26,43 ;26,44
+        ;27,44|].(n-5)
+    else
+        let n = float n in
+        let sqrt_n_98 = 0.98 *. iqrt n
+        and half_n = 0.5 *. n in
+        Some (
+            half_n -. sqrt_n_98 |> Float.floor |> int_of_float,
+            half_n +. 1.0 +. sqrt_n_98 |> Float.ceil |> int_of_float
+        )
+
+let confidence_median data =
+    let n = Array.length data in
+    match quantiles n with
+    | None -> (* for very small [n], no confidence interval is possible *)
+    | Some (j, k) ->
+        let order = Stats.sort ~inc:true data in
+        order.(j), order.(k)
+
+
 
 let bootstrap_gen ?(r0 = 25) ?(gamma = 0.95) f t xs =
   let r = (Float.ceil (float (2 * r0) /. (1. -. gamma)) |> int_of_float) - 1 in
