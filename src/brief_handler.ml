@@ -794,23 +794,29 @@ in
       if Array.length xs = 1 then
         f1 (round xs.(0))
       else
-      let l, avg, u = Analysis.bootstrap_mean xs in
+      let stat, (l, avg, u) =
+        match Analysis.confidence_median xs with
+        | None -> "Mean", Analysis.confidence_mean xs
+        | Some r -> "Median", r
+      in
       let ravg = round avg in
       let avg' = snd ravg in
-      let rel = 100.0 *. Float.abs (Owl_base.Stats.std ~mean:avg' xs /. avg') in
-      f2 (round l) ravg (round u) (round ~significant_digits:2 rel) (* 95% confidence *)
+      (* interval may not be symmetric, pick largest *)
+      let delta = Float.(max (u -. avg' |> abs) (avg' -. l |> abs)) in
+      let rel = 100.0 *. Float.abs (delta /. avg') in
+      f2 (round l) ravg (round u) stat (round ~significant_digits:2 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
     let str_of_round xs =
       of_round xs
         ~f1:(fun x -> fst x)
-        ~f2:(fun (l,_) (a,_) (u,_) (rel,_) ->
-            sprintf "Values=%s±%s%%. Mean=[%s, %s]" a rel l u)
+        ~f2:(fun (l,_) (a,_) (u,_) stat (rel,_) ->
+            sprintf "Values=%s±%s%%. %s=[%s, %s]" a rel l stat u)
     in
     let val_of_round xs =
       of_round xs
         ~f1:(fun x -> Avg (snd x))
-        ~f2:(fun l a u _ ->Range ((snd l),(snd a),(snd u)) )
+        ~f2:(fun l a u _ _ ->Range ((snd l),(snd a),(snd u)) )
     in
     let is_green baseline value more_is_better =
       if more_is_better then
@@ -1004,8 +1010,8 @@ in
                      match%map is_more_is_better ctx with
                      |None->""
                      |Some mb->
-                       let (l,ratio,u),speedup = proportion baseline_ms ms mb in
-                       sprintf "<sub>Speedup=%+.0f%%</sub><sub>(%+.0f%%,%+.0f%%)</sub><sub>(%+.0f%%)</sub>" speedup l u ratio
+                       let (l,_ratio,u),speedup = proportion baseline_ms ms mb in
+                       sprintf "<sub>Speedup=%+.0f%%</sub><sub>(%+.0f%%,%+.0f%%)</sub>" speedup l u
                   ) in
                 let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number_str diff in
                 sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
