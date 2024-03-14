@@ -19,16 +19,48 @@ let tabulate n f =
 (** 95% confidence interval *)
 let alpha = 0.05
 
+type t =
+{ low: float
+; value: float
+; high: float
+; statistic: string
+}
+
+(* ~1.96, but more accurate *)
+let gaussian_95 =  Owl.Stats.gaussian_isf 0.025 ~mu:0.0 ~sigma:1.0
+
 (** [t_95 df] is the 95% quantile of the [t] distribution with [df] degrees of freedom.
   For large values of [df] this is ~1.96, for smaller values it is calculated
   based on the inverse cumulative distribution function of Student's [t] distribution.
  *)
 let t_95 =
-  tabulate 8192 @@ fun n ->
-    if n < 8192 then
+  tabulate 500 @@ fun n ->
+    if n < 500 then
       Owl.Stats.t_isf (alpha /. 2.) ~loc:0. ~scale:1.0 ~df:(float @@ n)
     else
-      1.96
+      gaussian_95
+
+let mean_ci data =
+  let n = Array.length data
+  and mean = Stats.mean data in
+  let stdev_of_mean = Stats.sem ~mean data in (* stdev / sqrt n *)
+  let delta = t_95 (n-1) *. stdev_of_mean in
+  { low = mean -. delta
+  ; value = mean
+  ; high = mean +. delta
+  ; statistic = "mean"
+  }
+
+let mean_pi data =
+  let n = Array.length data
+  and mean = Stats.mean data in
+  let stdev_of_mean = Stats.std ~mean data in
+  let delta = t_95 (n-1) *. sqrt (1. +. 1. /. float_of_int n) *. stdev_of_mean in
+  { low = mean -. delta
+  ; value = mean
+  ; high = mean +. delta
+  ; statistic = "mean"
+  }
 
 (* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
 let hpt_uni ?alpha ~baseline ~comparison =
