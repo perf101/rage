@@ -46,7 +46,7 @@ let t_95 =
 
 (** {2 Sample mean} *)
 
-let mean_ci data =
+let normal_ci data =
   let n = Array.length data
   and mean = Stats.mean data in
   let stdev_of_mean = Stats.sem ~mean data in (* stdev / sqrt n *)
@@ -57,7 +57,7 @@ let mean_ci data =
   ; statistic = "mean"
   }
 
-let mean_pi data =
+let normal_pi data =
   let n = Array.length data
   and mean = Stats.mean data in
   let stdev_of_mean = Stats.std ~mean data in
@@ -94,13 +94,24 @@ let quantile_confidence =
   in
   tabulate 70 f
 
-let median_ci data =
+let order_ci data =
   match quantile_confidence (Array.length data) with
   | None -> None
   | Some (j, k) ->
     let order = Stats.sort ~inc:true data in
-    let median = Stats.median data in
-    Some { low = order.(j); value = median; high = order.(k); statistic = "median" }
+    let value = Stats.median order in
+    Some { low = order.(j); value; high = order.(k); statistic = "median" }
+
+let order_pi data =
+  let n = Array.length data in
+  if n < 39 then None
+  else
+    let order = Stats.sort ~inc:true data in
+    let n_1 = float_of_int (n + 1) in
+    let j = n_1 *. alpha /. 2. |> Float.floor |> int_of_float
+    and k = n_1 *. (1. -. alpha /. 2. ) |> Float.ceil |> int_of_float in
+    let value = Stats.median order in
+    Some { low = order.(j); value; high = order.(k); statistic = "median"  }
 
 (* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
 let hpt_uni ?alpha ~baseline ~comparison =

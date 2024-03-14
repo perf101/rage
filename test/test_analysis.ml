@@ -151,8 +151,13 @@ let test_quantiles n =
     if v < alpha then
       failf "Expected: B(k-1) - B(j-1) >= alpha, but got %g < alpha" v
 
-let median_ci' data =
-    match median_ci data with
+let order_ci' data =
+    match order_ci data with
+    | None -> skip ()
+    | Some r -> r
+
+let order_pi' data =
+    match order_pi data with
     | None -> skip ()
     | Some r -> r
 
@@ -161,11 +166,11 @@ let () =
     "tabulate", List.init 200 test_tabulate
    ; "t", List.map test_t_95 [12.706, 1; 2.228, 10; 1.984, 100] 
    ; "gen_normal", List.concat_map test_gen_normal [2;3;5; 10;100;1000]
-   ; "mean CI (fixed)", test_ci (gen_normal ~sigma:2.0) mean_ci 5.0
-   ; "mean PI (fixed)", test_pi (gen_normal ~sigma:2.0) mean_pi 5.0
-   ; "mean CI (random)", test_ci (gen_random_normal ~sigma:2.0) mean_ci 5.0
-   ; "median CI (fixed)", test_ci (gen_normal ~sigma:2.0) median_ci' 5.0
-(*   ; "mean PI (fixed)", test_pi (gen_normal ~sigma:2.0) mean_pi 5.0*)
-   ; "median CI (random)", test_ci (gen_random_normal ~sigma:2.0) median_ci' 5.0
+   ; "mean CI (fixed)", test_ci (gen_normal ~sigma:2.0) normal_ci 5.0
+   ; "normal PI (fixed)", test_pi (gen_normal ~sigma:2.0) normal_pi 5.0
+   ; "mean CI (random)", test_ci (gen_random_normal ~sigma:2.0) normal_ci 5.0
+   ; "median CI (fixed)", test_ci (gen_normal ~sigma:2.0) order_ci' 5.0
+   ; "order PI (fixed)", test_pi (gen_normal ~sigma:2.0) order_pi' 5.0
+   ; "median CI (random)", test_ci (gen_random_normal ~sigma:2.0) order_ci' 5.0
    ; "test_quantiles", List.map test_quantiles (List.init 80 (fun n -> n + 6))
   ]
