@@ -4,6 +4,32 @@ let () =
   (* use a static seed to keep RAGE's results deterministic *)
   Owl_base_stats_prng.init 42
 
+(** [tabulate n f] creates a cache for values of [f] from [f 1] to [f n].
+    @returns a function equivalent to [f], but where values [1 <= i <= n] are served from a cache.
+ *)
+let tabulate n f =
+  (* arrays are always indexed starting from 0, but we cache starting from 1,
+     hence we need to add 1 here and remove 1 when querying *)
+  let tbl = Array.init n @@ fun idx -> f (idx + 1) in
+  fun n ->
+  if n <= Array.length tbl then
+    tbl.(n-1)
+  else f n
+
+(** 95% confidence interval *)
+let alpha = 0.05
+
+(** [t_95 df] is the 95% quantile of the [t] distribution with [df] degrees of freedom.
+  For large values of [df] this is ~1.96, for smaller values it is calculated
+  based on the inverse cumulative distribution function of Student's [t] distribution.
+ *)
+let t_95 =
+  tabulate 8192 @@ fun n ->
+    if n < 8192 then
+      Owl.Stats.t_isf (alpha /. 2.) ~loc:0. ~scale:1.0 ~df:(float @@ n)
+    else
+      1.96
+
 (* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
 let hpt_uni ?alpha ~baseline ~comparison =
   let open Owl in
