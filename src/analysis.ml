@@ -113,6 +113,28 @@ let order_pi data =
     let value = Stats.median order in
     Some { low = order.(j); value; high = order.(k); statistic = "median"  }
 
+(** {2 Bootstrap} *)
+(* Le Boudec, Jean-Yves. Performance Evaluation of Computer and Communication Systems, 2010 *)
+
+let bootstrap_gen ?(r0 = 25) ?(gamma = 1. -. alpha) ~statistic f t xs =
+  let r = (Float.ceil (float (2 * r0) /. (1. -. gamma)) |> int_of_float) - 1 in
+  let boot_samples = Array.init r (fun _ -> xs |> f |> t) in
+  Array.sort Float.compare boot_samples ;
+  (* percentile bootstrap estimate *)
+  { low = boot_samples.(r0); value = t xs; high = boot_samples.(r + 1 - r0); statistic }
+
+let sample xs = Stats.sample xs (Array.length xs)
+
+let sample2 (xs, ys) = (sample xs, sample ys)
+
+(** [bootstrap ?r0 ?gamma t xs] computes the confidence interval at level [gamma] for the
+ * statistic [t]. [xs] are samples from an iid sequence, and [r0] is the algorithm's accuracy
+ * parameter. Does not require the distribution to be normal.
+ *)
+let bootstrap ?gamma t xs = bootstrap_gen ?gamma sample t xs
+
+let bootstrap_mean ?gamma = bootstrap ?gamma ~statistic:"mean" Stats.mean
+
 (* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
 let hpt_uni ?alpha ~baseline ~comparison =
   let open Owl in
@@ -167,31 +189,10 @@ let speedup_cross ?r ?(limit = 10.0) ?(gamma = 1.0) ~baseline ~comparison =
     let rec loop gamma = if hpt gamma then loop (gamma +. 0.01) else gamma in
     loop gamma
 
-(* Le Boudec, Jean-Yves. Performance Evaluation of Computer and Communication Systems, 2010 *)
-
-let bootstrap_gen ?(r0 = 25) ?(gamma = 0.95) f t xs =
-  let r = (Float.ceil (float (2 * r0) /. (1. -. gamma)) |> int_of_float) - 1 in
-  let boot_samples = Array.init r (fun _ -> xs |> f |> t) in
-  Array.sort Float.compare boot_samples ;
-  (* percentile bootstrap estimate *)
-  (boot_samples.(r0), t xs, boot_samples.(r + 1 - r0))
-
-let sample xs = Stats.sample xs (Array.length xs)
-
-let sample2 (xs, ys) = (sample xs, sample ys)
-
-(** [bootstrap ?r0 ?gamma t xs] computes the confidence interval at level [gamma] for the
- * statistic [t]. [xs] are samples from an iid sequence, and [r0] is the algorithm's accuracy
- * parameter. Does not require the distribution to be normal.
- *)
-let bootstrap ?gamma t xs = bootstrap_gen ?gamma sample t xs
-
-let bootstrap_mean ?gamma = bootstrap ?gamma Stats.mean
-
 (* T. Kalibera, R. Jones. Quantifying Performance Changes with Effect Size Confidence Intervals. 2012 *)
 
 (** [bootstrap_ratio ?gamma old_ys new_ys] computes the bootstrap confidence interval at level [gamma]
  * for the ratio of means of two systems *)
 let bootstrap_ratio ?gamma baseline comparison =
   let ratio (ns, os) = Stats.mean ns /. Stats.mean os in
-  bootstrap_gen ?gamma sample2 ratio (comparison, baseline)
+  bootstrap_gen ?gamma ~statistic:"mean ratio" sample2 ratio (comparison, baseline)

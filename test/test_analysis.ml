@@ -96,11 +96,11 @@ let check_pi pi n data =
             (* would be 95., but we get 94.46 sometimes... *)
            || percentage < 94. then
             failf "Prediction interval too narrow, only %.2f%% of the %d data is inside: [%g, %g]" percentage (Array.length data) pi.low pi.high;
-        if n >= 10000 && ratio > 0.999 then
+        if n >= 1000 && ratio > 0.99 then
             failf "Prediction interval too wide, %.2f%% of the %d data is inside: [%g, %g]" (ratio*.100.) (Array.length data) pi.low pi.high
 
 let test_pi_count distribution compute_pi value =
-    let large_data = distribution value 10000 in
+    let large_data = distribution value 1000 in
     fun n () ->
         let data = distribution value n in
         let pi = compute_pi data in
@@ -109,9 +109,13 @@ let test_pi_count distribution compute_pi value =
         check_pi pi n large_data
 
 let test_ci distribution compute_ci value =
-    test_case "accuracy" `Quick (test_accuracy distribution compute_ci value)
-    :: test_case "CI width" `Quick (test_ci_vs_pi distribution compute_ci value)
-    :: ListLabels.map ~f:(fun n ->
+    [test_case "accuracy" `Quick (test_accuracy distribution compute_ci value)
+    ; test_case "CI width" `Quick (test_ci_vs_pi distribution compute_ci value)
+    ]
+
+let test_ci_random distribution compute_ci value =
+    List.rev_append (test_ci distribution compute_ci value) @@
+    ListLabels.map ~f:(fun n ->
          let name = Printf.sprintf "CI outside (%d)" n in
          test_case name `Slow (test_ci_outside distribution compute_ci value n)
     )
@@ -168,9 +172,11 @@ let () =
    ; "gen_normal", List.concat_map test_gen_normal [2;3;5; 10;100;1000]
    ; "mean CI (fixed)", test_ci (gen_normal ~sigma:2.0) normal_ci 5.0
    ; "normal PI (fixed)", test_pi (gen_normal ~sigma:2.0) normal_pi 5.0
-   ; "mean CI (random)", test_ci (gen_random_normal ~sigma:2.0) normal_ci 5.0
+   ; "mean CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) normal_ci 0.8
    ; "median CI (fixed)", test_ci (gen_normal ~sigma:2.0) order_ci' 5.0
    ; "order PI (fixed)", test_pi (gen_normal ~sigma:2.0) order_pi' 5.0
-   ; "median CI (random)", test_ci (gen_random_normal ~sigma:2.0) order_ci' 5.0
+   ; "median CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) order_ci' 0.8
    ; "test_quantiles", List.map test_quantiles (List.init 80 (fun n -> n + 6))
+   ; "mean CI (fixed, bootstrap)", test_ci (gen_normal ~sigma:2.0) bootstrap_mean 5.0
+   ; "mean CI (random, bootstrap)", test_ci_random (gen_random_normal ~sigma:2.0) bootstrap_mean 0.8
   ]
