@@ -23,11 +23,13 @@ let gen_uniform n =
     Array.init n @@ fun i ->
     delta *. (float_of_int @@ i + 1)
 
+open Owl
+
 let gen_normal ~sigma mu n =
-    n |> gen_uniform |> Array.map (Owl.Stats.gaussian_isf ~mu ~sigma)
+    n |> gen_uniform |> Array.map (Stats.gaussian_isf ~mu ~sigma)
 
 let gen_random_normal ~sigma mu n =
-    Array.init n @@ fun _ -> Owl_stats.gaussian_rvs ~mu ~sigma
+    Array.init n @@ fun _ -> Stats.gaussian_rvs ~mu ~sigma
     (*
       We could also use a RNG, but we want to use deterministic and more accurate values in the test instead of:
       mu +. sigma *. Owl_stats_prng.rand_gaussian ()
@@ -60,8 +62,8 @@ let test_accuracy distribution compute_ci value () =
     let ci = compute_ci data in
     validate_ci ci;
     let value' = match ci.statistic with
-    | "mean" -> Owl.Stats.mean data
-    | "median" -> Owl.Stats.median data
+    | "mean" -> Stats.mean data
+    | "median" -> Stats.median data
     | s -> failf "Unknown statistic %s" s
     in
     let allowed_error = abs_float (value' -. value) +. 0.0001 in
@@ -127,19 +129,32 @@ let test_gen_normal n =
     let mu = 0.0 and sigma = 1.0 in
     let data = gen_normal ~sigma mu n in
     [ test_case "normal distribution" `Quick (fun () ->
-        if (Owl.Stats.jb_test data).reject then
+        if (Stats.jb_test data).reject then
             failf "Generated data doesn't follow a normal distribution: %a" Fmt.(array float) data;
       )
     ; test_case "normal distribution with mu" `Quick (fun () ->
-        if (Owl.Stats.z_test data ~mu ~sigma).reject then
+        if (Stats.z_test data ~mu ~sigma).reject then
             failf "Generated data doesn't follow a normal distribution with mu=%g: %a" mu Fmt.(array float) data;
       )
     ; test_case "normal distribution with variance" `Quick (fun () ->
-        if (Owl.Stats.var_test data ~variance:(sigma *. sigma)).reject then
+        if (Stats.var_test data ~variance:(sigma *. sigma)).reject then
             failf "Generated data doesn't follow a normal distribution with stdev=%g: %a" sigma Fmt.(array float) data;
       )
     ]
 
+let test_quantiles n =  
+  test_case (string_of_int n) `Quick @@ fun () ->
+  match quantile_confidence n with
+  | None -> fail "no confidence interval returned"
+  | Some (j, k) ->
+    let v = Maths.bdtr (k-1) n 0.5 -. Maths.bdtr (j-1) n 0.5 in
+    if v < alpha then
+      failf "Expected: B(k-1) - B(j-1) >= alpha, but got %g < alpha" v
+
+let median_ci' data =
+    match median_ci data with
+    | None -> skip ()
+    | Some r -> r
 
 let () =
   run "Analysis" [
@@ -149,4 +164,8 @@ let () =
    ; "mean CI (fixed)", test_ci (gen_normal ~sigma:2.0) mean_ci 5.0
    ; "mean PI (fixed)", test_pi (gen_normal ~sigma:2.0) mean_pi 5.0
    ; "mean CI (random)", test_ci (gen_random_normal ~sigma:2.0) mean_ci 5.0
+   ; "median CI (fixed)", test_ci (gen_normal ~sigma:2.0) median_ci' 5.0
+(*   ; "mean PI (fixed)", test_pi (gen_normal ~sigma:2.0) mean_pi 5.0*)
+   ; "median CI (random)", test_ci (gen_random_normal ~sigma:2.0) median_ci' 5.0
+   ; "test_quantiles", List.map test_quantiles (List.init 80 (fun n -> n + 6))
   ]

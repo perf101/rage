@@ -1,5 +1,7 @@
 open Owl_base
 
+(** {1 Helper functions} *)
+
 let () =
   (* use a static seed to keep RAGE's results deterministic *)
   Owl_base_stats_prng.init 42
@@ -27,7 +29,7 @@ type t =
 }
 
 (* ~1.96, but more accurate *)
-let gaussian_95 =  Owl.Stats.gaussian_isf 0.025 ~mu:0.0 ~sigma:1.0
+let gaussian_95 =  Owl.Stats.gaussian_isf (alpha /. 2.) ~mu:0.0 ~sigma:1.0
 
 (** [t_95 df] is the 95% quantile of the [t] distribution with [df] degrees of freedom.
   For large values of [df] this is ~1.96, for smaller values it is calculated
@@ -39,6 +41,10 @@ let t_95 =
       Owl.Stats.t_isf (alpha /. 2.) ~loc:0. ~scale:1.0 ~df:(float @@ n)
     else
       gaussian_95
+
+(** {1 Confidence and prediction intervals} *)
+
+(** {2 Sample mean} *)
 
 let mean_ci data =
   let n = Array.length data
@@ -61,6 +67,40 @@ let mean_pi data =
   ; high = mean +. delta
   ; statistic = "mean"
   }
+
+(** {2 Sample median} *)
+
+(* Appendix A *)
+let quantile_confidence = 
+  let f n =
+    if n <= 5 then None
+    else if n <= 70 then
+        Some
+        [|1,6 ;1,7 ;1,7 ;2,8 ;2,9 ;2,10 ;3,10 ;3,11 ;3,11 ;4,12 ;4,12 ;5,13
+        ;5,14 ;5,15 ;6,15 ;6,16 ;6,16 ;7,17 ;7,17 ;8,18 ;8,19 ;8,20 ;9,20 ;9,21
+        ;10,21 ;10,22 ;10,22 ;11,23 ;11,23 ;12,24 ;12,24 ;13,25 ;13,26 ;13,27
+        ;14,27 ;14,28 ;15,28 ;15,29 ;16,29 ;16,30 ;16,30 ;17,31 ;17,31 ;18,32
+        ;18,32 ;19,33 ;19,34 ;19,35 ;20,35 ;20,36 ;21,36 ;21,37 ;22,37 ;22,38
+        ;23,39 ;23,39 ;24,40 ;24,40 ;24,40 ;25,41 ;25,41 ;26,42 ;26,43 ;26,44
+        ;27,44|].(n-6)
+    else
+      let n = float n in
+      let sqrt_n_98 = 0.98 *. sqrt n
+      and half_n = 0.5 *. n in
+      Some (
+        half_n -. sqrt_n_98 |> Float.floor |> int_of_float,
+        half_n +. 1.0 +. sqrt_n_98 |> Float.ceil |> int_of_float
+      )
+  in
+  tabulate 70 f
+
+let median_ci data =
+  match quantile_confidence (Array.length data) with
+  | None -> None
+  | Some (j, k) ->
+    let order = Stats.sort ~inc:true data in
+    let median = Stats.median data in
+    Some { low = order.(j); value = median; high = order.(k); statistic = "median" }
 
 (* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
 let hpt_uni ?alpha ~baseline ~comparison =
