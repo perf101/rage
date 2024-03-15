@@ -31,9 +31,7 @@ let gen_normal ~sigma mu n =
 let gen_random_normal ~sigma mu n =
     Array.init n @@ fun _ -> Stats.gaussian_rvs ~mu ~sigma
     (*
-      We could also use a RNG, but we want to use deterministic and more accurate values in the test instead of:
-      mu +. sigma *. Owl_stats_prng.rand_gaussian ()
-      Owl_stats.gaussian_rvs ~mu ~sigma 
+      We could also use [mu +. sigma *. Owl_stats_prng.rand_gaussian ()], but that uses the Ziggurat algorithm, which has some known flaws
     *)
 
 let validate_ci ci =

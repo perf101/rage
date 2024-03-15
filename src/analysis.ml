@@ -4,7 +4,8 @@ open Owl_base
 
 let () =
   (* use a static seed to keep RAGE's results deterministic *)
-  Owl_base_stats_prng.init 42
+    Random.init 42;
+    Owl_base_stats_prng.init 42
 
 (** [tabulate n f] creates a cache for values of [f] from [f 1] to [f n].
     @returns a function equivalent to [f], but where values [1 <= i <= n] are served from a cache.
@@ -136,15 +137,15 @@ let bootstrap ?gamma t xs = bootstrap_gen ?gamma sample t xs
 let bootstrap_mean ?gamma = bootstrap ?gamma ~statistic:"mean" Stats.mean
 
 (* T. Chen et al. Statistical Performance Comparison of Computers. 2012 *)
-let hpt_uni ?alpha ~baseline ~comparison =
+let hpt_uni ?alpha ~baseline ~comparison () =
   let open Owl in
   (* Wilcoxon Rank-Sum Test, a.k.a. Mann-Whitney U-test. *)
   (Stats.mannwhitneyu ?alpha ~side:Stats.RightSide comparison baseline).reject
 
-let hpt_cross ?alpha ~baseline ~comparison =
+let hpt_cross ?alpha ~baseline ~comparison () =
   let open Owl in
   let is_significant = Array.map2 (fun baseline comparison ->
-      hpt_uni ?alpha ~baseline ~comparison) baseline comparison in
+      hpt_uni ?alpha ~baseline ~comparison ()) baseline comparison in
   let baseline =
     Array.map2
       (fun x is -> if is then Stats.median x else 0.)
@@ -163,7 +164,7 @@ let hpt_cross ?alpha ~baseline ~comparison =
  * at confidence level [r], starting from value [gamma]. *)
 let rec speedup ?r ?(limit = 10.0) ~gamma baseline comparison =
   if gamma >= limit then gamma
-  else if hpt_uni ?alpha:r ~comparison:(Array.map (fun x -> x /. gamma) comparison) ~baseline then
+  else if hpt_uni ?alpha:r ~comparison:(Array.map (fun x -> x /. gamma) comparison) ~baseline () then
     (* [a] significantly outperforms [b] [gamma] times *)
     speedup ?r ~limit ~gamma:(gamma +. 0.01) baseline comparison
   else
@@ -182,10 +183,10 @@ let speedup ?r ?limit ?(gamma = 1.0) baseline comparison =
  * at confidence level [r], starting from value [gamma].
  * Like [speedup], but for multiple benchmarks, e.g. when comparing 2 builds or 2 machines.
  * *)
-let speedup_cross ?r ?(limit = 10.0) ?(gamma = 1.0) ~baseline ~comparison =
+let speedup_cross ?r ?(limit = 10.0) ?(gamma = 1.0) ~baseline ~comparison () =
   if gamma >= limit then gamma
   else
-    let hpt = hpt_cross ?alpha:r ~baseline ~comparison in
+    let hpt = hpt_cross ?alpha:r ~baseline ~comparison () in
     let rec loop gamma = if hpt gamma then loop (gamma +. 0.01) else gamma in
     loop gamma
 

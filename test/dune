@@ -1,5 +1,18 @@
+(library
+ (name datagen)
+ (modules datagen)
+ (libraries owl)
+)
+
+
+(test
+ (name test_datagen)
+ (modules test_datagen)
+ (libraries alcotest datagen)
+)
+
 (test
 	(name test_analysis)
-	(libraries data alcotest)
-	(action (run %{test}))
+	(modules test_analysis)
+	(libraries data alcotest datagen)
 )
