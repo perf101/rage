@@ -45,16 +45,57 @@ let test_range ~lo ~hi f () =
     if v <= lo || v >= hi then
         failf "data out of (0,1) range: %g" v
 
-let large = 2000
+let n_0_1 x = Stats.gaussian_cdf x ~mu:0. ~sigma:1.
 
-let test_uniform ?(abserr=Float.epsilon) ?(random=true) f =
-    let f () = f large in
-    [ test_hypothesis "random order" ~xfail:(not random) is_random_order f
-    ; test_hypothesis "uniform" is_uniform_random f
-    ; test_case "range" `Quick (test_range ~lo:0. ~hi:1.0 f)
-    ; test_case "mean" `Quick (test_mean ~abserr f)
-    ; test_case "median" `Quick (test_median ~abserr f)
-    ]
+let turning_points data =
+    data |> Array.to_seqi |> Seq.fold_left (fun t (i, x) ->
+        if i = 0 || i+1 = Array.length data then t
+        else
+        let x0, x1, x2 = data.(i-1), x, data.(i+1) in
+        let is_monotonic =
+           (x0 <= x1 && x1 <= x2) ||
+           (x0 >= x1 && x1 >= x2)
+        in
+        if is_monotonic then t
+        else t+1 (* this is a turning point *)
+    ) 0
+
+let is_iid ~alpha data =
+    (* Le Boudec, Jean-Yves. Performance Evaluation of Computer and Communication Systems, 2010 *)
+    let t = turning_points data |> float_of_int in
+    let n = float_of_int (Array.length data) in
+    let mu = (2. *. n -. 4.) /. 3. in
+    let var = (16. *. n -. 29.) /. 90. in
+    let p_value = 2. *. (1. -. n_0_1 ((t -. mu) /. sqrt var)) in
+    Stats.{ reject = alpha > p_value
+    ; p_value
+    ; score = t
+    }
+
+let test_uniform ?(abserr=Float.epsilon) ?(random=true) f n =
+    let f () = f n in
+    let always =
+        [ test_hypothesis "uniform" is_uniform_random f
+        ; test_case "range" `Quick (test_range ~lo:0. ~hi:1.0 f)
+        ]
+    in
+    let always =
+        if random then
+            (* cannot use xfail, because not all non-random sources fail this test *)
+            test_hypothesis "iid" is_iid f :: always
+        else
+            always
+    in
+    if n > 100 then
+        (* these ones need a lot of data points to be accurate,
+           have to use confidence intervals otherwise (but that is done in test_analysis)
+         *)
+        test_hypothesis "random order" ~xfail:(not random) is_random_order f
+        :: test_case "mean" `Quick (test_mean ~abserr f)
+        :: test_case "median" `Quick (test_median ~abserr f)
+        :: always
+    else
+        always
 
 (** Normal tests *)
 
@@ -74,31 +115,50 @@ let is_mean ~mean ~sigma ~alpha data = Stats.z_test ~alpha ~mu:mean ~sigma data
 
 let is_normal ~alpha data = Stats.jb_test ~alpha data
 
-let test_normal ?(random=true) f ~mu ~sigma =
-    let f () = f ~mu ~sigma large in
-    [ test_hypothesis "random order" ~xfail:(not random) is_random_order f
-    ; test_hypothesis "normal (JB)" is_normal f
-    ; test_hypothesis "normal with known mu&sigma" (is_normal_random ~mu ~sigma) f
-    ; test_case "range" `Quick (test_normal_range ~mu ~sigma f)
-    ; test_hypothesis "normal mean test" (is_mean ~mean:mu ~sigma) f
-    ; test_hypothesis "variance test" (is_variance ~sigma) f
-    ]
+let test_normal ?(random=true) f ~mu ~sigma n =
+    let f () = f ~mu ~sigma n in
+    let always =
+        [ test_hypothesis "normal (JB)" is_normal f
+            ; test_hypothesis "normal with known mu&sigma" (is_normal_random ~mu ~sigma) f
+            ; test_case "range" `Quick (test_normal_range ~mu ~sigma f)
+            ; test_hypothesis "normal mean test" (is_mean ~mean:mu ~sigma) f
+            ; test_hypothesis "variance test" (is_variance ~sigma) f
+        ]
+    in
+    let always =
+        if random then
+            (* cannot use xfail, because not all non-random sources fail this test *)
+            test_hypothesis "iid" is_iid f :: always
+        else
+            always
+    in
+    if (n >= 100) then
+        (* these need a lot of datapoints to be accurate *)
+        test_hypothesis "random order" ~xfail:(not random) is_random_order f
+        :: always
+    else
+        always
 
 (** All tests *)
 
 let () =
-    (* make tests deterministic *)
-    Random.init 42;
-    run "random"
-    [ "Uniform.rand", test_uniform ~abserr:0.1 Uniform.rand
-    ; "Uniform.linspace", test_uniform ~random:false Uniform.linspace
-    ; "Uniform.low_discrepancy", test_uniform ~abserr:0.001 ~random:false Uniform.low_discrepancy
-    ; "Normal.rand1", test_normal Normal.rand1 ~mu:0. ~sigma:1.0
-    ; "Normal.rand2", test_normal Normal.rand2 ~mu:0. ~sigma:1.0
-    ; "Normal.fixed", test_normal ~random:false Normal.fixed ~mu:0. ~sigma:1.0
-    ; "Normal.low_discrepancy", test_normal ~random:false Normal.low_discrepancy ~mu:0. ~sigma:1.0
-    ; "Normal.rand1 (2)", test_normal Normal.rand1 ~mu:10. ~sigma:2.0
-    ; "Normal.rand2 (2)", test_normal Normal.rand2 ~mu:10. ~sigma:2.0
-    ; "Normal.fixed (2)", test_normal ~random:false Normal.fixed ~mu:10. ~sigma:2.
-    ; "Normal.low_discrepancy (2)", test_normal ~random:false Normal.low_discrepancy ~mu:10. ~sigma:2.
-    ]
+    let tests =
+        [1000; 100; 5; 3;]
+        |> List.concat_map (fun n ->
+        [ "Uniform.rand", test_uniform ~abserr:0.1 Uniform.rand n
+        ; "Uniform.linspace", test_uniform ~random:false Uniform.linspace n
+        ; "Uniform.low_discrepancy", test_uniform ~abserr:0.001 ~random:false Uniform.low_discrepancy n
+        ; "Normal.rand1", test_normal Normal.rand1 ~mu:0. ~sigma:1.0 n
+        ; "Normal.rand2", test_normal Normal.rand2 ~mu:0. ~sigma:1.0 n
+        ; "Normal.fixed", test_normal ~random:false Normal.fixed ~mu:0. ~sigma:1.0 n
+        ; "Normal.low_discrepancy", test_normal ~random:false Normal.low_discrepancy ~mu:0. ~sigma:1.0 n
+        ; "Normal.rand1 (2)", test_normal Normal.rand1 ~mu:10. ~sigma:2.0 n
+        ; "Normal.rand2 (2)", test_normal Normal.rand2 ~mu:10. ~sigma:2.0 n
+        ; "Normal.fixed (2)", test_normal ~random:false Normal.fixed ~mu:10. ~sigma:2. n
+        ; "Normal.low_discrepancy (2)", test_normal ~random:false Normal.low_discrepancy ~mu:10. ~sigma:2. n
+        ]
+        |> List.map @@ fun (name, t) ->
+                Printf.sprintf "%s (%d)" name n, t
+        )
+    in 
+    run "random" tests

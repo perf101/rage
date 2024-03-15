@@ -1,6 +1,7 @@
 open Alcotest.V1
 
 open Analysis
+open Datagen
 
 let test_f x =
     if x < 1 then invalid_arg "out of range";
@@ -17,19 +18,12 @@ let test_t_95 (expected, df) =
   test_case (string_of_int df) `Quick @@ fun () ->
   check' ~msg:"t_95" ~expected ~actual:(t_95 df) (float 0.001)
 
-let gen_uniform n =
-    let delta = 1. /. float_of_int (n + 1) in
-    (* uniformly distributed on [(0, 1)] *)
-    Array.init n @@ fun i ->
-    delta *. (float_of_int @@ i + 1)
-
 open Owl
 
-let gen_normal ~sigma mu n =
-    n |> gen_uniform |> Array.map (Stats.gaussian_isf ~mu ~sigma)
+let gen_normal ~sigma mu n = Normal.low_discrepancy ~mu ~sigma n
 
-let gen_random_normal ~sigma mu n =
-    Array.init n @@ fun _ -> Stats.gaussian_rvs ~mu ~sigma
+let gen_random_normal ~sigma mu n = Normal.rand1 ~mu ~sigma n
+let gen_random_normal' ~sigma mu n = Normal.rand2 ~mu ~sigma n
     (*
       We could also use [mu +. sigma *. Owl_stats_prng.rand_gaussian ()], but that uses the Ziggurat algorithm, which has some known flaws
     *)
@@ -47,7 +41,7 @@ let test_ci_outside distribution compute_ci value n () =
     let open Analysis in
     let repeats = 200 in
     (* TODO: first and second order accurate, test over many n... *)
-    let allowed_failures = repeats * (5 + (* to allow for errors *) 2)/100 in
+    let allowed_failures = repeats * (5  (* + to allow for errors *))/100 in
     let failures =
         List.init repeats Fun.id
         |> List.filter_map @@ fun _ ->
@@ -187,10 +181,12 @@ let () =
    ; "mean CI (fixed)", test_ci (gen_normal ~sigma:2.0) normal_ci 5.0
    ; "normal PI (fixed)", test_pi (gen_normal ~sigma:2.0) normal_pi 5.0
    ; "mean CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) normal_ci 0.8
+   ; "mean CI (random')", test_ci_random (gen_random_normal' ~sigma:2.0) normal_ci 0.8
    ; "median CI (fixed)", test_ci (gen_normal ~sigma:2.0) order_ci' 5.0
    ; "order PI (fixed)", test_pi (gen_normal ~sigma:2.0) order_pi' 5.0
    ; "median CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) order_ci' 0.8
    ; "test_quantiles", List.map test_quantiles (List.init 80 (fun n -> n + 6))
    ; "mean CI (fixed, bootstrap)", test_ci (gen_normal ~sigma:2.0) bootstrap_mean 5.0
    ; "mean CI (random, bootstrap)", test_ci_random (gen_random_normal ~sigma:2.0) bootstrap_mean' 0.8
+   ; "mean CI (random', bootstrap)", test_ci_random (gen_random_normal' ~sigma:2.0) bootstrap_mean' 0.8
   ]

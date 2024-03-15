@@ -18,6 +18,8 @@ module Uniform = struct
             Array.init n @@ fun i ->
             let frac, _ = Float.modf @@ (i + 1 |> float_of_int) *. c in
             frac
+
+    (* also tried Zar, but when transforming back to float it has errors in the computed mean *)
 end
 
 module Normal = struct
