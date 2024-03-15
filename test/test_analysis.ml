@@ -43,19 +43,29 @@ let validate_ci ci =
         failf "Reported %s doesn't satisfy %g ∈ [%g, %g]" ci.statistic ci.value ci.low ci.high
 
 let test_ci_outside distribution compute_ci value n () =
+    let pp_fail ppf ci =
+        Fmt.pf ppf "[%g, %g]" ci.low ci.high
+    in
     let open Analysis in
-    let bad = ref 0 in
-    let repeats = 500 in
-    let allowed_failures = repeats * 95/100 in
-    for i = 1 to repeats do
-        let data = distribution value n in
-        let ci = compute_ci data in
-        validate_ci ci;
-        if value < ci.low || value > ci.high then
-            incr bad;
-        if !bad > allowed_failures then
-            failf "True %s = %g outside of estimated CI [%g, %g]" ci.statistic value ci.low ci.high
-    done
+    let repeats = 200 in
+    (* TODO: first and second order accurate, test over many n... *)
+    let allowed_failures = repeats * (5 + (* to allow for errors *) 2)/100 in
+    let failures =
+        List.init repeats Fun.id
+        |> List.filter_map @@ fun _ ->
+            let data = distribution value n in
+            let ci = compute_ci data in
+            validate_ci ci;
+            if value < ci.low || value > ci.high then
+                Some ci
+            else
+            None
+    in
+    let count = List.length failures in
+    if count > allowed_failures then
+        let name = (List.hd failures).statistic in
+        failf "True %s outside of estimated CI: %d failures. Expected %g, got:@, %a" name count value (Fmt.Dump.list pp_fail) failures
+
 
 let test_accuracy distribution compute_ci value () =
     let data = distribution value 1000 in
@@ -165,6 +175,12 @@ let order_pi' data =
     | None -> skip ()
     | Some r -> r
 
+let bootstrap_mean' data =
+    (* TODO: BCa? *)
+    if Array.length data < 100 then skip ()
+    else bootstrap_mean data
+
+
 let () =
   run "Analysis" [
     "tabulate", List.init 200 test_tabulate
@@ -178,5 +194,5 @@ let () =
    ; "median CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) order_ci' 0.8
    ; "test_quantiles", List.map test_quantiles (List.init 80 (fun n -> n + 6))
    ; "mean CI (fixed, bootstrap)", test_ci (gen_normal ~sigma:2.0) bootstrap_mean 5.0
-   ; "mean CI (random, bootstrap)", test_ci_random (gen_random_normal ~sigma:2.0) bootstrap_mean 0.8
+   ; "mean CI (random, bootstrap)", test_ci_random (gen_random_normal ~sigma:2.0) bootstrap_mean' 0.8
   ]

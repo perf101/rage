@@ -1,4 +1,5 @@
 (test
 	(name test_analysis)
 	(libraries data alcotest)
+	(action (run %{test}))
 )
