@@ -101,7 +101,7 @@ let order_ci data =
   | Some (j, k) ->
     let order = Stats.sort ~inc:true data in
     let value = Stats.median order in
-    Some { low = order.(j); value; high = order.(k); statistic = "median" }
+    Some { low = order.(j-1); value; high = order.(k-1); statistic = "median" }
 
 let order_pi data =
   let n = Array.length data in

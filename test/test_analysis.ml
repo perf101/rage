@@ -34,30 +34,52 @@ let validate_ci ci =
     if ci.value < ci.low || ci.value > ci.high then
         failf "Reported %s doesn't satisfy %g ∈ [%g, %g]" ci.statistic ci.value ci.low ci.high
 
-let test_ci_outside distribution compute_ci value n () =
-    let pp_fail ppf ci =
-        Fmt.pf ppf "[%g, %g]" ci.low ci.high
-    in
-    let open Analysis in
-    let repeats = 200 in
-    (* TODO: first and second order accurate, test over many n... *)
-    let allowed_failures = repeats * (5  (* + to allow for errors *))/100 in
-    let failures =
-        List.init repeats Fun.id
-        |> List.filter_map @@ fun _ ->
-            let data = distribution value n in
-            let ci = compute_ci data in
-            validate_ci ci;
-            if value < ci.low || value > ci.high then
-                Some ci
-            else
-            None
-    in
-    let count = List.length failures in
-    if count > allowed_failures then
-        let name = (List.hd failures).statistic in
-        failf "True %s outside of estimated CI: %d failures. Expected %g, got:@, %a" name count value (Fmt.Dump.list pp_fail) failures
+let count f l = List.fold_left (fun acc x -> if f x then acc + 1 else acc) 0 l
+let range a b = Array.init (b-a) @@ fun i -> a + i
 
+let compute_ci_accuracy ?(repeats=200) distribution compute_ci value n_min n_max =
+    range n_min n_max
+    |> Array.map @@ fun n ->
+    let n' = float_of_int n in
+    let to_ratio i = float_of_int i /. float_of_int n in
+    let ci =
+        List.init repeats @@ fun _ ->
+        let ci = distribution value n |> compute_ci in
+        validate_ci ci;
+        ci
+    in
+    let lo_noncoverage = count (fun ci -> value < ci.low) ci |> to_ratio
+    and hi_noncoverage = count (fun ci -> value > ci.high) ci |> to_ratio
+    in
+    (lo_noncoverage, n'), (hi_noncoverage, n')
+
+module M = Owl.Dense.Matrix.D
+
+let of_array a = M.of_array a 1 (Array.length a)
+
+let fit values bigo =
+    let y = Array.map fst values |> of_array
+    and x = Array.map (fun (_, n) -> bigo n) values |> of_array
+    in
+    (* fit y = a + b * x *)
+    let a, h = Owl.Linalg.D.linreg x y in
+    a, h, a > alpha
+
+let fit_first_order values =
+    let a, h, reject = fit values (fun n -> 1. /. sqrt n) in
+    if reject then
+        failf "CI is not first order accurate: non-coverage = %g + %g / sqrt n" a h
+
+let fit_second_order values =
+    let a, h, reject = fit values (fun n -> 1. /. n) in
+    if reject then
+        failf "CI is not second order accurate: non-coverage = %g + %g / n" a h
+
+let test_ci_accuracy ?repeats distribution compute_ci fit_test value  =
+    let lo_noncoverage, hi_noncoverage = compute_ci_accuracy ?repeats distribution compute_ci value 6 50 |> Array.split in
+    [ test_case "interval low" `Quick (fun () -> fit_test  lo_noncoverage)
+    ; test_case "interval high" `Quick (fun () -> fit_test  hi_noncoverage)
+    ]
 
 let test_accuracy distribution compute_ci value () =
     let data = distribution value 1000 in
@@ -116,12 +138,11 @@ let test_ci distribution compute_ci value =
     ]
 
 let test_ci_random distribution compute_ci value =
-    List.rev_append (test_ci distribution compute_ci value) @@
-    ListLabels.map ~f:(fun n ->
-         let name = Printf.sprintf "CI outside (%d)" n in
-         test_case name `Slow (test_ci_outside distribution compute_ci value n)
-    )
-    [ 1000; 100; 10; 5; 3; 2 ]    
+    List.concat
+    [ test_ci distribution compute_ci value
+    ; test_ci_accuracy distribution compute_ci fit_first_order value
+(*   ; test_ci_accuracy distribution compute_ci fit_second_order value*)
+    ]
 
 let test_pi distribution compute_pi value =
     test_case "accuracy" `Quick (test_accuracy distribution compute_pi value)
@@ -169,8 +190,7 @@ let order_pi' data =
 
 let bootstrap_mean' data =
     (* TODO: BCa? *)
-    if Array.length data < 100 then skip ()
-    else bootstrap_mean data
+    bootstrap_mean data
 
 
 let () =
