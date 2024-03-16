@@ -15,4 +15,5 @@
 	(name test_analysis)
 	(modules test_analysis)
 	(libraries data alcotest datagen)
+	(action (run %{test} --show-errors))
 )

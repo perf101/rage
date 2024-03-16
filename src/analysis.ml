@@ -69,6 +69,37 @@ let normal_pi data =
   ; statistic = "mean"
   }
 
+let adjusted_ci data =
+  (* Hesterberg 2014 *)
+  let n = Array.length data
+  and y = Stats.mean data (* sample mean *)
+  and s = Stats.std data in (* sample standard deviation *)
+  let gamma = Stats.skew ~mean:y ~sd:s data in (* sample skewness *)
+  let sqrt_n = sqrt (float_of_int n) in
+  let k = gamma /. 6. *. sqrt_n
+  and t = t_95 (n-1)
+  and s_div_sqrt_n = s /. sqrt_n in
+  let value = y +. s_div_sqrt_n *. k *. (1. +. 2. *. t *. t) in
+  { low = value -. s_div_sqrt_n *. t; value; high = value +. s_div_sqrt_n *. t; statistic = "skewness adjusted mean"}
+
+let adjusted_ci' data =
+  (* AADM t-approach, it doesn't modify the mean itself, which is better,
+     sometimes the above Hesterberg method modifies the mean way too much, such that it fails accuracy tests
+    ... although what we care about are really just the CI accuracy tests, not the actual mean?
+    but anyway inaccuracies in estimation shouldn't affect our mean, as we'll use it as baseline
+   *)
+  let n = Array.length data
+  and x_bar = Stats.mean data (* sample mean *)
+  and md = Stats.median data (* sample median *)
+  in
+  let sqrt_n = sqrt (float_of_int n)
+  and t = t_95 (n - 1)
+  and sum = Array.fold_left (fun acc xi -> acc +. abs_float (xi -. md)) 0. data
+  in
+  let aadm = sqrt (Float.pi /. 2.) *. sum /. (float_of_int n) in
+  let aadm' = aadm /. sqrt_n in
+  { low = x_bar -. t *. aadm'; value = x_bar; high = x_bar +. t *. aadm'; statistic = "AADM-t mean"}
+
 (** {2 Sample median} *)
 
 (* Appendix A *)

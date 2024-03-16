@@ -2,6 +2,8 @@ open Alcotest.V1
 open Datagen
 open Owl
 
+(* TODO: could also test skewness, kurtosis, 0 for normal? but not for all rand... *)
+
 (**
     Even a perfect random number generator is expected to fail randomness tests sometimes,
     because the randomness test is only accurate up to (1-alpha)*100% accuracy.

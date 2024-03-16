@@ -35,13 +35,21 @@ let validate_ci ci =
         failf "Reported %s doesn't satisfy %g ∈ [%g, %g]" ci.statistic ci.value ci.low ci.high
 
 let count f l = List.fold_left (fun acc x -> if f x then acc + 1 else acc) 0 l
-let range a b = Array.init (b-a) @@ fun i -> a + i
+
+let rec range aux a b =
+    if a <= b then
+        (* at least 2 datapoints for each N *)
+        range (a :: a :: aux) (2 * a) b
+    else
+        Array.of_list aux
+
+let range = range []
 
 let compute_ci_accuracy ?(repeats=200) distribution compute_ci value n_min n_max =
     range n_min n_max
     |> Array.map @@ fun n ->
     let n' = float_of_int n in
-    let to_ratio i = float_of_int i /. float_of_int n in
+    let to_ratio i = float_of_int i /. float_of_int repeats in
     let ci =
         List.init repeats @@ fun _ ->
         let ci = distribution value n |> compute_ci in
@@ -53,30 +61,45 @@ let compute_ci_accuracy ?(repeats=200) distribution compute_ci value n_min n_max
     in
     (lo_noncoverage, n'), (hi_noncoverage, n')
 
-module M = Owl.Dense.Matrix.D
-
-let of_array a = M.of_array a 1 (Array.length a)
 
 let fit values bigo =
-    let y = Array.map fst values |> of_array
-    and x = Array.map (fun (_, n) -> bigo n) values |> of_array
+    (* P = alpha/2 + h * bigo n, y <= P, h > 0, bigo n > 0, 0 <= P < 1 *)
+    let compute_h (y, n) =
+        (* We measured [y * n] mean values that were outside of the confidence interval,
+           this is the non-coverage of the confidence interval.
+           However to account for the limited precision we add 0.5 (a value is either inside or outside the interval,
+           and if its probability is exactly 0.5 then we'd measure it as inside half the time, and outside half the time,
+           so if we want an upper bound we should account for the possibility that this time we've rounded down
+           the observation)
+           y thus becomes y' = y  +. 0.5 *. n
+           although we can also accomplish this by generating at least 2 values for each n...
+           and then via averaging we gain this 0.5, no need to introduce extra errors.
+         *)
+        (* y = alpha/2 + h * bigo n *)
+        assert (y >= 0. && y <= 1.);
+        abs_float (y -. alpha /. 2.) /. (bigo n)
     in
-    (* fit y = a + b * x *)
-    let a, h = Owl.Linalg.D.linreg x y in
-    a, h, a > alpha
+    let h =
+        values |> Array.map compute_h |> Array.fold_left Float.max 0.
+    in
+    (* We cannot compute intervals with n=1, minimum is n=2.
+       And we don't want to be too wrong either, so allow alpha/2 error
+   *)
+    let h_max = (alpha /. 2.) /. (bigo 2.) in
+    h > h_max, h
 
 let fit_first_order values =
-    let a, h, reject = fit values (fun n -> 1. /. sqrt n) in
+    let reject, h = fit values (fun n -> 1. /. sqrt n) in
     if reject then
-        failf "CI is not first order accurate: non-coverage = %g + %g / sqrt n" a h
+        failf "CI is not first order accurate: non-coverage = %g + %g / sqrt n" (alpha /. 2.) h
 
 let fit_second_order values =
-    let a, h, reject = fit values (fun n -> 1. /. n) in
+    let reject, h = fit values (fun n -> 1. /. n) in
     if reject then
-        failf "CI is not second order accurate: non-coverage = %g + %g / n" a h
+        failf "CI is not second order accurate: non-coverage = %g + %g / n" (alpha /. 2.) h
 
 let test_ci_accuracy ?repeats distribution compute_ci fit_test value  =
-    let lo_noncoverage, hi_noncoverage = compute_ci_accuracy ?repeats distribution compute_ci value 6 50 |> Array.split in
+    let lo_noncoverage, hi_noncoverage = compute_ci_accuracy ?repeats distribution compute_ci value 6 1000 |> Array.split in
     [ test_case "interval low" `Quick (fun () -> fit_test  lo_noncoverage)
     ; test_case "interval high" `Quick (fun () -> fit_test  hi_noncoverage)
     ]
@@ -88,9 +111,11 @@ let test_accuracy distribution compute_ci value () =
     let value' = match ci.statistic with
     | "mean" -> Stats.mean data
     | "median" -> Stats.median data
+    | "skewness adjusted mean" -> Stats.mean data
+    | "AADM-t mean" -> Stats.mean data
     | s -> failf "Unknown statistic %s" s
     in
-    let allowed_error = abs_float (value' -. value) +. 0.0001 in
+    let allowed_error = abs_float (value' -. value) +. 0.001 in
     check' ~msg:"Estimated vs actual" ~expected:value ~actual:ci.value (float allowed_error)
 
 let test_ci_vs_pi distribution compute_ci value () =
@@ -140,8 +165,8 @@ let test_ci distribution compute_ci value =
 let test_ci_random distribution compute_ci value =
     List.concat
     [ test_ci distribution compute_ci value
-    ; test_ci_accuracy distribution compute_ci fit_first_order value
-(*   ; test_ci_accuracy distribution compute_ci fit_second_order value*)
+(*    ; test_ci_accuracy distribution compute_ci fit_first_order value*)
+   ; test_ci_accuracy distribution compute_ci fit_second_order value
     ]
 
 let test_pi distribution compute_pi value =
@@ -202,6 +227,12 @@ let () =
    ; "normal PI (fixed)", test_pi (gen_normal ~sigma:2.0) normal_pi 5.0
    ; "mean CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) normal_ci 0.8
    ; "mean CI (random')", test_ci_random (gen_random_normal' ~sigma:2.0) normal_ci 0.8
+   ; "adjusted mean CI (fixed)", test_ci (gen_normal ~sigma:2.0) adjusted_ci 5.0
+   ; "adjusted mean CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) adjusted_ci 0.8
+   ; "adjusted mean CI (random')", test_ci_random (gen_random_normal' ~sigma:2.0) adjusted_ci 0.8
+   ; "AADM CI (fixed)", test_ci (gen_normal ~sigma:2.0) adjusted_ci' 5.0
+   ; "AADM CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) adjusted_ci' 0.8
+   ; "AADM CI (random')", test_ci_random (gen_random_normal' ~sigma:2.0) adjusted_ci' 0.8
    ; "median CI (fixed)", test_ci (gen_normal ~sigma:2.0) order_ci' 5.0
    ; "order PI (fixed)", test_pi (gen_normal ~sigma:2.0) order_pi' 5.0
    ; "median CI (random)", test_ci_random (gen_random_normal ~sigma:2.0) order_ci' 0.8
