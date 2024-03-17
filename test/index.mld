@@ -1,0 +1,48 @@
+RAGE brief reports contain a statistical summary and comparison between measurements.
+We want to test how this code behaves in various scenarios, and for that we need to generate data that we use as input.
+However first lets examine the various random number generators that are available in OCaml and their quality.
+
+{1 Random Number Generators }
+
+We are going to use the generated test data to test various statistical functions, however any errors or biases in the generator may affect our test results.
+
+{2 Testing the quality of OCaml's RNGs}
+
+So first lets test the quality of the RNG using the {!module:TestU01} battery of tests (also part of `dieharder` test suite).
+An OCaml module is available that wraps the testsuite, and executes tests sequentially, which can take a long time.
+To speed up testing we can parallelize the test by running each test in a separate process, using the {!module:Parany} module.
+The {!module:Testrng} wraps {!module:TestU01} and automatically parallelizes the tests, storing the output in a separate file for each test, and reporting any failures at the end.
+
+OCaml has changed the implementation of its Random module between versions 4 and 5, we test both using the `stdlib-random` library which allows compiling the 2 versions independently of the compiler's version.
+
+The results are in the table below:
+{t
+  | RNG                                                | Library        | Test duration | Test failures  |
+  | :------------------------------------------------  | :------------: | ------------: | -------------: |
+  | {!module:Random4}                                  | [stdlib-random]|          868s |            6 ✗ |
+  | {!module:Random5}                                  | [stdlib-random]|         675.5s|            0 ✓ |
+  | {!module:Owl_stats_prng} ([SFMT])                 | [owl]          |         637s  |            3 ✗ |
+  | {!module:Cryptokit.Random.hardware_rng} ([rdrand]) | [cryptokit]    |               |            ?  |
+  | {!module:Mirage_crypto_rng.Fortuna}                | [mirage-crypto-rng]|    856.2s+|            ?  |
+}
+
+The failures where p-values were outside of [[0.001, 0.9990]]:
+{t
+  | RNG       | Test battery  | Test number | Test name      | Parameters  | p-value |
+  | :-------: | :-----------: | ----------: | :------------- | :---------- | ------: |
+  | [Random4] | Crush         |        [32] | Gap            | [r = 27]    |   [eps] |
+  | [Random4] | pseudoDIEHARD |         [7] | DNA            |             | [0.9992]|
+  | [Random4] | BigCrush      |        [35] | Gap            | [r = 25]    |    [eps] |
+  | [Random4] | BigCrush      |        [61] | WeightDistrib  | [r = 28]    |    [eps] |
+  | [Random4] | BigCrush      |        [64] | WeightDistrib  | [r = 26]    |    [eps] |
+  | [Random4] | BigCrush      |        [98] | HammingIndep   |[L=300, r=26]|    [eps] |
+  | [SFMT]    | pseudoDIEHARD |         [6] | OQSO           |             |  [0.990] |
+  | [SFMT]    | BigCrush      |        [80] | LinearComp     | [r=0]       | [1-eps1] |
+  | [SFMT]    | BigCrush      |        [81] | LinearComp     | [r=29]      | [1-eps1] |
+ }
+
+[SFMT] uses [sfmt_genrand_real1], which generates [double] with only 32-bit of precision, [sfmt_genrand_res53] would generate them with [53] bits of precision, but making that change doesn't fix the [LinearComp] failures, and switching to [dSFMT] instead of [SFMT] doesn't help. (The failures with a p-value of ~0.999 could be rerun, but those with a p-value of [eps] or [1-eps1] would almost always fail).
+
+{!module:Random5} (the [Random] module in OCaml version 5) passed all tests, and is quicker than the OCaml 4 version too.
+
+We'll use {!module:Random5} as our RNG.
