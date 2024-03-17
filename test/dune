@@ -17,3 +17,9 @@
 	(libraries data alcotest datagen)
 	(action (run %{test} --show-errors))
 )
+
+(test
+	(name test_rng)
+	(modules test_rng)
+	(libraries testu01 owl)
+)
