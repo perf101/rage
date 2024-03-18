@@ -57,24 +57,27 @@ let run_testu01_i ?(repeat=1) test gen test_index =
   rep.(test_index) <- repeat;
 
   test.run gen.gen rep;
-  flush_all ();
 
   let threshold = Probdist.Gofw.get_suspectp () in
   let tests = Array.combine (Bbattery.get_test_names ()) (Bbattery.get_p_val ()) in
-  tests |> Array.to_seq |> Seq.filter (fun (_, p) -> p < threshold || p > (1. -. threshold))
-  |> Seq.map (fun (test_name, p_value) -> {filename;test_name;p_value})
-  |> List.of_seq
+  let results =
+    tests |> Array.to_seq |> Seq.filter (fun (_, p) -> p < threshold || p > (1. -. threshold))
+    |> Seq.map (fun (test_name, p_value) -> {filename;test_name;p_value})
+    |> List.of_seq
+  in
+  output_char stderr (if (List.length results > 0) then 'F' else '.');
+  flush_all ();
+  results
 
 let cores = Cpu.numcores ()
 
 let had_failures = ref 0
 
-let run_testu01 test gen =
-  Printf.printf "Running %s (%d jobs) …%!" test.battery test.njobs;
+let run_common f input =
   let t0 = Unix.gettimeofday () in
   let failures =
-    List.init test.njobs (fun i -> i + 1)
-    |> Parany.Parmap.parmap cores (run_testu01_i test gen)
+    input
+    |> Parany.Parmap.parmap cores f
     |> List.concat 
   in
   let t1 = Unix.gettimeofday () in
@@ -89,59 +92,84 @@ let run_testu01 test gen =
     incr had_failures
   end
 
+let run_testu01 test gen =
+  Printf.printf "Running %s (%d jobs) …%!" test.battery test.njobs;
+  List.init test.njobs (fun i -> i + 1)
+  |> run_common (run_testu01_i test gen)
+
 (** The {!module:TestU01} test batteries *)
-let batteries =
-  let vn battery run njobs =
-    { battery; run; njobs}
-  in
-  let v1 battery run1 =
-    (* these have 1 job, but multiple tests inside *)
-    vn battery (fun gen _ -> run1 gen) 1
-  in
-  let vbits battery runb log2 =
-    (* tests require nb >= 512, otherwise they just exit the program,
-       and parany will get stuck as it doesn't detect that
-     *)
-    assert (log2 >= 9);
-    let nb = 2. ** (float_of_int log2) in
-    v1 battery (fun gen -> runb gen nb)
-  in
-  let vbits2 battery runb ntests log2 =
-    assert (log2 >= 9);
-    let nb = 2. ** (float_of_int log2) in
-    vn battery (fun gen -> runb gen nb 0 32) ntests
-  in
-  let block_alphabit_w = [|1;2;4;8;16;32|] in
-  let repeat_block_alphabit gen nb r s rep =
-    (* we have n jobs to run, combined with a different w each time,
-       the high-level runner puts everything together:
-       n runs with w=1, then n runs with w=2, and so on...
-     *)
-    rep |> Array.iteri @@ fun i count ->
-    (* was indexed from 1 *)
-    let i = i - 1 in
-    let n = Bbattery.ntests_block_alphabit in
-    let rep = Array.make (1+n) 0 in
-    rep.(1 + i mod n) <- count;
-    let w = block_alphabit_w.(i / n) in
-    Bbattery.repeat_block_alphabit gen nb r s rep w
-  in
-  (* we always use the [repeat] versions that allows chosing individual tests to run,
-     so that we can split the jobs across multiple cores  *)
-  [ vn "SmallCrush" Bbattery.repeat_small_crush Bbattery.ntests_small_crush
-  ; v1 "FIPS-140-2" Bbattery.fips_140_2
-  ; v1 "PseudoDIEHARD" Bbattery.pseudo_diehard
-  ; vbits "Rabbit" Bbattery.rabbit 25
-  ; vbits2 "Alphabit" Bbattery.repeat_alphabit Bbattery.ntests_alphabit 30
-  ; vbits2 "BlockAlphabit" repeat_block_alphabit (Bbattery.ntests_block_alphabit * Array.length block_alphabit_w) 30
-  ; vn "Crush" Bbattery.repeat_crush Bbattery.ntests_crush
-  ; vn "BigCrush" Bbattery.repeat_big_crush Bbattery.ntests_big_crush
-  ]
+let vn battery run njobs =
+  { battery; run; njobs}
+let v1 battery run1 =
+  (* these have 1 job, but multiple tests inside *)
+  vn battery (fun gen _ -> run1 gen) 1
+let vbits battery runb log2 =
+  (* tests require nb >= 512, otherwise they just exit the program,
+     and parany will get stuck as it doesn't detect that
+   *)
+  assert (log2 >= 9);
+  let nb = 2. ** (float_of_int log2) in
+  v1 battery (fun gen -> runb gen nb)
+let vbits2 battery runb ntests log2 =
+  assert (log2 >= 9);
+  let nb = 2. ** (float_of_int log2) in
+  vn battery (fun gen -> runb gen nb 0 32) ntests
+let block_alphabit_w = [|1;2;4;8;16;32|]
+let repeat_block_alphabit gen nb r s rep =
+  (* we have n jobs to run, combined with a different w each time,
+     the high-level runner puts everything together:
+     n runs with w=1, then n runs with w=2, and so on...
+   *)
+  rep |> Array.iteri @@ fun i count ->
+  (* was indexed from 1 *)
+  let i = i - 1 in
+  let n = Bbattery.ntests_block_alphabit in
+  let rep = Array.make (1+n) 0 in
+  rep.(1 + i mod n) <- count;
+  let w = block_alphabit_w.(i / n) in
+  Bbattery.repeat_block_alphabit gen nb r s rep w
+
+
+(* we always use the [repeat] versions that allows chosing individual tests to run,
+   so that we can split the jobs across multiple cores  *)
+let small_crush = vn "SmallCrush" Bbattery.repeat_small_crush Bbattery.ntests_small_crush
+let fips_140_2 = v1 "FIPS-140-2" Bbattery.fips_140_2
+let pseudoDIEHARD = v1 "PseudoDIEHARD" Bbattery.pseudo_diehard
+let rabbit = vbits "Rabbit" Bbattery.rabbit 25
+let alphabit = vbits2 "Alphabit" Bbattery.repeat_alphabit Bbattery.ntests_alphabit 30
+let block_alphabit = vbits2 "BlockAlphabit" repeat_block_alphabit (Bbattery.ntests_block_alphabit * Array.length block_alphabit_w) 30
+let crush = vn "Crush" Bbattery.repeat_crush Bbattery.ntests_crush
+let big_crush = vn "BigCrush" Bbattery.repeat_big_crush Bbattery.ntests_big_crush
+
+let batteries = [
+  small_crush; fips_140_2; pseudoDIEHARD; rabbit; alphabit; block_alphabit; crush; big_crush      
+]
 
 let run_all gen =
   batteries |> List.iter @@ fun battery ->
   run_testu01 battery gen
 
+(** a custom battery of tests based on tests that have been observed to fail in any of the OCaml generators that we tested. *)
+let run_custom gen repeat =
+    [
+     crush, [88]
+    ; big_crush, [61; 64; 83; 94; 95; 98; 103; 106]
+    ; pseudoDIEHARD, [1]
+    ; block_alphabit, [18]
+    ]
+  |> List.concat_map (fun (battery, tests) -> List.map (fun t -> battery, t) tests)
+  |> run_common (fun (battery, index) -> run_testu01_i ~repeat battery gen index)
+
+(* small subset of run_custom *)
+let run_custom_small gen repeat =
+    [
+     crush, [88]
+    ; pseudoDIEHARD, [1]
+    ; block_alphabit, [18]
+    ]
+  |> List.concat_map (fun (battery, tests) -> List.map (fun t -> battery, t) tests)
+  |> run_common (fun (battery, index) -> run_testu01_i ~repeat battery gen index)
+  
 let int32 name f =
   { gen = Unif01.create_extern_gen_int32 name f
   ; name

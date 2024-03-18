@@ -1,0 +1,33 @@
+(library
+	(name datagen)
+	(modules datagen)
+	(libraries stdlib-random.v5 owl)
+)
+
+(library
+	(name rngtest)
+	(modules rngtest)
+	(libraries testu01 cpu parany)
+)
+
+(mdx
+	(libraries datagen owl)
+)
+
+(documentation
+	(package rage)
+)
+
+; TODO: move to subdir, breaks dune utop
+;(executable
+;	(name test_rng)
+;	(modules test_rng)
+;	(libraries rngtest owl cryptokit stdlib-random.v5 stdlib-random.v4 mirage-crypto-rng mirage-crypto-rng.unix)
+;	(optional)
+;)
+
+(test
+	(name test_datagen)
+	(modules test_datagen)
+	(libraries datagen rngtest alcotest)
+)

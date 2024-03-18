@@ -33,4 +33,7 @@ let () =
   | x -> invalid_arg x
   in
   Printf.printf "Testing %s\n" gen.name;
-  run_all gen
+  if Array.length Sys.argv > 2 then
+    run_custom gen (int_of_string Sys.argv.(2))
+  else
+    run_all gen

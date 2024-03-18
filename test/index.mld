@@ -4,7 +4,7 @@ However first lets examine the various random number generators that are availab
 
 {1 Random Number Generators }
 
-We are going to use the generated test data to test various statistical functions, however any errors or biases in the generator may affect our test results.
+We are going to use the generated test data to test various statistical functions, therefore we need a RNG with good statistical properties.
 
 {2 Testing the quality of OCaml's RNGs}
 
@@ -20,10 +20,10 @@ The results are in the table below:
   | RNG                                                | Library        | Test duration | Test failures  |
   | :------------------------------------------------  | :------------: | ------------: | -------------: |
   | {!module:Random4}                                  | [stdlib-random]|          868s |            6 ✗ |
-  | {!module:Random5}                                  | [stdlib-random]|         675.5s|            0 ✓ |
-  | {!module:Owl_stats_prng} ([SFMT])                 | [owl]          |         637s  |            3 ✗ |
-  | {!module:Cryptokit.Random.hardware_rng} ([rdrand]) | [cryptokit]    |               |            ?  |
-  | {!module:Mirage_crypto_rng.Fortuna}                | [mirage-crypto-rng]|    856.2s+|            ?  |
+  | {!module:Random5}                                  | [stdlib-random]|          675s |            0 ✓ |
+  | {!module:Owl_stats_prng} ([SFMT])                  | [owl]          |          637s |            3 ✗ |
+  | {!module:Cryptokit.Random.hardware_rng} ([rdrand]) | [cryptokit]    |         1080s |            2  |
+  | {!module:Mirage_crypto_rng.Fortuna}                | [mirage-crypto-rng]|    10631s |            1  |
 }
 
 The failures where p-values were outside of [[0.001, 0.9990]]:
@@ -39,10 +39,67 @@ The failures where p-values were outside of [[0.001, 0.9990]]:
   | [SFMT]    | pseudoDIEHARD |         [6] | OQSO           |             |  [0.990] |
   | [SFMT]    | BigCrush      |        [80] | LinearComp     | [r=0]       | [1-eps1] |
   | [SFMT]    | BigCrush      |        [81] | LinearComp     | [r=29]      | [1-eps1] |
+  | [Fortuna] | BigCrush      |        [61] | WeightDistrib  | [r=28]      | [5.7e-4] |
+  | [rdrand]  | BlockAlphaBit |         [9] | RandomWalk1    | [L = 320]   | [0.9999] |
+  | [rdrand]  | BigCrush      |        [11] | CollisionOver  | [t = 21]    | [0.99999]|
  }
+
+Note that a failure is not necessarily a bug in the RNG (even a perfectly random source is expected to fail the tests [~0.2%] of the time when the p-value is [0.001]), which is why the failing tests can be repeated.
+However a failure with a p-value near [epsilon] is unlikely to go away upon repetition.
 
 [SFMT] uses [sfmt_genrand_real1], which generates [double] with only 32-bit of precision, [sfmt_genrand_res53] would generate them with [53] bits of precision, but making that change doesn't fix the [LinearComp] failures, and switching to [dSFMT] instead of [SFMT] doesn't help. (The failures with a p-value of ~0.999 could be rerun, but those with a p-value of [eps] or [1-eps1] would almost always fail).
 
 {!module:Random5} (the [Random] module in OCaml version 5) passed all tests, and is quicker than the OCaml 4 version too.
 
 We'll use {!module:Random5} as our RNG.
+
+{2 Generating test data}
+
+We want to generate random numbers from a normal distribution, such that the 99.9% confidence interval of the mean will be very small, suitable for testing the accuracy of algorithms. Lets pick [sqrt Float.epsilon /. 2.] as the target.
+
+{@ocaml[
+  # let sigma =
+    let desired_accuracy = sqrt Float.epsilon /. 2. in
+    let sqrt_n = sqrt (Array.length Datagen.Uniform.fixed |> float) in
+    let mu = 1. in
+    let alpha = 0.001 in
+    (* gaussian_isf * sigma / sqrt(n) = desired_accuracy *)
+    sqrt_n *. desired_accuracy /. (Owl.Stats.gaussian_isf ~mu ~sigma:1. (alpha /. 2.));;
+  val sigma : float = 4.44545437007111965e-07
+]}
+
+We also want to avoid rounding errors, so we pick [2^n-1] as the size of the generated data ([n=16]),
+and use a power of 2 for [sigma < sigma_max], which is [0x1p-23].
+
+We can now view some statistics about the generated data:
+{@ocaml[
+  # let t95 = Owl.Stats.gaussian_isf ~mu:0. ~sigma:1. 0.025
+  # let ci95 ~mean ~sem =
+      mean -. t95 *. sem, mean +. t95 *. sem
+      
+  # let summarize data =
+    let open Owl in
+    let lo, hi = Stats.tukey_fences data in
+    let mean = Stats.mean data in
+    let sem = Stats.sem ~mean data in
+    let lo95, hi95 = ci95 ~mean ~sem in
+    [ "Mean", mean
+    ; "Standard deviation", Stats.std ~mean data
+    ; "Standard error of mean", sem
+    ; "Skewness", Stats.skew ~mean data
+    ; "Kurtosis", Stats.kurtosis ~mean data
+    ; "Median", Stats.median data
+    ; "Autocorrelation (lag=1)", Stats.autocorrelation data
+    ] |> List.iter (fun (desc, v) -> Printf.printf "%s: %g\n" desc v);
+    [ "Outlier boundary", lo, hi
+    ; "CI 95%", lo95, hi95
+    ; "Min, Max", Stats.min data, Stats.max data
+    ] |> List.iter (fun (desc, v1, v2) -> Printf.printf "%s: [%g, %g], width = %g\n" desc v1 v2 (abs_float (v1 -. v2)))
+    ;;
+  # summarize Datagen.Uniform.fixed;;
+  # summarize Datagen.Normal.fixed_accurate;;
+  # summarize (Datagen.Normal.random_accurate ());;
+  # Printf.printf "Ideal CI95%% width = %g\n" (2. *. t95 *. 0x1p-23 /. sqrt (Array.length Datagen.Normal.fixed_accurate |> float));;
+  # summarize (Datagen.Normal.fixed2);;
+  # summarize (Datagen.Normal.random2 ());;
+]}
