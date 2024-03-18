@@ -22,8 +22,8 @@ The results are in the table below:
   | {!module:Random4}                                  | [stdlib-random]|          868s |            6 ✗ |
   | {!module:Random5}                                  | [stdlib-random]|          675s |            0 ✓ |
   | {!module:Owl_stats_prng} ([SFMT])                  | [owl]          |          637s |            3 ✗ |
-  | {!module:Cryptokit.Random.hardware_rng} ([rdrand]) | [cryptokit]    |         1080s |            2  |
-  | {!module:Mirage_crypto_rng.Fortuna}                | [mirage-crypto-rng]|    10631s |            1  |
+  | {!module:Cryptokit.Random.hardware_rng} ([rdrand]) | [cryptokit]    |         1080s |            2 ✗ |
+  | {!module:Mirage_crypto_rng.Fortuna}                | [mirage-crypto-rng]|    10631s |            1 ✓ |
 }
 
 The failures where p-values were outside of [[0.001, 0.9990]]:
@@ -55,28 +55,30 @@ We'll use {!module:Random5} as our RNG.
 
 {2 Generating test data}
 
-We want to generate random numbers from a normal distribution, such that the 99.9% confidence interval of the mean will be very small, suitable for testing the accuracy of algorithms. Lets pick [sqrt Float.epsilon /. 2.] as the target.
+We want to generate random numbers from a normal distribution, such that the 95% confidence interval of the mean will be very small, suitable for testing the accuracy of algorithms.
+Lets pick [Float.epsilon *. 2. |> sqrt |> sqrt] as the target.
 
 {@ocaml[
   # let sigma =
-    let desired_accuracy = sqrt Float.epsilon /. 2. in
+    let desired_accuracy = Float.epsilon *. 2. |> sqrt |> sqrt in
     let sqrt_n = sqrt (Array.length Datagen.Uniform.fixed |> float) in
     let mu = 1. in
-    let alpha = 0.001 in
+    let alpha = 0.05 in
     (* gaussian_isf * sigma / sqrt(n) = desired_accuracy *)
     sqrt_n *. desired_accuracy /. (Owl.Stats.gaussian_isf ~mu ~sigma:1. (alpha /. 2.));;
-  val sigma : float = 4.44545437007111965e-07
+  val sigma : float = 0.00627737168498374368
 ]}
 
 We also want to avoid rounding errors, so we pick [2^n-1] as the size of the generated data ([n=16]),
-and use a power of 2 for [sigma < sigma_max], which is [0x1p-23].
+and use a power of 2 for [sigma < sigma_max], which is [0x1p-7].
 
 We can now view some statistics about the generated data:
 {@ocaml[
   # let t95 = Owl.Stats.gaussian_isf ~mu:0. ~sigma:1. 0.025
+  val t95 : float = 1.95996398454005449
   # let ci95 ~mean ~sem =
-      mean -. t95 *. sem, mean +. t95 *. sem
-      
+      mean -. t95 *. sem, mean +. t95 *. sem;;
+  val ci95 : mean:float -> sem:float -> float * float = <fun>
   # let summarize data =
     let open Owl in
     let lo, hi = Stats.tukey_fences data in
@@ -94,12 +96,78 @@ We can now view some statistics about the generated data:
     [ "Outlier boundary", lo, hi
     ; "CI 95%", lo95, hi95
     ; "Min, Max", Stats.min data, Stats.max data
-    ] |> List.iter (fun (desc, v1, v2) -> Printf.printf "%s: [%g, %g], width = %g\n" desc v1 v2 (abs_float (v1 -. v2)))
+    ] |> List.iter (fun (desc, v1, v2) -> Printf.printf "%s: [%g, %g], width = %g\n" desc v1 v2 (abs_float (v1 -. v2)));
+    (* check skewness and kurtosis to see whether the data is from a normal distribution,
+       only works well for n > 2000 *)
+    Printf.printf "Normal distribution: %s\n" (if (Stats.jb_test data).reject then "reject" else "accept")
     ;;
+  val summarize : float array -> unit = <fun>
   # summarize Datagen.Uniform.fixed;;
+  Mean: 0.5
+  Standard deviation: 0.288666
+  Standard error of mean: 0.00225527
+  Skewness: 5.3403e-17
+  Kurtosis: 1.79978
+  Median: 0.5
+  Autocorrelation (lag=1): 0.995727
+  Outlier boundary: [-0.499878, 1.49988], width = 1.99976
+  CI 95%: [0.49558, 0.50442], width = 0.00884051
+  Min, Max: [6.10352e-05, 0.999939], width = 0.999878
+  Normal distribution: reject
+  - : unit = ()
   # summarize Datagen.Normal.fixed_accurate;;
+  Mean: 1
+  Standard deviation: 0.00780863
+  Standard error of mean: 6.10067e-05
+  Skewness: -8.57629e-14
+  Kurtosis: 2.98564
+  Median: 1
+  Autocorrelation (lag=1): 0.98864
+  Outlier boundary: [0.978925, 1.02107], width = 0.0421496
+  CI 95%: [0.99988, 1.00012], width = 0.000239142
+  Min, Max: [0.969985, 1.03002], width = 0.0600302
+  Normal distribution: accept
+  - : unit = ()
   # summarize (Datagen.Normal.random_accurate ());;
-  # Printf.printf "Ideal CI95%% width = %g\n" (2. *. t95 *. 0x1p-23 /. sqrt (Array.length Datagen.Normal.fixed_accurate |> float));;
+  Mean: 1
+  Standard deviation: 0.00776779
+  Standard error of mean: 6.06877e-05
+  Skewness: 0.00371282
+  Kurtosis: 3.01561
+  Median: 0.99999
+  Autocorrelation (lag=1): 0.00449697
+  Outlier boundary: [0.979166, 1.02073], width = 0.041565
+  CI 95%: [0.999881, 1.00012], width = 0.000237891
+  Min, Max: [0.96978, 1.03016], width = 0.0603756
+  Normal distribution: accept
+  - : unit = ()
+  # Printf.printf "Ideal CI95%% width = %g\n" (2. *. t95 *. 0x1p-7 /. sqrt (Array.length Datagen.Normal.fixed_accurate |> float));;
+  Ideal CI95% width = 0.000239261
+  - : unit = ()
   # summarize (Datagen.Normal.fixed2);;
+  Mean: 2
+  Standard deviation: 0.199901
+  Standard error of mean: 0.00156177
+  Skewness: -4.06062e-17
+  Kurtosis: 2.98564
+  Median: 2
+  Autocorrelation (lag=1): 0.98864
+  Outlier boundary: [1.46049, 2.53951], width = 1.07903
+  CI 95%: [1.99694, 2.00306], width = 0.00612204
+  Min, Max: [1.23161, 2.76839], width = 1.53677
+  Normal distribution: accept
+  - : unit = ()
   # summarize (Datagen.Normal.random2 ());;
+  Mean: 2.00003
+  Standard deviation: 0.200868
+  Standard error of mean: 0.00156933
+  Skewness: -0.0401492
+  Kurtosis: 2.96258
+  Median: 2.00097
+  Autocorrelation (lag=1): -0.0116703
+  Outlier boundary: [1.45734, 2.54295], width = 1.0856
+  CI 95%: [1.99696, 2.00311], width = 0.00615165
+  Min, Max: [1.23868, 2.74227], width = 1.50359
+  Normal distribution: accept
+  - : unit = ()
 ]}

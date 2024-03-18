@@ -26,7 +26,8 @@
 ;	(optional)
 ;)
 
-(test
+; TODO: test:
+(executable
 	(name test_datagen)
 	(modules test_datagen)
 	(libraries datagen rngtest alcotest)

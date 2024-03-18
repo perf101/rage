@@ -51,12 +51,12 @@ module Normal = struct
 
   let fixed_accurate =
     (* sigma is power of 2 *)
-    Uniform.fixed |> of_uniform ~mu:1. ~sigma:0x1p-23
+    Uniform.fixed |> of_uniform ~mu:1. ~sigma:0x1p-7
 
   let random_accurate () =
     Uniform.random (Array.length Uniform.fixed)
-    |> of_uniform ~mu:1. ~sigma:0x1p-23
-    (*Array.init (1 lsl 16 - 1) @@ (fun _ -> 1. +. 0x1p-23 *. Owl_stats_prng.rand_gaussian ())*)
+    |> of_uniform ~mu:1. ~sigma:0x1p-7
+    (*Array.init (1 lsl 16 - 1) @@ (fun _ -> 1. +. 0x1p-7 *. Owl_stats_prng.rand_gaussian ())*)
 
   let fixed2 =
     Uniform.fixed |> of_uniform ~mu:2. ~sigma:0.2
