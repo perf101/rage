@@ -17,11 +17,17 @@ let rdrand =
   Bytes.get_int32_ne buf 0
 
 let fortuna =
-  let buf = Bytes.create 4 in
+  let random = ref "" in
   Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna);
+  let off = ref 0 in
   fun () ->
-  Mirage_crypto_rng.generate_into buf 4;
-  Bytes.get_int32_le buf 0
+  if !off + 4 > String.length !random then begin
+    random := Mirage_crypto_rng.generate 0x10000;
+    off := 0;
+  end;
+  let r = String.get_int32_le !random !off in
+  off := !off + 4;
+  r
 
 let () =
   let gen = match Sys.argv.(1) with

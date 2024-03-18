@@ -19,12 +19,12 @@
 )
 
 ; TODO: move to subdir, breaks dune utop
-;(executable
-;	(name test_rng)
-;	(modules test_rng)
-;	(libraries rngtest owl cryptokit stdlib-random.v5 stdlib-random.v4 mirage-crypto-rng mirage-crypto-rng.unix)
-;	(optional)
-;)
+(executable
+	(name test_rng)
+	(modules test_rng)
+	(libraries rngtest owl cryptokit stdlib-random.v5 stdlib-random.v4 mirage-crypto-rng mirage-crypto-rng.unix)
+	(optional)
+)
 
 ; TODO: test:
 (executable
