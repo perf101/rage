@@ -11,10 +11,16 @@ let dsfmt () = Owl.Stats.std_uniform_rvs ()
 
 let rdrand =
   let rng = Cryptokit.Random.hardware_rng () in
-  let buf = Bytes.create 4 in
+  let buf = Bytes.create 0x10000 in
+  let off = ref (Bytes.length buf) in
   fun () ->
-  rng#random_bytes buf 0 4;
-  Bytes.get_int32_ne buf 0
+  if !off + 4 > Bytes.length buf then begin
+    rng#random_bytes buf 0 (Bytes.length buf);
+    off := 0
+  end;
+  let r = Bytes.get_int32_ne buf !off in
+  off := !off + 4;
+  r
 
 let fortuna =
   let random = ref "" in
@@ -25,7 +31,7 @@ let fortuna =
     random := Mirage_crypto_rng.generate 0x10000;
     off := 0;
   end;
-  let r = String.get_int32_le !random !off in
+  let r = String.get_int32_ne !random !off in
   off := !off + 4;
   r
 

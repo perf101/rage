@@ -1,16 +1,5 @@
 open TestU01
 
-(** [redirect_stdout filename] flushed {!val:Stdlib.stdout} and redirects future {!val:Stdlib.stdout} and {!val:Unix.stdout} writes to [filename]. If [filename] already exists it will be truncated.
- *)
-let redirect_stdout target =
-  flush stdout;
-  let out = Unix.openfile target [Unix.O_CREAT;Unix.O_WRONLY;Unix.O_TRUNC] 0o600 in
-  (* this closes Unix.stdout and replaced it with [out].
-     [stdout] has a fixed file descriptor number ([1]), this is the only way to reliably change it.
-   *)
-  Unix.dup2 out Unix.stdout;
-  Unix.close out
-
 type test =
 { battery: string
 ; run: Unif01.gen -> int array -> unit
@@ -34,7 +23,7 @@ let print_failure_details f =
   ch |> In_channel.input_all |> prerr_endline
 
 let print_failure_summary f =
-  Printf.eprintf "%s: %s p-value %g\n" f.filename f.test_name f.p_value
+  Printf.eprintf "%s p-value %g\n" f.test_name f.p_value
 
 (** [run_testu01 ?repeat battery gen test_index] runs the [test_index]th test from the test [battery]
   on the random number generator [gen].
@@ -46,12 +35,9 @@ let print_failure_summary f =
 
   @returns a list of {!type:failure} failures. Note that a single test may internally run multiple tests and can return more than 1 failure
  *)
-let run_testu01_i ?(repeat=1) test gen test_index =
+let run_testu01_i ?(repeat=1) (test, gen, test_index) =
   if test_index < 1 || test_index > test.njobs then
     invalid_arg (Printf.sprintf "test_index: %d" test_index);
-
-  let filename = Printf.sprintf "%s_%s_%s_%d.out" gen.name gen.kind test.battery test_index in
-  redirect_stdout filename;
 
   let rep = Array.make (test.njobs+1) 0 in
   rep.(test_index) <- repeat;
@@ -60,42 +46,25 @@ let run_testu01_i ?(repeat=1) test gen test_index =
 
   let threshold = Probdist.Gofw.get_suspectp () in
   let tests = Array.combine (Bbattery.get_test_names ()) (Bbattery.get_p_val ()) in
-  let results =
-    tests |> Array.to_seq |> Seq.filter (fun (_, p) -> p < threshold || p > (1. -. threshold))
-    |> Seq.map (fun (test_name, p_value) -> {filename;test_name;p_value})
-    |> List.of_seq
-  in
-  output_char stderr (if (List.length results > 0) then 'F' else '.');
-  flush_all ();
-  results
-
-let cores = Cpu.numcores ()
+  tests |> Array.to_list |> List.map @@ fun (test_name, p_value) ->
+  let failure = Printf.sprintf "%s p-value %g" test_name p_value in
+  if p_value < 1e-15 || p_value > (1. -. 1e-15) then
+    (* very unlikely to go away on a rerun *)
+    Error (Logs.Error, failure)
+  else if p_value < threshold || p_value > (1. -. threshold) then
+    (* may go away on a rerun *)
+    Error (Logs.Warning, failure)
+  else
+   Ok ()
 
 let had_failures = ref 0
-
-let run_common f input =
-  let t0 = Unix.gettimeofday () in
-  let failures =
-    input
-    |> Parany.Parmap.parmap cores f
-    |> List.concat 
-  in
-  let t1 = Unix.gettimeofday () in
-  Printf.printf " completed in %.1fs with %d failures\n%!" (t1 -. t0) (List.length failures);
-  let nfailures = List.length failures in
-  if nfailures > 0 then begin
-    failures |> List.iter print_failure_details;
-    Printf.eprintf "Failed randomness tests:\n";
-    failures |> List.iter print_failure_summary;
-    Printf.eprintf "There were %d failed tests\n" nfailures;
-    flush_all ();
-    incr had_failures
-  end
 
 let run_testu01 test gen =
   Printf.printf "Running %s (%d jobs) …%!" test.battery test.njobs;
   List.init test.njobs (fun i -> i + 1)
-  |> run_common (run_testu01_i test gen)
+  |> Parview.parallel ~describe_input
+  
+   run_common (run_testu01_i test gen)
 
 (** The {!module:TestU01} test batteries *)
 let vn battery run njobs =

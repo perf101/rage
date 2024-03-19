@@ -6,8 +6,8 @@
 
 (library
 	(name rngtest)
-	(modules rngtest)
-	(libraries testu01 cpu parany)
+	(modules rngtest parview)
+	(libraries testu01 cpu parany progress logs)
 )
 
 (mdx
