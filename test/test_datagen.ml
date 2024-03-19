@@ -8,7 +8,7 @@ let () =
   Random.init 42;
   run "Datagen"
   [ "RNG",
-   [ test_case "TestU01 SmallCrush" `Quick (fun () -> run_testu01 small_crush gen_uniform)
+   [ test_case "TestU01 SmallCrush" `Quick (fun () -> run_testu01 gen_uniform [small_crush])
    ; test_case "TestU01 custom" `Quick (fun () -> Random.init 42; run_custom_small gen_uniform 1)
    ]
     

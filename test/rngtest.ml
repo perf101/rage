@@ -35,7 +35,7 @@ let print_failure_summary f =
 
   @returns a list of {!type:failure} failures. Note that a single test may internally run multiple tests and can return more than 1 failure
  *)
-let run_testu01_i ?(repeat=1) (test, gen, test_index) =
+let run_testu01_i ?(repeat=1) test gen test_index =
   if test_index < 1 || test_index > test.njobs then
     invalid_arg (Printf.sprintf "test_index: %d" test_index);
 
@@ -57,15 +57,29 @@ let run_testu01_i ?(repeat=1) (test, gen, test_index) =
   else
    Ok ()
 
-let had_failures = ref 0
+let run_testu01_common ?repeat gen tests =
+  let describe_input input =
+    Printf.sprintf "%d_%s" input gen.kind
+  in
+  let errors = 
+    tests |> List.map (fun (test, input) ->
+      let name = test.battery in
+      Parview.{ name; run = (run_testu01_i ?repeat test gen) }, input
+    )
+    |> Parview.parallel ~describe_input
+    |> List.filter (function Error (Logs.Error, _) -> true | _ -> false)
+    |> List.length
+  in
+  if errors > 0 then begin
+    Printf.eprintf "There were %d errors\n%!" errors;
+    exit 1
+  end
 
-let run_testu01 test gen =
-  Printf.printf "Running %s (%d jobs) …%!" test.battery test.njobs;
-  List.init test.njobs (fun i -> i + 1)
-  |> Parview.parallel ~describe_input
+let run_testu01 ?repeat gen tests =
+  tests
+  |> List.map (fun battery -> battery, List.init battery.njobs (fun i -> i+1))
+  |> run_testu01_common ?repeat gen
   
-   run_common (run_testu01_i test gen)
-
 (** The {!module:TestU01} test batteries *)
 let vn battery run njobs =
   { battery; run; njobs}
@@ -115,8 +129,7 @@ let batteries = [
 ]
 
 let run_all gen =
-  batteries |> List.iter @@ fun battery ->
-  run_testu01 battery gen
+  batteries |> run_testu01 gen
 
 (** a custom battery of tests based on tests that have been observed to fail in any of the OCaml generators that we tested. *)
 let run_custom gen repeat =
@@ -126,8 +139,7 @@ let run_custom gen repeat =
     ; pseudoDIEHARD, [1]
     ; block_alphabit, [18]
     ]
-  |> List.concat_map (fun (battery, tests) -> List.map (fun t -> battery, t) tests)
-  |> run_common (fun (battery, index) -> run_testu01_i ~repeat battery gen index)
+  |> run_testu01_common ~repeat gen
 
 (* small subset of run_custom *)
 let run_custom_small gen repeat =
@@ -136,8 +148,7 @@ let run_custom_small gen repeat =
     ; pseudoDIEHARD, [1]
     ; block_alphabit, [18]
     ]
-  |> List.concat_map (fun (battery, tests) -> List.map (fun t -> battery, t) tests)
-  |> run_common (fun (battery, index) -> run_testu01_i ~repeat battery gen index)
+  |> run_testu01_common ~repeat gen
   
 let int32 name f =
   { gen = Unif01.create_extern_gen_int32 name f
