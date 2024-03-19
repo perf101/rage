@@ -15,11 +15,11 @@ let line name total =
   | _ -> false
   in
   Line.(list
-  [ spinner ()
-  ; const name
+  [ (* spinner () *)
+   (rpad 14 (const name))
   ; count1 percentage_of
   ; count1 (bar ~style:`UTF8)
-  ; ticker_to total
+  ; (lpad 7 (ticker_to total))
   ; brackets (list
    [ elapsed ()
    ; const "<"
@@ -33,6 +33,11 @@ let line name total =
    ])
   ])
 
+(* multiline here is buggy, it leaves some extra uncleared lines on the screen,
+   and it then also displays the wrong progressbar alongside wrong name,
+   also eta is way too high on lines that were not run yet
+   use a single line instead
+ *)
 let lines tests =
   tests |> List.map (fun (name, total) -> line name total) |> Progress.Multi.lines
 
@@ -59,6 +64,8 @@ let redirect_stdout_stderr target =
 let parallel ~describe_input tests_and_inputs =
   Logs.set_reporter (Progress.logs_reporter ());
   let desc = tests_and_inputs |> List.map (fun (test, input) -> test.name, List.length input) in
+  List.iter (fun (n, _) -> print_endline n) desc;
+  print_endline ""; flush_all ();
   Progress.with_reporters (lines desc) @@ fun report ->
     let tests_and_inputs =
       tests_and_inputs
@@ -70,7 +77,7 @@ let parallel ~describe_input tests_and_inputs =
       result |> List.iter (function
         | Ok _ -> ()
         | Error (level, msg) ->
-          Logs.msg level (fun m -> m "%s: %s" filename msg)
+          Logs.msg level (fun m -> m "%s: %s@." filename msg)
       );
       let report, _ = tests_and_inputs.(index) in
       report result;
