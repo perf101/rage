@@ -15,21 +15,16 @@ let line name total =
   | _ -> false
   in
   Line.(list
-  [ (* spinner () *)
-   (rpad 14 (const name))
+  [ spinner ()
+  ; (rpad 14 (const name))
   ; count1 percentage_of
   ; count1 (bar ~style:`UTF8)
   ; (lpad 7 (ticker_to total))
-  ; brackets (list
-   [ elapsed ()
-   ; const "<"
-   ; count1 eta
-   ; const ", "
-   ; using (count Result.is_ok) (const "ok=" ++ sum ~width:4 ())
-   ; const ", "
-   ; using (count is_warning) (const "warnings=" ++ sum ~width:4 ())
-   ; const ", "
-   ; using (count is_error) (const "errors=" ++ sum ~width:4 ())
+  ; brackets (list ~sep:(const ", ")
+   [ elapsed () ++ const "<" ++ count1 eta
+   ; using (count Result.is_ok) (const "ok=" ++ sum ~width:3 ())
+   ; using (count is_warning) (const "warn=" ++ sum ~width:3 ())
+   ; using (count is_error) (const "err=" ++ sum ~width:3 ())
    ])
   ])
 
@@ -64,9 +59,9 @@ let redirect_stdout_stderr target =
 let parallel ~describe_input tests_and_inputs =
   Logs.set_reporter (Progress.logs_reporter ());
   let desc = tests_and_inputs |> List.map (fun (test, input) -> test.name, List.length input) in
-  List.iter (fun (n, _) -> print_endline n) desc;
-  print_endline ""; flush_all ();
-  Progress.with_reporters (lines desc) @@ fun report ->
+  flush_all ();
+  let config = Progress.Config.v ~hide_cursor:false () in
+  Progress.with_reporters ~config (lines desc) @@ fun report ->
     let tests_and_inputs =
       tests_and_inputs
       |> List.combine report
