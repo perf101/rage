@@ -28,6 +28,7 @@ let line name total =
    ])
   ])
 
+(* TODO: switch to single still, there is still a bug when the program is finished that the display is too long by 1 char *)
 (* multiline here is buggy, it leaves some extra uncleared lines on the screen,
    and it then also displays the wrong progressbar alongside wrong name,
    also eta is way too high on lines that were not run yet

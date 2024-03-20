@@ -1,102 +1,88 @@
 open TestU01
 
-type test =
-{ battery: string
-; run: Unif01.gen -> int array -> unit
-; njobs: int
-}
-
-type gen = 
-{ gen: Unif01.gen
-; name: string  
-; kind: string
-}
-
-type failure =
-{ filename: string
-; test_name: string
-; p_value: float
-}
-
-let print_failure_details f =
-  In_channel.with_open_bin f.filename @@ fun ch ->
-  ch |> In_channel.input_all |> prerr_endline
-
-let print_failure_summary f =
-  Printf.eprintf "%s p-value %g\n" f.test_name f.p_value
-
-(** [run_testu01 ?repeat battery gen test_index] runs the [test_index]th test from the test [battery]
-  on the random number generator [gen].
-
-  @params repeat how many times to repeat the test (default: 1, can be >1 if you want to investigate failure probabilities)
-  @params battery a testu01 test battery
-  @params gen the generator to test
-  @params test_index a number [1 <= test_index <= battery.jobs]
-
-  @returns a list of {!type:failure} failures. Note that a single test may internally run multiple tests and can return more than 1 failure
- *)
-let run_testu01_i ?(repeat=1) test gen test_index =
-  if test_index < 1 || test_index > test.njobs then
-    invalid_arg (Printf.sprintf "test_index: %d" test_index);
-
-  let rep = Array.make (test.njobs+1) 0 in
-  rep.(test_index) <- repeat;
-
-  test.run gen.gen rep;
-
+let check_results () =
   let threshold = Probdist.Gofw.get_suspectp () in
-  let tests = Array.combine (Bbattery.get_test_names ()) (Bbattery.get_p_val ()) in
-  tests |> Array.to_list |> List.map @@ fun (test_name, p_value) ->
+  Array.combine (Bbattery.get_test_names ()) (Bbattery.get_p_val ())
+  |> Array.iter @@ fun (test_name, p_value) ->
   let failure = Printf.sprintf "%s p-value %g" test_name p_value in
-  if p_value < 1e-15 || p_value > (1. -. 1e-15) then
-    (* very unlikely to go away on a rerun *)
-    Error (Logs.Error, failure)
-  else if p_value < threshold || p_value > (1. -. threshold) then
+
+  if p_value < threshold || p_value > (1. -. threshold) then
     (* may go away on a rerun *)
-    Error (Logs.Warning, failure)
-  else
-   Ok ()
+    Printf.eprintf "%s\n" failure;
+    flush_all ();
+    if p_value <= 1e-15 || p_value >= (1. -. 1e-15) then
+      (* likely a permanent failure *)
+      exit 1
 
-let run_testu01_common ?repeat gen tests =
-  let describe_input input =
-    Printf.sprintf "%d_%s" input gen.kind
-  in
-  let errors = 
-    tests |> List.map (fun (test, input) ->
-      let name = test.battery in
-      Parview.{ name; run = (run_testu01_i ?repeat test gen) }, input
-    )
-    |> Parview.parallel ~describe_input
-    |> List.filter (function Error (Logs.Error, _) -> true | _ -> false)
-    |> List.length
-  in
-  if errors > 0 then begin
-    Printf.eprintf "There were %d errors\n%!" errors;
-    exit 1
-  end
+let maken name run n gen =
+  List.init n @@ fun i ->
+  let i = i + 1 in
+  let name = Printf.sprintf "%s_%d" name i in
+  name, fun repeat ->
+  let rep = Array.make (n + 1) 0 in
+  rep.(i) <- repeat;
 
-let run_testu01 ?repeat gen tests =
-  tests
-  |> List.map (fun battery -> battery, List.init battery.njobs (fun i -> i+1))
-  |> run_testu01_common ?repeat gen
-  
-(** The {!module:TestU01} test batteries *)
-let vn battery run njobs =
-  { battery; run; njobs}
-let v1 battery run1 =
-  (* these have 1 job, but multiple tests inside *)
-  vn battery (fun gen _ -> run1 gen) 1
-let vbits battery runb log2 =
+  run gen rep;
+
+  check_results ()
+
+let make1 name run gen =
+  [name, fun _ ->
+   run gen;
+   check_results ()
+  ]
+
+let make_bits name run log2 =
   (* tests require nb >= 512, otherwise they just exit the program,
      and parany will get stuck as it doesn't detect that
    *)
   assert (log2 >= 9);
   let nb = 2. ** (float_of_int log2) in
-  v1 battery (fun gen -> runb gen nb)
-let vbits2 battery runb ntests log2 =
+  make1 name (fun gen -> run gen nb)
+
+let make_bits2 name run ntests log2 =
   assert (log2 >= 9);
   let nb = 2. ** (float_of_int log2) in
-  vn battery (fun gen -> runb gen nb 0 32) ntests
+  maken name (fun gen -> run gen nb 0 32) ntests
+
+let block_alphabit_w = [|1;2;4;8;16;32|]
+
+let repeat_block_alphabit' gen nb r s rep =
+  (* we have n jobs to run, combined with a different w each time,
+     the high-level runner puts everything together:
+     n runs with w=1, then n runs with w=2, and so on...
+   *)
+  rep |> Array.iteri @@ fun i count ->
+  (* was indexed from 1 *)
+  let i = i - 1 in
+  let n = Bbattery.ntests_block_alphabit in
+  let rep = Array.make (1+n) 0 in
+  rep.(1 + i mod n) <- count;
+  let w = block_alphabit_w.(i / n) in
+  Bbattery.repeat_block_alphabit gen nb r s rep w
+
+(* we always use the [repeat] versions that allows chosing individual tests to run,
+   so that we can split the jobs across multiple cores  *)
+let tests gen =
+  let open Bbattery in
+  [ maken "SmallCrush" repeat_small_crush ntests_small_crush gen
+  ; make1 "FIPS-140-2" fips_140_2 gen
+  ; make1 "pseudoDIEHARD" pseudo_diehard gen
+  ; make_bits "Rabbit" rabbit 25 gen
+  ; make_bits2 "BlockAlphabit" repeat_block_alphabit' (ntests_block_alphabit * Array.length block_alphabit_w) 30 gen
+  ; maken "Crush" repeat_crush ntests_crush gen
+  ; maken "BigCrush" repeat_big_crush ntests_big_crush gen
+  ] |> List.concat
+  
+let () =
+  let t = tests (Unif01.create_extern_gen_01 "stdlib" (fun () -> Random.float 1.)) in
+  let arg = Sys.argv.(1) in
+  if arg = "list" then (t |> List.map fst |> List.iter print_endline)
+  else
+  1 |> (List.assoc arg t)
+(*
+  
+
 let block_alphabit_w = [|1;2;4;8;16;32|]
 let repeat_block_alphabit gen nb r s rep =
   (* we have n jobs to run, combined with a different w each time,
@@ -173,3 +159,4 @@ let float name f =
     | r -> r
   in
   { (f01 name wrap) with kind = "float[0,1]" }
+*)

@@ -5,9 +5,20 @@
 )
 
 (library
+	(name alcotest_parallel)
+	(modules)
+	(inline_tests.backend
+		(generate_runner (progn))
+		(flags %{partition})
+		(list_partitions_flags list)
+	)
+)
+
+(library
 	(name rngtest)
-	(modules rngtest parview)
-	(libraries testu01 cpu parany progress logs)
+	(modules rngtest)
+	(libraries testu01 alcotest)
+	(inline_tests (backend alcotest_parallel))
 )
 
 (mdx
