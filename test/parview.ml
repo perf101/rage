@@ -72,7 +72,7 @@ let parallel ~describe_input tests_and_inputs =
       result |> List.iter (function
         | Ok _ -> ()
         | Error (level, msg) ->
-          Logs.msg level (fun m -> m "%s: %s@." filename msg)
+          Logs.msg level (fun m -> m "%s: %s" filename msg)
       );
       let report, _ = tests_and_inputs.(index) in
       report result;
@@ -80,7 +80,7 @@ let parallel ~describe_input tests_and_inputs =
     in
     let child_process index =
       let _, (test, input) = tests_and_inputs.(index) in
-      let filename = Printf.sprintf "%s_%s" test.name (describe_input input) in
+      let filename = Printf.sprintf "%s_%s.out" test.name (describe_input input) in
       redirect_stdout_stderr filename;
       test.run input, filename, index
     in
