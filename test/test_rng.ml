@@ -36,16 +36,17 @@ let fortuna =
   r
 
 let () =
-  let gen = match Sys.argv.(1) with
+  (*let gen = match Sys.argv.(1) with
   | "4" -> float "Random4" rand4
   | "5" -> float "Random5" rand5
   | "d" -> float "dSFMT(owl)" dsfmt
   | "f" -> int32 "Fortuna(mirage-crypto-rng)" fortuna
   | "r" -> int32 "rdrand(cryptokit)" rdrand
   | x -> invalid_arg x
-  in
-  Printf.printf "Testing %s\n" gen.name;
-  if Array.length Sys.argv > 2 then
+  in*)
+  let gen = float "Random4" rand4 in
+(*  if Array.length Sys.argv > 2 then
     run_custom gen (int_of_string Sys.argv.(2))
   else
-    run_all gen
+    run_all gen*)
+  OUnit2.run_test_tt_main (tests gen)
