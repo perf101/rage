@@ -5,7 +5,7 @@ license: "BSD3"
 homepage: "https://github.com/perf101/rage"
 bug-reports: "https://github.com/perf101/rage/issues"
 depends: [
-  "dune" {>= "2.0"}
+  "dune" {>= "3.8"}
   "core" {>= "v0.13" & < "v0.15"}
   "async" {>= "v0.13" & < "v0.15"}
   "postgresql" {>= "4.5.2"}
@@ -19,13 +19,15 @@ depends: [
   "re"
   "cryptokit" {with-dev-setup & >= "1.19"}
   "mirage-crypto-rng" {with-dev-setup & >= "0.11.3"}
-  "stdlib-random" {with-dev-setup & >= "1.1.0"}
+  "stdlib-random" {>= "1.1.0"}
   "testu01" {with-test & >= "1.2.3-0.2"}
+  "mdx" {with-test}
   "cpu"
   "uri"
+  "odoc" {with-doc}
 ]
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   [
     "dune"
     "build"

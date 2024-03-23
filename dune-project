@@ -21,7 +21,7 @@
   re
   (cryptokit (and :with-dev-setup (>= 1.19)))
   (mirage-crypto-rng (and :with-dev-setup (>= 0.11.3)))
-  (stdlib-random (and :with-dev-setup (>= 1.1.0)))
+  (stdlib-random (>= 1.1.0))
   (testu01 (and :with-test (>= 1.2.3-0.2)))
   (mdx :with-test)
   cpu

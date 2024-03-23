@@ -5,9 +5,9 @@
 )
 
 (library
-	(name rngtest)
+	(name rngtest0)
 	(modules rngtest)
-	(libraries testu01 ounit2)
+	(libraries testu01)
 )
 
 (mdx
