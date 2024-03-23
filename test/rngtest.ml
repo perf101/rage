@@ -1,6 +1,11 @@
 open TestU01
 open OUnit2
 
+(* TODO: dune dynamimc-include would be better due to caching of runtest?
+ounit does some caching, but unclear if it caches on ^C
+also you can't see how many you've run or not...
+ *)
+
 type t =
 { gen: Unif01.gen 
 ; name: string
@@ -17,7 +22,35 @@ let check_results ctx =
     logf ctx severity "%s p-value %g" test_name p_value;
     assert_bool "p-value near epsilon" (severity = `Warning)   
 
+(** [redirect_stdout filename] flushes {!val:Stdlib.stdout} and redirects future writes to [filename].
+  If [filename] already exists it will be truncated.
+  *)
+let redirect_stdout target =
+   flush stdout;
+   let out = Unix.openfile target [Unix.O_CREAT;Unix.O_WRONLY;Unix.O_TRUNC] 0o600 in
+   (* this closes Unix.stdout and replaced it with [out].
+      [stdout] has a fixed file descriptor number ([1]), this is the only way to reliably change it.
+    *)
+   Unix.dup2 out Unix.stdout;
+   Unix.close out
+
+let with_redirected_stdout f =
+  let pid = Unix.getpid () in
+  let name, ch = Filename.open_temp_file __MODULE__ (string_of_int pid) in
+  Unix.dup2 (Unix.descr_of_out_channel ch) Unix.stdout;
+  close_out_noerr ch;
+  let finally () = Sys.remove name in
+  Fun.protect ~finally @@ fun () ->
+  try f ()
+  with e ->
+    let bt = Printexc.get_raw_backtrace () in
+    In_channel.with_open_bin name (fun ch ->
+      ch |> In_channel.input_all |> print_endline
+    );
+    Printexc.raise_with_backtrace e bt
+
 let one run t ctx =
+  with_redirected_stdout @@ fun () ->
   run t.gen;
   check_results ctx
 
