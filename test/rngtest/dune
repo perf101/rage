@@ -4,16 +4,16 @@
 	(libraries unix testu01)
 )
 
-(executable
-	(name testdieharder)
-	(modules testdieharder)
-	(libraries shexp.process)
+(executables
+	(names gendune check_dieharder)
+	(modules gendune check_dieharder)
+	(libraries unix)
 )
 
 (subdir generate
 	(rule
 		(with-stdout-to dune.inc
-			(bash "%{dep:../testdieharder.exe} --dune ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe")
+			(bash "%{dep:../gendune.exe} --dune ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe")
 		)
 	)
 )

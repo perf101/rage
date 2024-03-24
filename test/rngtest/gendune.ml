@@ -1,5 +1,3 @@
-let dieharder = "dieharder"
-
 let dieharder_extra_flags =
   [
     "-Y"
@@ -83,8 +81,9 @@ let expand_ntuples test =
   | _other ->
       [test]
 
-let parse_dieharder_list lines =
-  lines
+(** [parse_dieharder_list output] parses the output of [dieharder -l]. *)
+let parse_dieharder_list output =
+  output
   |> String.split_on_char '\n'
   |> List.fold_left parse_dieharder_list_line (false, [])
   |> snd
@@ -92,9 +91,10 @@ let parse_dieharder_list lines =
 
 (** [list_tests ()] lists all dieharder tests *)
 let list_tests () =
-  let open Shexp_process in
-  let open Infix in
-  run dieharder ["-l"] |- read_all >>| parse_dieharder_list
+  let ch = Unix.open_process_in "dieharder -l" in
+  let all = ch |> In_channel.input_all in
+  close_in ch;
+  all |> parse_dieharder_list
 
 (** [is_good_test] filters [Good] tests *)
 let is_good_test t = t.reliability = Good
@@ -106,103 +106,32 @@ let print_dune_rule id program test =
     Printf.sprintf "%s%s.log" (Filename.basename program) (nospace test.flags)
   in
   Printf.sprintf
-    {|(rule
-        (deps (:self ../testdieharder.exe) (:program %s))
+    {|
+      (rule
+        (deps (:program %s))
         (action
             (with-stdout-to %s
-              (run %%{self} --name %s --test %%{program} %s %s)
+              (bash "%%{program} | dieharder %s %s")
             )
         )
-    )
-    (rule
-        (deps (:self ../testdieharder.exe) (:log %s))
+      )
+      (rule
+        (deps (:check ../check_dieharder.exe) (:log %s))
         (aliases dieharder dieharder_%s dieharder_%s_%d)
-        (action (run %%{self} --check %%{log}))
-    )
+        (action (run %%{check} %%{log}))
+      )
   |}
     program logfile
-    (Printf.sprintf "%S" test.name)
-    (String.concat " " dieharder_extra_flags)
-    test.flags logfile
+    (String.concat " " dieharder_extra_flags) test.flags
+    logfile
     (Filename.basename program)
-    (Filename.basename program)
-    id
+    (Filename.basename program) id
   |> print_endline
 
 let list_all programs =
   list_tests ()
-  |> Shexp_process.eval
   |> List.filter is_good_test
   |> List.iteri @@ fun id test ->
      programs |> List.iter @@ fun program -> print_dune_rule id program test
 
-(** [parse_output all] parses diehard test results, expecting a last line of the form:
-  [   diehard_birthdays|   0|       100|     100|0.54283662|  PASSED]
-*)
-let parse_output all =
-  match
-    all
-    |> String.split_on_char '\n'
-    |> List.rev
-    |> List.filter (function "" -> false | _ -> true)
-  with
-  | [] ->
-      None
-  | last :: _ -> (
-    match last |> String.split_on_char '|' |> List.rev with
-    | assesment :: _ ->
-        Some (String.trim assesment)
-    | _ ->
-        None
-  )
-
-(** [check_last_passed all] checks whether the last line parsed contains the field [PASSED].
-  It parses a line of the form:
-  [   diehard_birthdays|   0|       100|     100|0.54283662|  PASSED]
-*)
-let check_last_passed all =
-  match parse_output all with
-  | Some "PASSED" ->
-      Ok ()
-  | Some other ->
-      Error other
-  | None ->
-      Error "No Assesment in output"
-
-let check_results filename =
-  In_channel.with_open_text filename @@ fun ch ->
-  let all = ch |> In_channel.input_all in
-  all |> check_last_passed |> function
-  | Ok () ->
-      ()
-  | Error msg ->
-      print_endline all ;
-      Printf.eprintf "Test failed: %s\n" msg ;
-      flush_all () ;
-      exit 1
-
-let run_test = function
-  | program :: dieharder_flags ->
-      let open Shexp_process in
-      let open Infix in
-      run program [] |- run dieharder dieharder_flags |> eval
-  | [] ->
-      failwith "No program given to --test"
-
-let arg_spec =
-  Arg.align
-    [
-      ("--test", Arg.Rest_all run_test, "Runs the specified dieharder test")
-    ; ( "--dune"
-      , Arg.Rest_all list_all
-      , "Generates dune rules to run all the tests"
-      )
-    ; ("--name", Arg.String ignore, "Test name")
-      (* the test name is ignored, but it is useful because it shows up in the processs list *)
-    ; ("--check", Arg.String check_results, "Check dieharder results log")
-    ]
-
-let () =
-  Arg.parse arg_spec
-    (fun s -> raise (Arg.Bad s))
-    "testdieharder [--test program FLAGS...] [--dune]"
+let () = list_all (Sys.argv |> Array.to_list |> List.tl)
