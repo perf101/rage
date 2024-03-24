@@ -13,7 +13,7 @@
 (subdir generate
 	(rule
 		(with-stdout-to dune.inc
-			(bash "%{dep:../gendune.exe} --dune ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe")
+			(bash "%{dep:../gendune.exe} ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe")
 		)
 	)
 )

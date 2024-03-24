@@ -107,6 +107,7 @@ let print_dune_rule id program test =
   in
   Printf.sprintf
     {|
+      ; %s
       (rule
         (deps (:program %s))
         (action
@@ -121,6 +122,7 @@ let print_dune_rule id program test =
         (action (run %%{check} %%{log}))
       )
   |}
+    test.name
     program logfile
     (String.concat " " dieharder_extra_flags) test.flags
     logfile
