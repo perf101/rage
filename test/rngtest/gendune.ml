@@ -93,18 +93,19 @@ let parse_dieharder_list output =
 let list_tests () =
   let ch = Unix.open_process_in "dieharder -l" in
   let all = ch |> In_channel.input_all in
-  close_in ch;
+  close_in ch ;
   all |> parse_dieharder_list
 
 (** [is_good_test] filters [Good] tests *)
 let is_good_test t = t.reliability = Good
 
+let logfile program flags =
+  let nospace s = s |> String.split_on_char ' ' |> String.concat "" in
+  Printf.sprintf "%s%s.log" (Filename.basename program) (nospace flags)
+
 (** [print_dune_rule program test] prints a [dune] rule to test [program] using the dieharder [test] *)
 let print_dune_rule id program test =
-  let nospace s = s |> String.split_on_char ' ' |> String.concat "" in
-  let logfile =
-    Printf.sprintf "%s%s.log" (Filename.basename program) (nospace test.flags)
-  in
+  let logfile = logfile program test.flags in
   Printf.sprintf
     {|
       ; %s
@@ -118,16 +119,16 @@ let print_dune_rule id program test =
       )
       (rule
         (deps (:check ../check_dieharder.exe) (:log %s))
-        (aliases dieharder dieharder_%s dieharder_%s_%d)
+        (aliases rngtest dieharder dieharder_%s dieharder_%s_%d)
         (action (run %%{check} %%{log}))
       )
   |}
-    test.name
-    program logfile
-    (String.concat " " dieharder_extra_flags) test.flags
-    logfile
+    test.name program logfile
+    (String.concat " " dieharder_extra_flags)
+    test.flags logfile
     (Filename.basename program)
-    (Filename.basename program) id
+    (Filename.basename program)
+    id
   |> print_endline
 
 let list_all programs =
@@ -136,4 +137,27 @@ let list_all programs =
   |> List.iteri @@ fun id test ->
      programs |> List.iter @@ fun program -> print_dune_rule id program test
 
-let () = list_all (Sys.argv |> Array.to_list |> List.tl)
+let list_testu01 programs =
+  programs
+  |> List.iter @@ fun program ->
+     Rngtest.RunTestU01.tests
+     |> List.iter @@ fun (name, (args, _)) ->
+        args
+        |> List.iter @@ fun arg ->
+           let arg = Printf.sprintf "--test %s %s" name arg in
+           Printf.printf
+             {|(rule
+                (aliases rngtest testu01 testu01_%s)
+                (deps (:program %s))
+                (action
+                  (with-stdout-to %s
+                    (run %%{program} %s)
+                  )
+                )
+              )
+             |}
+             (Filename.basename program) program (logfile program arg) arg
+
+let () =
+  let programs = Sys.argv |> Array.to_list |> List.tl in
+  list_all programs ; list_testu01 programs

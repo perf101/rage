@@ -5,4 +5,4 @@ let gen () buf n =
   Mirage_crypto_rng.generate_into buf n
 
 let () =
-  Rngtest.stream_buf init gen
+  Rngtest.RunTestU01.run_buf "mirage-crypto-fortuna" init gen

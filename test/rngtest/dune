@@ -7,13 +7,13 @@
 (executables
 	(names gendune check_dieharder)
 	(modules gendune check_dieharder)
-	(libraries unix)
+	(libraries unix rngtest)
 )
 
 (subdir generate
 	(rule
 		(with-stdout-to dune.inc
-			(bash "%{dep:../gendune.exe} ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe")
+			(bash "%{dep:../gendune.exe} ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe ../owl_sfmt.exe")
 		)
 	)
 )
@@ -42,4 +42,10 @@
 	(name mirage_crypto_fortuna)
 	(modules mirage_crypto_fortuna)
 	(libraries rngtest mirage-crypto-rng mirage-crypto-rng.unix)
+)
+
+(executable
+	(name owl_sfmt)
+	(modules owl_sfmt)
+	(libraries rngtest owl)
 )
