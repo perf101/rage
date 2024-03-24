@@ -1,3 +1,9 @@
+(* 
+  See http://simul.iro.umontreal.ca/testu01/copyright.html, which says TestU01 got relicensed and is under Apache2.
+  There is a version of that here with the changes applied to the source code: https://github.com/umontreal-simul/TestU01-2009/
+
+*)
+
 let uint32_max = (2. ** 32.) -. 1.
 
 (** [int32_of_01 f] returns a 32-bit unsigned integer coresponding to the [f] value.

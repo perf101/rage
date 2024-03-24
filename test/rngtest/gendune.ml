@@ -10,6 +10,8 @@ let dieharder_extra_flags =
   ; "histogram" (* output format, good for troubleshooting *)
   ; "-g"
   ; "200"
+  ; "-k"
+  ; "1" (* use more accurate KS test *)
     (* interpret stdin a stream of unsigned 32-bit integers, and use it as the 'RNG' under test *)
   ]
 
@@ -99,13 +101,13 @@ let list_tests () =
 (** [is_good_test] filters [Good] tests *)
 let is_good_test t = t.reliability = Good
 
-let logfile program flags =
+let logfile kind program flags =
   let nospace s = s |> String.split_on_char ' ' |> String.concat "" in
-  Printf.sprintf "%s%s.log" (Filename.basename program) (nospace flags)
+  Printf.sprintf "%s_%s%s.log" kind (Filename.basename program) (nospace flags)
 
 (** [print_dune_rule program test] prints a [dune] rule to test [program] using the dieharder [test] *)
 let print_dune_rule id program test =
-  let logfile = logfile program test.flags in
+  let logfile = logfile "dieharder" program test.flags in
   Printf.sprintf
     {|
       ; %s
@@ -156,8 +158,24 @@ let list_testu01 programs =
                 )
               )
              |}
-             (Filename.basename program) program (logfile program arg) arg
+             (Filename.basename program) program (logfile "testu01" program arg) arg
+
+let list_practrand programs =
+  programs
+  |> List.iter @@ fun program ->
+  let log = logfile "practrand" program "" in
+  Printf.printf {|
+    (rule
+      (aliases rngtest practrand practrand_%s)
+      (deps (:program %s))
+      (action
+        (with-stdout-to %s
+          (bash "%%{program} | practrand-RNG_test stdin32 -multithreaded -tlmax 512GB")
+        )
+      )
+    )
+  |} (Filename.basename program) program log
 
 let () =
   let programs = Sys.argv |> Array.to_list |> List.tl in
-  list_all programs ; list_testu01 programs
+  list_all programs ; list_testu01 programs; list_practrand programs
