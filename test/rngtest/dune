@@ -1,0 +1,45 @@
+(library
+	(name rngtest)
+	(modules rngtest)
+	(libraries unix testu01)
+)
+
+(executable
+	(name testdieharder)
+	(modules testdieharder)
+	(libraries shexp.process)
+)
+
+(subdir generate
+	(rule
+		(with-stdout-to dune.inc
+			(bash "%{dep:../testdieharder.exe} --dune ../random4.exe ../random5.exe ../cryptokit_rdrand.exe ../mirage_crypto_fortuna.exe")
+		)
+	)
+)
+
+(subdir run (dynamic_include ../generate/dune.inc))
+
+(executable
+	(name random4)
+	(modules random4)
+	(libraries rngtest stdlib-random.v4)
+)
+
+(executable
+	(name random5)
+	(modules random5)
+	(libraries rngtest stdlib-random.v5)
+)
+
+(executable
+	(name cryptokit_rdrand)
+	(modules cryptokit_rdrand)
+	(libraries rngtest cryptokit)
+)
+
+(executable
+	(name mirage_crypto_fortuna)
+	(modules mirage_crypto_fortuna)
+	(libraries rngtest mirage-crypto-rng mirage-crypto-rng.unix)
+)
