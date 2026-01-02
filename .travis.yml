@@ -8,5 +8,4 @@ env:
   global:
       - OCAML_VERSION="4.08"
       - DISTRO="debian-unstable"
-      - PACKAGE="xapi-xenopsd"
       - PINS="rage:."
