@@ -11,6 +11,7 @@
   (async (>= v0.13))
   (postgresql (>= 4.5.2))
   (ocurl (>= 0.9.0))
+  owl
   (ssl (= 0.5.7))
   ppx_sexp_conv
   re

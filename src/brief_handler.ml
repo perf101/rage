@@ -31,14 +31,14 @@ type base_t = (string * string list) list [@@deriving sexp]
 type baseline_t = int [@@deriving sexp]
 type ctx_t  = (string * string list) list [@@deriving sexp]
 type str_lst_t = string list [@@deriving sexp]
-type out_t  = [`Html | `Wiki] [@@deriving sexp]
+type float_lst_t = float list [@@deriving sexp]
 type sort_by_col_t = int [@@deriving sexp]
 
 type result_t = Avg of float | Range of float * float * float
 
 type job_and_value = {job: int; value: string}
 let jobs_of_ms = List.map ~f:(fun m -> m.job)
-let vals_of_ms = List.map ~f:(fun m -> m.value)
+let vals_of_ms = List.map ~f:(fun m -> Float.of_string m.value)
 
 let k_add_rows_from = "add_rows_from"
 let k_for = "for"
@@ -210,7 +210,7 @@ let t ~args = object (self)
     let get_input_rows_from_id id fn =
       let%bind brief_params_from = fetch_brief_params_from id in
       let args = parse_url brief_params_from in
-      let%map _,_input_rows,_,_,_,_ = fn args in
+      let%map _,_input_rows,_,_,_ = fn args in
       _input_rows
     in
 
@@ -220,7 +220,6 @@ let t ~args = object (self)
       let params_rows=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "rows") with |_-> "") in
       let params_base=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "base") with |_-> "") in
       let params_baseline=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "baseline") with |_-> "") in
-      let params_out=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "out") with |_-> "") in
       let params_sort_by_col=(try url_decode (List.Assoc.find_exn ~equal:String.equal args "sort_by_col") with |_-> "") in
       let params_add_rows_from=(try url_decode (List.Assoc.find_exn ~equal:String.equal args k_add_rows_from) with |_-> "") in
 
@@ -283,21 +282,13 @@ let t ~args = object (self)
       in
       printf "<input_baseline_col_sexp %s/>\n" (Sexp.to_string (sexp_of_baseline_t baseline_col_idx));
 
-      let out =
-        if String.(params_out <> "") then
-          attempt ~f:(fun ()->out_t_of_sexp (Sexp.of_string (String.capitalize params_out))) "out"
-        else (*default value *)
-          `Html 
-      in
-      printf "<input_out_sexp \"%s\" %s/>\n" (params_out) (Sexp.to_string (sexp_of_out_t out));
-
       let sort_by_col =
         if String.(params_sort_by_col <> "") then
           Some (attempt ~f:(fun ()->sort_by_col_t_of_sexp (Sexp.of_string (String.capitalize params_sort_by_col))) "sort_by_col")
         else (*default value *)
           None
       in
-      (input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col)
+      (input_cols, input_rows, input_base_context, baseline_col_idx, sort_by_col)
     in
 
     let%bind args =
@@ -318,7 +309,7 @@ let t ~args = object (self)
     in
 
     (* === process === *)
-    let%bind input_cols, input_rows, input_base_context, baseline_col_idx, out, sort_by_col =
+    let%bind input_cols, input_rows, input_base_context, baseline_col_idx, sort_by_col =
       get_input_values args
     in
 
@@ -779,98 +770,36 @@ in
 
     (* === output === *)
 
-    let n_sum xs = List.fold_left ~init:(0,0.) ~f:(fun (n,sum1) x->succ n, sum1 +. (Float.of_string x)) xs in
-    let avg xs = let n,sum=n_sum xs in sum /. (float n) in
-    let variance xs = (* 2-pass algorithm *)
-      let n,sum1 = n_sum xs in
-      if n<2
-      then 0.0 (* default variance if not enough measurements present to compute it *)
-      else
-        let mean = sum1 /. (float n) in
-        let sum2 = List.fold_left ~init:0. ~f:(fun sum2 x->sum2 +. ((Float.of_string x) -. mean)*.((Float.of_string x) -. mean)) xs in
-        sum2 /. (float (n-1))
-    in
-    let stddev xs = sqrt (variance xs) in
-    let is_valid f = (if Float.is_inf f || Float.is_nan f then false else true) in
-    let relative_std_error xs =
-      let avg = avg xs in let stddev = stddev xs in
-      if (is_valid avg) && (is_valid stddev) then
-        Float.to_int (stddev /. avg *. 100.)
-      else 0
-    in
-    ignore (relative_std_error []);
-
-    (* round value f to the optimal decimal place according to magnitude of its stddev *)
-    let round f stddev =
-      if Float.(abs (Float.(/) stddev f) < 0.00000001) (* stddev = 0.0 doesn't work because of rounding errors in the float representation *)
-      then (sprintf "%f" f), f
-      else
-        (* 0. compute magnitude of stddev relative to f *)
-        let f_abs = Float.abs f in
-        let magnitude = (log stddev) /. (log 10.0) in
-        let newdotpos = (if is_valid magnitude then Float.to_int (if Float.(magnitude < 0.0) then Float.round_down (magnitude) else (Float.round_down magnitude) +. 1.0) else 1) in
-        let f_str = sprintf "%f" f_abs in
-        let dotpos = (String.index_exn f_str '.') in
-        let cutpos = (dotpos - newdotpos) in
-        if cutpos < 0
-        then ("0",0.0) (* stddev magnitude is larger then value f *)
-        else 
-          (* 1. round for the computed magnitude of stddev *)
-          let dig_from s pos = (String.sub s ~pos:(pos+1) ~len:1) in
-          let dig=dig_from f_str cutpos in
-          let rounddigit,roundpos = (* round last significant value using the next digit value *) 
-            if String.(dig=".")
-            then (int_of_string (dig_from f_str (cutpos+1)),newdotpos-1)
-            else (int_of_string dig,if newdotpos<0 then newdotpos else newdotpos-1)
-          in
-          let f_rounded = if rounddigit < 5 then f_abs else f_abs +. 10.0 ** (Float.of_int roundpos) in
-          (* 2. print only significant digits *)
-          let f_result = (
-            let f_str_rounded = sprintf "%f" f_rounded in
-            let f_abs_str_rounded = (if Float.(f_rounded<1.0) 
-                                     then (* print the rounded value up to its last significant digit *)
-                                       String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)
-                                     else (* print the rounded value up to its last significant digit and fill the rest with 0s *)
-                                       let dotposr = String.index_exn f_str_rounded '.' in
-                                       sprintf "%s%s" 
-                                         (String.sub f_str_rounded ~pos:0 ~len:(cutpos+1)) 
-                                         (if dotposr-(cutpos+1)>0 then (String.make (dotposr-(cutpos+1)) '0') else "")
-                                    ) in
-            (sprintf "%s%s" (if Float.(f<0.0) then if String.(f_abs_str_rounded <> "0") then "-" else "" else "") f_abs_str_rounded)
-          )
-          in
-          (
-            (*sprintf "f_str=%s stddev=%f magnitude=%f cutpos=%d dotpos=%d newdotpos=%d dig=%s rounddigit=%d roundpos=%d f_rounded=%f f=%f %s" f_str stddev magnitude cutpos dotpos newdotpos dig rounddigit roundpos f_rounded f*)
-            f_result, Float.of_string f_result
-          )
-
-    in
-    let of_round avg stddev ~f0 ~f1 ~f2 =
+    (* round value f to 4 significant digits *)
+    let round ?(significant_digits=4) f =
       if no_rounding then
-        f1 (Float.to_string avg, avg)
+        Float.to_string f, f
       else
-        let lower = avg -. 2.0 *. stddev in (* 2-sigma = 95% confidence assuming normal distribution *)
-        let upper = avg +. 2.0 *. stddev in
-        if Float.(abs avg < min_value)
-        then f0 ()
-        else if Float.(stddev /. avg < 0.05) (* see if the relative std error is <5% *)
-        then f1 (round avg stddev)                                           (* 95% confidence *)
-        else f2 (round lower stddev) (round avg stddev) (round upper stddev) (* 95% confidence *)
+       f |> Float.round_significant ~significant_digits |> Float.to_padded_compact_string, f
+    in
+    let of_round xs ~f1 ~f2 =
+      let open Owl_base in
+      let xs = Array.of_list xs in
+      if Array.length xs = 1 then
+        f1 (round xs.(0))
+      else
+      let l, avg, u = Analysis.bootstrap_mean xs in
+      let ravg = round avg in
+      let avg' = snd ravg in
+      let rel = 100.0 *. Float.abs (Owl_base.Stats.std ~mean:avg' xs /. avg') in
+      f2 (round l) ravg (round u) (round ~significant_digits:2 rel) (* 95% confidence *)
     in
     (* pretty print a value f and its stddev *)
-    let str_of_round ?f1_fmt ?f2_fmt avg stddev =
-      let _f1_fmt = match f1_fmt with None->"%s"|Some x->x in
-      let _f2_fmt = match f2_fmt with None->"[%s, %s, %s]"|Some x->x in
-      of_round avg stddev
-        ~f0:(fun ()->"0")
-        ~f1:(fun a->sprintf (Scanf.format_from_string _f1_fmt "%s") (fst a) ) 
-        ~f2:(fun l a u->sprintf (Scanf.format_from_string _f2_fmt "%s %s %s") (fst l) (fst a) (fst u))
+    let str_of_round xs =
+      of_round xs
+        ~f1:(fun x -> fst x)
+        ~f2:(fun (l,_) (a,_) (u,_) (rel,_) ->
+            sprintf "Values=%s±%s%%. Mean=[%s, %s]" a rel l u)
     in
-    let val_of_round avg stddev =
-      of_round avg stddev
-        ~f0:(fun ()->Avg 0.0)
-        ~f1:(fun a->Avg (snd a))
-        ~f2:(fun l a u->Range ((snd l),(snd a),(snd u)) )
+    let val_of_round xs =
+      of_round xs
+        ~f1:(fun x -> Avg (snd x))
+        ~f2:(fun l a u _ ->Range ((snd l),(snd a),(snd u)) )
     in
     let is_green baseline value more_is_better =
       if more_is_better then
@@ -886,31 +815,27 @@ in
         |Range (bl, ba, bu), Avg v-> Float.(v<=ba)
         |Range (bl, ba, bu), Range (vl,va,vu)-> Float.(va<=ba)
     in
-    let delta baseline value more_is_better =
-      match baseline, value with
-      |Avg b, Avg v-> v -. b
-      |Avg b, Range (vl, va, vu)-> va -. b
-      |Range (bl, ba, bu), Avg v-> v -. ba
-      |Range (bl, ba, bu), Range (vl,va,vu)-> va -. ba
-    in
-    let proportion baseline value more_is_better =
-      (delta baseline value more_is_better) /.
-      (match baseline with
-       |Avg b-> Float.abs b
-       |Range (bl, ba, bu)-> Float.abs ba)
-    in
     (* pretty print a list of values as average and stddev *) 
-    let str_stddev_of ?f1_fmt ?f2_fmt xs =
-      try
-        if List.length xs < 1 then "-"
-        else str_of_round ?f1_fmt ?f2_fmt (avg xs) (stddev xs)
-      with |e-> sprintf "error %s: %s %f %f " (Exn.to_string e) (Sexp.to_string (sexp_of_str_lst_t xs)) (avg xs) (stddev xs)
+    let str_stddev_of xs =
+      if List.length xs < 1 then "-"
+      else str_of_round xs
     in
     let val_stddev_of xs =
       try
         if List.length xs < 1 then Avg 0.0
-        else val_of_round (avg xs) (stddev xs)
+        else val_of_round xs
       with |_-> Avg (-1000.0)
+    in
+    let proportion baseline comparison more_is_better =
+      let convert x = x |> vals_of_ms |> Array.of_list in
+      let baseline = convert baseline in
+      let comparison = convert comparison in
+      let to_percent x = (x -. 1.) *. 100. in
+      let (l,a,u),speedup =
+        Analysis.bootstrap_ratio baseline comparison,
+        Analysis.speedup baseline comparison
+      in
+      (to_percent l, to_percent a, to_percent u), to_percent speedup
     in
 
     let sort_table mt = (* use url option sort_by_col if present *)
@@ -929,10 +854,11 @@ in
               let ms cs =
                 let _,_,_,cmp_ms = List.nth_exn cs compare_col_idx in
                 let _,_,_,base_ms = List.nth_exn cs baseline_col_idx in
-                proportion (val_stddev_of (vals_of_ms base_ms)) (val_stddev_of (vals_of_ms cmp_ms)) None
+                let (_,a,_),s = proportion base_ms cmp_ms None in
+                Float.abs s, Float.abs a
               in
-              let ms1, ms2 = (Float.abs (ms cs1)),(Float.abs (ms cs2)) in
-              if Float.(ms1 > ms2) then -1 else if Float.(ms2 > ms1) then 1 else 0 (* decreasing order *)
+              let ms1, ms2 = ms cs1, ms cs2 in
+              -(Stdlib.compare ms1 ms2) (* decreasing order *)
             ) @ mt_0s (* rows with no measurements stay at the end *)
     in
 
@@ -1033,7 +959,7 @@ in
                 let debug_r = Sexp.to_string (sexp_of_ctx_t r)
                 and debug_c = Sexp.to_string (sexp_of_ctx_t c)
                 and context = str_of_ctxs ctx ~txtonly:true
-                and debug_ms = Sexp.to_string (sexp_of_str_lst_t (vals_of_ms ms)) in
+                and debug_ms = Sexp.to_string (sexp_of_float_lst_t (vals_of_ms ms)) in
                 let number = List.length ms in
                 let number_str = if show_jobids
                   then
@@ -1054,7 +980,9 @@ in
                   (if number = 0 || baseline_col_idx = i || (List.length baseline_ms < 1) then return "" else
                      match%map is_more_is_better ctx with
                      |None->""
-                     |Some mb->sprintf "<sub>(%+.0f%%)</sub>" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
+                     |Some mb->
+                       let (l,ratio,u),speedup = proportion baseline_ms ms mb in
+                       sprintf "<sub>Speedup=%+.0f%%</sub><sub>(%+.0f%%,%+.0f%%)</sub><sub>(%+.0f%%)</sub>" speedup l u ratio
                   ) in
                 let text = sprintf "<span style='color:%s'>%s <br> %s %s</span>" colour avg number_str diff in
                 sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>" debug_r debug_c context debug_ms text
@@ -1096,7 +1024,7 @@ in
       printf "%s" "<ul><li> Numbers reported at 95% confidence level from the data of existing runs\n";
       printf "%s" "<li> (x) indicates number of samples\n";
       printf "%s" "<li> (x%) indicates difference with baseline column\n";
-      printf "%s" "<li> [lower, avg, upper] indicates [avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.</ul><br>";
+      printf "%s" "<li> avg±rel%% = [lower, upper] indicates the relative uncertainty (rel=100*t(95%,n-1)*stddev/avg) and 95% confidence interval [avg-t(95%,n-1)*stddev, avg+t(95%,n-1)*stddev].</ul><br>";
       printf "<h4 style='margin:5px'>Report Quality</h4>";
       printf "Rows with data in last column: <span style='font-weight:bold' id='report_quality_data_last'></span><br>";
       printf "Rows with data in 2nd-to-last, but not last: <span style='font-weight:bold' id='report_quality_missing_data_last'></span><br><br>";
@@ -1123,139 +1051,6 @@ in
       printf "<script src='ragebrief.js'></script>";
     in
 
-    let wiki_writer table =
-
-      let str_of_values vs=List.fold_left vs ~init:"" ~f:(fun acc v->if String.(acc="") then "\""^v^"\"" else acc^", \""^v^"\"") in
-      let str_of_ctxs ?(txtonly=false) kvs = 
-        List.fold_left kvs ~init:"" ~f:(fun acc (k,v)->
-            (sprintf "%s %s=(%s)%s " acc k (str_of_values v) (if txtonly then "" else "\\\\") )
-          )
-      in
-      let str_desc_of_ctxs kvs =
-        Deferred.List.fold kvs ~init:"" ~f:(fun acc (k,vs)->
-            if String.(k<>"soms") then return acc else
-              let%map r =
-                Deferred.List.fold vs ~init:"" ~f:(fun acc2 som->
-                    let%map tc = tc_of_som som
-                    and name = name_of_som som
-                    and u = unit_of_som som
-                    and mbstr =
-                      let%map mb=more_is_better_of_som som in if String.(mb="") then "none" else if String.(mb="f") then "less" else "more"
-                    in
-                    let s=sprintf "%s: *%s* (%s%s)" tc name (if String.(u="") then u else u^", ") (sprintf "%s is better" mbstr) in
-                    if String.(acc="") then s else acc^","^s
-                  )
-              in
-              sprintf "%s %s \\\\" acc r
-          )
-      in
-      let link ctx =
-        (* link *)
-        (
-          (* rage is not generic enough to receive an arbirary number of soms in a link, pick just the first one *)
-          let som_id=match List.find_exn ctx ~f:(fun (k,_)->String.(k="soms")) with |(k,v)->List.hd_exn v in
-          (sprintf "[graph|http://%s/?som=%s&show_dist=on%s%s]" (Utils.server_name ()) som_id
-             (* xaxis *)
-             (List.fold_left link_xaxis ~init:"" ~f:(fun acc x->sprintf "%s%s" acc (sprintf "&xaxis=%s" x)))
-             (* preset values *)
-             (List.fold_left ctx ~init:"" ~f:(fun acc (k,vs)->sprintf "%s%s" acc 
-                                                 (List.fold_left vs ~init:"" ~f:(fun acc2 v->sprintf "%s&v_%s=%s" acc2 k (rage_encode v))
-                                                 )
-                                             ))
-          ))
-      in
-      let is_more_is_better ctx =
-        match List.find ctx ~f:(fun (k,_)->String.(k="soms")) with
-        |None->return None
-        |Some (k,_vs)->(
-            let rec is_mb acc vs = (match vs with
-                |[]-> return @@ if Option.is_none acc then None else acc
-                |v::vs->(let%bind mb = more_is_better_of_som v in
-                         if String.(mb="") then is_mb acc vs (* ignore more_is_better if not defined in db *)
-                         else
-                           let mbtf = match mb with m when String.(m="f")->false|_->true in
-                           match acc with
-                           |None->is_mb (Some mbtf) vs
-                           |Some _mbtf->if Bool.(_mbtf=mbtf)
-                             then is_mb (Some mbtf) vs  (* more_is_better values agree between soms *)
-                             else return None                  (* more_is_better values disagree between soms *)
-                        )
-              ) in
-            is_mb None _vs
-          )
-      in
-      let%map cells =
-        (List.map2_exn table link_ctxs ~f:(fun (r,cs) lnkctx ->
-             let%bind str_desc = str_desc_of_ctxs r in
-             let%map cells =
-               Deferred.List.mapi ~how:`Parallel cs ~f:(fun i (r,c,ctx,ms)->
-                   let _,_,_,baseline_ms = List.nth_exn cs baseline_col_idx in
-                   let%map is_mb = is_more_is_better ctx in
-              (*
-              sprintf "<div onmouseover=\"this.style.backgroundColor='#FC6'\" onmouseout=\"this.style.backgroundColor='white'\" debug_r='%s' debug_c='%s' title='context:\n%s' debug_ms='%s'>%s</div>"
-              (Sexp.to_string (sexp_of_ctx_t r))
-            (Sexp.to_string (sexp_of_ctx_t c))
-            (str_of_ctxs ctx ~txtonly:true)
-            (Sexp.to_string (sexp_of_str_lst_t (vals_of_ms ms)))
-            *)
-                   (sprintf "{color:%s} %s %s %s {color}"
-                      (if baseline_col_idx = i then "" else
-                         match is_mb with
-                         |None->""
-                         |Some mb->if is_green (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb then "green" else "red"
-                      )
-                      (str_stddev_of (vals_of_ms ms) ~f2_fmt:"\\\\[%s, %s, %s\\\\]")
-                      (sprintf "~(%d)~" (List.length ms))
-                      (if baseline_col_idx = i then "" else
-                         match is_mb with
-                         |None->""
-                         |Some mb->sprintf "~(%+.0f%%)~" (100.0 *. (proportion (val_stddev_of (vals_of_ms baseline_ms)) (val_stddev_of (vals_of_ms ms)) mb))
-                      )))
-             in
-             sprintf "| %s | %s | %s | %s \n"
-               (* row id/title *)
-               (str_of_ctxs r)
-               (* row description *)
-               str_desc
-               (* graph link *)
-               (link lnkctx)
-               (* cells to the right *)
-               (List.fold_left ~init:"" ~f:(fun acc c_ms->(sprintf "%s %s | " acc c_ms)) cells)
-           ))
-        |> Deferred.List.all
-      in
-      let wiki_table =
-        sprintf "| %s|\n%s%s\n%s"
-          (* print the base context *)
-          (str_of_ctxs b)
-          (* print the header *)
-          (sprintf "||id|| Description || View || %s \n"
-             (List.foldi cs ~init:"" ~f:(fun i acc _ ->
-                  sprintf "%s %s ||" acc (if i=baseline_col_idx then "Baseline" else (sprintf "Comparison %d" i))
-                ))
-          )
-          (* print the columns *)
-          (sprintf "|| || || || %s"
-             (List.fold_left ~init:""
-                ~f:(fun acc cs->sprintf "%s %s || " acc (str_of_ctxs cs)) cs
-             )
-          )
-          (* print the cells *)
-          (String.concat ~sep:"" cells)
-      in
-      printf "%s" "<pre>";
-      printf "%s" "h1. Brief Rage Report\n\n";
-      printf "- [live html version, with parameters %s |http://%s/?%s]\n" (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if String.(k="out") then acc else if String.(acc="") then (sprintf "%s=%s" k v) else (sprintf "%s, %s=%s" acc k (url_decode v)))) (Utils.server_name ()) (List.fold_left params ~init:"" ~f:(fun acc (k,v)->if String.(k="out") then acc else sprintf "%s&%s=%s" acc k (url_decode v)));
-      printf "%s" "- Numbers reported at 95% confidence level from the data of existing runs\n";
-      printf "%s" "- \\(x) indicates number of samples\n";
-      printf "%s" "- \\(x%) indicates difference with baseline column\n";
-      printf "%s" "- \\[lower, avg, upper] indicates \\[avg-2*stddev, avg, avg+2*stddev]. If relative standard error < 5%, only avg is shown.\n\n";
-      printf "%s" wiki_table;
-      printf "%s" "</pre>";
-    in
-
-    match out with
-    |`Html -> html_writer (sort_table measurements_of_table)
-    |`Wiki -> wiki_writer (sort_table measurements_of_table)
+    html_writer (sort_table measurements_of_table)
 
 end
