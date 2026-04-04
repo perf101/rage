@@ -1,4 +1,5 @@
-open! Core.Std
+open Core
+open Async
 open Fn
 open Utils
 
@@ -14,15 +15,15 @@ let t ~args = object (self)
 
   method private values_for_key ?(default=[]) key =
     let xs = List.fold params ~init:[]
-      ~f:(fun acc (k, v) -> if k = key then v::acc else acc) in
-    if xs = [] then default else xs
+      ~f:(fun acc (k, v) -> if String.(k = key) then v::acc else acc) in
+    if List.is_empty xs then default else xs
 
   method private get_first_val k d =
     Option.value ~default:d (List.hd (self#values_for_key k))
 
   method private select_params ?(value=None) prefix =
     List.filter_map params ~f:(fun (k, v) ->
-      if String.is_prefix k ~prefix && (Option.is_none value || Some v = value)
+      if String.is_prefix k ~prefix && (Option.is_none value || Option.equal String.equal (Some v) value)
       then String.chop_prefix k ~prefix else None
     )
 
@@ -52,16 +53,16 @@ let t ~args = object (self)
         try
           compare (int_of_string a) (int_of_string b)
         with Failure _ ->
-          compare a b
+          String.compare a b
       else
-        compare a b
+        String.compare a b
     in
 
     if not (self#should_sort_alphabetically col_types col_name force_as_seq force_as_num)
     then None else
     let col_data = Array.to_list (Array.map ~f:(fun row -> row.(col)) rows) in
-    let uniques = List.dedup col_data in
-    let sorted = List.sort ~cmp:sort_seq_numeric uniques in
+    let uniques = List.dedup_and_sort ~compare:String.compare col_data in
+    let sorted = List.sort ~compare:sort_seq_numeric uniques in
     Some (List.mapi sorted ~f:(fun i x -> (i+1, x)))
 
   method private strings_to_numbers rows col col_name col_types label
@@ -74,21 +75,21 @@ let t ~args = object (self)
     printf "\"%s\":{%s}," label mapping_str;
     let i_to_string_map = List.Assoc.inverse mapping in
     let i_from_string row =
-      match List.Assoc.find i_to_string_map row.(col) with
+      match List.Assoc.find ~equal:String.equal i_to_string_map row.(col) with
       | None -> failwith ("NOT IN TRANSLATION MAP: " ^ row.(col) ^ "\n")
       | Some i -> row.(col) <- string_of_int i
     in Array.iter rows ~f:i_from_string
 
   method private write_body =
     let som_id = int_of_string (self#get_param_exn "id") in
-    let tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id in
-    let som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
+    let%bind tc_fqn, tc_config_tbl = get_tc_config_tbl_name conn som_id
+    and som_config_tbl, som_tbl_exists = som_config_tbl_exists ~conn som_id in
     (* determine filter columns and their types *)
     let tbls = ["measurements_2"; "soms_jobs"; "jobs"; "builds"; "tc_config"; "machines";
       tc_config_tbl] @
       (if som_tbl_exists then [som_config_tbl] else []) in
-    let col_fqns = get_column_fqns_many conn tbls in
-    let col_types = get_column_types_many conn tbls in
+    let%bind col_fqns = get_column_fqns_many conn tbls
+    and col_types = get_column_types_many conn tbls in
     (* Get axes selections. xaxis may be multi-valued; yaxis is single value. *)
     let xaxis = self#values_for_key "xaxis" ~default:["branch"] in
     (* xaxis could be ["one"; "two"] or ["one%2Ctwo"] -- both are equivalent *)
@@ -96,7 +97,7 @@ let t ~args = object (self)
     let yaxis = self#get_first_val "yaxis" "result" in
     let compose_keys ~xaxis ~yaxis ~rest =
       let deduped = List.stable_dedup rest in
-      let filter_cond = non (List.mem (yaxis::xaxis)) in
+      let filter_cond = non (List.mem ~equal:String.equal (yaxis::xaxis)) in
       List.filter ~f:filter_cond deduped
     in
     let restkeys =
@@ -112,38 +113,40 @@ let t ~args = object (self)
     let xaxis_str = String.concat ~sep:"," xaxis in
     let keys = xaxis_str :: [yaxis] @ xaxis @ restkeys in
     let filter = extract_filter col_fqns col_types params values_prefix in
-    (* obtain SOM meta-data *)
-    let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
-    let metadata = Sql.exec_exn ~conn ~query in
-    let positive = (Sql.get_first_entry_exn ~result:metadata) = "t" in
-    (* obtain data from database *)
-    let query =
-      "SELECT " ^
-      (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
-      yaxisfqns ^ ", " ^ (* y-axis *)
-      (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
-      (if restfqns = [] then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
-      (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
-      (sprintf "WHERE measurements_2.tc_config_id=%s.tc_config_id "
-               tc_config_tbl) ^
-      (sprintf "AND soms_jobs.som_id=%d " som_id) ^
-      "AND soms_jobs.job_id=jobs.job_id " ^
-      "AND measurements_2.som_job_id=soms_jobs.id "^
-      "AND jobs.build_id=builds.build_id " ^
-      "AND tc_config.job_id=jobs.job_id " ^
-      (sprintf "AND tc_config.tc_fqn='%s' " tc_fqn) ^
-      "AND tc_config.tc_config_id=measurements_2.tc_config_id " ^
-      "AND tc_config.machine_id=machines.machine_id" ^
-      (if som_tbl_exists
-       then sprintf " AND measurements_2.som_config_id=%s.som_config_id"
-            som_config_tbl else "") ^
-      (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
-      (sprintf " LIMIT %d" limit_rows)
-    in
-    let data = Sql.exec_exn ~conn ~query in
+    let%bind metadata =
+      (* obtain SOM meta-data *)
+      let query = sprintf "SELECT positive FROM soms WHERE som_id=%d" som_id in
+      Postgresql_async.exec_exn ~conn ~query
+    and data =
+      (* obtain data from database *)
+      let query =
+        "SELECT " ^
+        (String.concat ~sep:"||','||" xaxisfqns) ^ ", " ^ (* x-axis *)
+        yaxisfqns ^ ", " ^ (* y-axis *)
+        (String.concat ~sep:", " xaxisfqns) ^ (* components of x-axis, needed in case we split by one of them *)
+        (if List.is_empty restfqns then " " else sprintf ", %s " (String.concat ~sep:", " restfqns)) ^
+        (sprintf "FROM %s " (String.concat ~sep:", " tbls)) ^
+        (sprintf "WHERE measurements_2.tc_config_id=%s.tc_config_id "
+           tc_config_tbl) ^
+        (sprintf "AND soms_jobs.som_id=%d " som_id) ^
+        "AND soms_jobs.job_id=jobs.job_id " ^
+        "AND measurements_2.som_job_id=soms_jobs.id "^
+        "AND jobs.build_id=builds.build_id " ^
+        "AND tc_config.job_id=jobs.job_id " ^
+        (sprintf "AND tc_config.tc_fqn='%s' " tc_fqn) ^
+        "AND tc_config.tc_config_id=measurements_2.tc_config_id " ^
+        "AND tc_config.machine_id=machines.machine_id" ^
+        (if som_tbl_exists
+         then sprintf " AND measurements_2.som_config_id=%s.som_config_id"
+             som_config_tbl else "") ^
+        (if not (String.is_empty filter) then sprintf " AND %s" filter else "") ^
+        (sprintf " LIMIT %d" limit_rows)
+      in
+      Postgresql_async.exec_exn ~conn ~query in
     let rows = data#get_all in
     debug (sprintf "The query returned %d rows" (Array.length rows));
     (if Array.length rows = limit_rows then debug (sprintf "WARNING: truncation of data -- we are only returning the first %d rows" limit_rows));
+    let positive = String.(Sql.get_first_entry_exn ~result:metadata = "t") in
     (* filter data into groups based on "SPLIT BY"-s *)
     let split_bys =
       self#select_params filter_prefix ~value:(Some filter_by_value) in
@@ -167,9 +170,9 @@ let t ~args = object (self)
     printf "\"part\":%s," (self#get_first_val "part" "1");
     printf "\"xaxis\":\"%s\"," xaxis_str;
     printf "\"yaxis\":\"%s\"," yaxis;
-    let x_as_seq = ("on" = self#get_first_val "x_as_seq" "off") in
-    let y_as_seq = ("on" = self#get_first_val "y_as_seq" "off") in
-    let x_as_num = ("on" = self#get_first_val "x_as_num" "off") in
+    let x_as_seq = String.("on" = self#get_first_val "x_as_seq" "off") in
+    let y_as_seq = String.("on" = self#get_first_val "y_as_seq" "off") in
+    let x_as_num = String.("on" = self#get_first_val "x_as_num" "off") in
     self#strings_to_numbers rows 0 xaxis col_types "x_labels" x_as_seq x_as_num;
     self#strings_to_numbers rows 1 [yaxis] col_types "y_labels" y_as_seq false;
     let num_other_keys = List.length keys - 2 in
@@ -200,5 +203,6 @@ let t ~args = object (self)
       printf "]}"
     in
     List.iteri (Hashtbl.Poly.to_alist all_series) ~f:process_series;
-    printf "]}"
+    printf "]}";
+    return ()
 end

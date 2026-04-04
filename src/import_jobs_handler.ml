@@ -1,4 +1,4 @@
-open! Core.Std
+open Core
 open Utils
 
 let importer = "/usr/groups/perfeng/bin/importer-xenrt"
@@ -18,20 +18,14 @@ let import_job job_ids =
   if not (Str.string_match (Str.regexp "^[0-9,\\-]*$") job_ids 0) then failwith (sprintf "expected '&lt;n&gt;' or '&lt;n&gt;-&lt;n&gt;' or '&lt;n&gt;,&lt;n&gt;,...'; got '%s'" job_ids);
 
   let cmd = Printf.sprintf "%s -jobs %s -ignoreseenjobs 2>&1" importer job_ids in
-  Printf.printf "<!-- %s -->" cmd;
+  printf "<!-- %s -->" cmd;
   let ic = Unix.open_process_in cmd in
-  begin
-  try
-    while true do
-      let input = input_line ic in
-      Printf.printf "%s\n" input;
-      Printf.eprintf "[import_jobs_handler|%s] %s\n" job_ids input
-    done
-  with End_of_file ->
-    Printf.eprintf "[import_jobs_handler|%s] EOF\n" job_ids;
-    ignore (Unix.close_process_in ic)
-  end;
-  Printf.eprintf "[import_jobs_handler|%s] Finished\n" job_ids
+  In_channel.iter_lines ic ~f:(fun input ->
+      printf "%s\n" input;
+      eprintf "[import_jobs_handler|%s] %s\n" job_ids input);
+  eprintf "[import_jobs_handler|%s] EOF\n" job_ids;
+  ignore (Unix.close_process_in ic);
+  eprintf "[import_jobs_handler|%s] Finished\n" job_ids
 
 let t ~args = object (self)
   inherit Html_handler.t ~args
@@ -47,6 +41,7 @@ let t ~args = object (self)
     Printf.printf "<pre>";
     import_job job_ids;
     Printf.printf "</pre>";
-    Printf.printf "Finished."
+    Printf.printf "Finished.";
+    Async.return ()
 
 end
